@@ -3,8 +3,8 @@
 ## Requisitos
 
 - Node.js 18+
-- Cuenta [Supabase](https://supabase.com) (plan gratuito)
-- Cuenta [Vercel](https://vercel.com) para despliegue
+- Cuenta [Supabase](https://supabase.com) (plan gratuito) — **la misma de siempre, no se migra**
+- Cuenta [Cloudflare](https://dash.cloudflare.com) para despliegue (Pages + Functions)
 
 ## 1. Instalar y ejecutar en local
 
@@ -43,15 +43,20 @@ Si no configuras `.env`, la app funciona con:
 - Pedidos en `localStorage`
 - Panel admin requiere Supabase Auth
 
-## 4. Desplegar en Vercel
+## 4. Desplegar en Cloudflare Pages
+
+Guía completa (conectar el **mismo** Supabase): [INSTALACION-CLOUDFLARE.md](./INSTALACION-CLOUDFLARE.md)
 
 ```bash
 npm run build
+npx wrangler pages deploy dist --project-name=el-pollon
 ```
 
-En Vercel: importa el repo, root `el-pollon`, framework Vite, variables de entorno iguales al `.env`.
+En el dashboard de Cloudflare Pages pega las mismas variables que tenías en Vercel. Supabase no cambia: mismas URL y keys.
 
-Dominio sugerido: **elpollon.cl**
+Dominio de producción: **https://www.el-pollon.cl**
+
+Vercel se puede dejar 48 h como respaldo y luego apagarlo.
 
 ## Rutas principales
 

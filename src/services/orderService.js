@@ -413,7 +413,7 @@ function mapPedidoInsertError(error) {
     return new Error('Permisos de pedido. En Supabase ejecuta fix-pedidos-checkout.sql (script completo).');
   }
   if (msg.includes('sucursal_id')) {
-    return new Error('Error de columna legacy. Redeploy en Vercel con el código actualizado.');
+    return new Error('Error de columna legacy. Redeploy en Cloudflare Pages con el código actualizado.');
   }
   return error;
 }

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Pollería El Pollón — Plataforma empresarial
 
 Sistema web profesional multi-sucursal: tienda online, delivery, reservas, panel admin, cocina digital, caja, stock y reportes.
@@ -13,6 +12,8 @@ cp .env.example .env
 npm run dev
 ```
 
+Abre http://localhost:5173
+
 Documentación completa: [INSTALACION.md](./INSTALACION.md)
 
 ## Funcionalidades
@@ -23,11 +24,3 @@ Documentación completa: [INSTALACION.md](./INSTALACION.md)
 - 5 sucursales (Arica x2, Iquique, Alto Hospicio, pendiente)
 - Admin: dashboard, pedidos RT, cocina, productos, categorías, caja, stock, reportes
 - Roles: super_admin, administrador, cajero, cocina, repartidor
-
-## Versión anterior
-
-La versión HTML estática se conserva en `../COPIA_01/`.
-=======
-# APP-POLLON
-Pollo a la brasa 
->>>>>>> ebdd16a19d8a3a3403b83c11e60e4cc394b3e23d

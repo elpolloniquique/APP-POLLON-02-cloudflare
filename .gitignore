@@ -39,5 +39,7 @@ android/app/google-services.json
 
 
 .vercel
+.wrangler
+.dev.vars
 .env*
 !.env.example

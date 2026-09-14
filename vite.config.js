@@ -46,7 +46,7 @@ export default defineConfig({
         // Handlers push / notificationclick (bandeja del sistema)
         importScripts: ['sw-push.js'],
         globPatterns: ['**/*.{js,css,html,ico,svg,woff2,json}', 'icons/*.png'],
-        globIgnores: ['**/img/**', '**/sounds/**', '**/DESCARGAR-APK/**'],
+        globIgnores: ['**/img/**', '**/sounds/**', '**/DESCARGAR-APK/**', '**/_routes.json', '**/_headers', '**/_redirects'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/DESCARGAR-APK\//],
         runtimeCaching: [

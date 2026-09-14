@@ -1,6 +1,6 @@
 /**
  * Reloj de 1 min: Supabase pg_cron (plan pago) pega aquí.
- * Backup: cron diario de Vercel + GPS ping nativo + panel admin.
+ * Backup: cron diario de Cloudflare + GPS ping nativo + panel admin.
  */
 import { createClient } from '@supabase/supabase-js';
 import { env, isFcmConfigured, fcmModeLabel } from './_lib/fcmSend.js';
@@ -15,16 +15,16 @@ export default async function handler(req, res) {
   const auth = req.headers.authorization || '';
   const headerSecret = req.headers['x-cron-secret'] || '';
   const q = req.query?.secret;
-  const fromVercel = Boolean(req.headers['x-vercel-cron']);
+  const fromPlatformCron = Boolean(req.headers['x-vercel-cron'] || req.headers['x-cloudflare-cron']);
   const ok = Boolean(cronSecret) && (
     auth === `Bearer ${cronSecret}`
     || q === cronSecret
     || headerSecret === cronSecret
   );
-  if (!ok && !fromVercel) {
+  if (!ok && !fromPlatformCron) {
     return res.status(401).json({
       error: 'Unauthorized',
-      hint: cronSecret ? 'Falta CRON_SECRET' : 'Configura CRON_SECRET en Vercel Production',
+      hint: cronSecret ? 'Falta CRON_SECRET' : 'Configura CRON_SECRET en Cloudflare Pages (Production)',
     });
   }
 

@@ -170,7 +170,7 @@ export default async function handler(req, res) {
 
     if (action === 'qr') {
       if (!evolutionConfigured()) {
-        return res.status(400).json({ error: 'Faltan EVOLUTION_API_URL / EVOLUTION_API_KEY en Vercel' });
+        return res.status(400).json({ error: 'Faltan EVOLUTION_API_URL / EVOLUTION_API_KEY en Cloudflare' });
       }
       const ping = await pingEvolution();
       if (!ping.ok) {
@@ -200,7 +200,7 @@ export default async function handler(req, res) {
 
     if (action === 'pairing') {
       if (!evolutionConfigured()) {
-        return res.status(400).json({ error: 'Faltan EVOLUTION_API_URL / EVOLUTION_API_KEY en Vercel' });
+        return res.status(400).json({ error: 'Faltan EVOLUTION_API_URL / EVOLUTION_API_KEY en Cloudflare' });
       }
       const ping = await pingEvolution();
       if (!ping.ok) {

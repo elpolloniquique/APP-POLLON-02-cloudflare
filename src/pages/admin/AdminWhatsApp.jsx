@@ -526,7 +526,7 @@ export function AdminWhatsApp() {
                 <p className="awa-meta">Instancia Evolution: <code>{settings.evolution_instance}</code></p>
                 <p className="awa-help">
                   Debe quedar abierto WhatsApp en el teléfono del local o un teléfono dedicado.
-                  Si se cae internet del teléfono, se cae el bot. Vercel no mantiene el socket: Evolution corre 24/7 en PC u Oracle Always Free.
+                  Si se cae internet del teléfono, se cae el bot. Cloudflare Functions no mantienen el socket: Evolution corre 24/7 en PC u Oracle Always Free.
                 </p>
               </article>
 
@@ -617,11 +617,11 @@ export function AdminWhatsApp() {
                   Estado: {evo.state || '—'}
                   {' · '}
                   {evo.configured === false
-                    ? 'Faltan vars EVOLUTION_* en Vercel'
+                    ? 'Faltan vars EVOLUTION_* en Cloudflare Pages'
                     : (evo.reachable === false ? `Evolution NO responde (${evo.host || 'revisa IP:puerto'})` : `API configurada${evo.host ? ` · ${evo.host}` : ''}`)}
                 </p>
                 {evo.reachable === false && (
-                  <p className="awa-warn"><AlertTriangle className="h-4 w-4" /> Abre el puerto 8080 a internet y deja Evolution encendido 24/7. El código/QR no puede salir si Vercel no alcanza el servidor.</p>
+                  <p className="awa-warn"><AlertTriangle className="h-4 w-4" /> Abre el puerto 8080 a internet y deja Evolution encendido 24/7. El código/QR no puede salir si Cloudflare no alcanza el servidor.</p>
                 )}
               </article>
             </section>
@@ -687,7 +687,7 @@ export function AdminWhatsApp() {
 
               <article className="awa-card">
                 <h2><Cpu className="h-4 w-4" /> Ollama local (opcional, OFF)</h2>
-                <p className="awa-help">100% gratis y local. Solo suaviza el fallback cuando el motor no reconoce la intención. Nunca inventa precios. Vercel no alcanza localhost: usa la misma VM que Evolution.</p>
+                <p className="awa-help">100% gratis y local. Solo suaviza el fallback cuando el motor no reconoce la intención. Nunca inventa precios. Cloudflare no alcanza localhost: usa la misma VM que Evolution.</p>
                 <label className="awa-check">
                   <input type="checkbox" checked={!!settings.ollama_enabled} onChange={(e) => patch('ollama_enabled', e.target.checked)} />
                   Activar Ollama en esta sucursal

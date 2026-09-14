@@ -45,7 +45,7 @@ export function AdminLogin() {
       const { profile: p, session: s } = await withTimeout(
         signIn(email.trim(), password),
         LOGIN_TIMEOUT_MS,
-        'La conexión tardó demasiado. Revisa VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en Vercel, y que el proyecto Supabase no esté pausado.'
+        'La conexión tardó demasiado. Revisa VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en Cloudflare Pages, y que el proyecto Supabase no esté pausado.'
       );
       const role = normalizeRole(p?.rol || p?.role);
       if (!isStaffRole(role) && !s?.legacy) {

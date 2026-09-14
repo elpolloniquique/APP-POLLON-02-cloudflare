@@ -1,0 +1,3 @@
+# Functions /api/* tienen prioridad sobre este archivo.
+# SPA: cualquier ruta sin archivo estático → index.html
+/*    /index.html   200

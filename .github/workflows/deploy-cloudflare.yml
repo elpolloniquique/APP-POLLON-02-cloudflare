@@ -1,0 +1,43 @@
+# Deploy a Cloudflare Pages (reemplazo de Vercel).
+# Secrets de GitHub:
+#   CLOUDFLARE_API_TOKEN
+#   CLOUDFLARE_ACCOUNT_ID
+# VITE_* (mismas que en .env) — se inyectan en el build.
+# Las vars de servidor (SUPABASE_SERVICE_ROLE_KEY, VAPID_*, CRON_SECRET, EVOLUTION_*)
+# van en Cloudflare Pages → Settings → Environment variables, NO aquí.
+name: Deploy Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_STORAGE_BUCKET: ${{ secrets.VITE_STORAGE_BUCKET }}
+          VITE_WHATSAPP_DEFAULT: ${{ secrets.VITE_WHATSAPP_DEFAULT }}
+          VITE_LEGACY_ADMIN_PASSWORD: ${{ secrets.VITE_LEGACY_ADMIN_PASSWORD }}
+          VITE_OSRM_URL: ${{ secrets.VITE_OSRM_URL }}
+          VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
+          VITE_PUBLIC_SITE_URL: ${{ secrets.VITE_PUBLIC_SITE_URL }}
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=el-pollon

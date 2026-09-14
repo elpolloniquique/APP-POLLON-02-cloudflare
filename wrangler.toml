@@ -1,0 +1,11 @@
+# El Pollón — Cloudflare Pages (reemplazo de Vercel)
+# Secrets: dashboard Pages → Settings → Environment variables (nunca en este archivo)
+
+name = "el-pollon"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "dist"
+
+[vars]
+VITE_PUBLIC_SITE_URL = "https://www.el-pollon.cl"
+EP_PUBLIC_SITE_URL = "https://www.el-pollon.cl"
