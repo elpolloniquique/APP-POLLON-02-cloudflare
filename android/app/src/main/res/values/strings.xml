@@ -1,0 +1,18 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">El Pollón</string>
+    <string name="title_activity_main">El Pollón</string>
+    <string name="package_name">cl.elpollon.app</string>
+    <string name="custom_url_scheme">cl.elpollon.app</string>
+
+    <!-- Capgo Background Geolocation — canal de la notificación persistente -->
+    <string name="capacitor_background_geolocation_notification_channel_name">
+        El Pollón · Entrega en curso
+    </string>
+    <string name="capacitor_background_geolocation_notification_icon">
+        mipmap/ic_launcher
+    </string>
+    <string name="capacitor_background_geolocation_notification_color">
+        #C62828
+    </string>
+</resources>

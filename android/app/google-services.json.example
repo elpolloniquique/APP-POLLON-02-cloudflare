@@ -1,0 +1,30 @@
+{
+  "_comment": "Renombra a google-services.json y completa con tu proyecto Firebase (app Android cl.elpollon.app). No commitsar secretos reales si el repo es público.",
+  "project_info": {
+    "project_number": "REPLACE",
+    "project_id": "el-pollon-REPLACE",
+    "storage_bucket": "el-pollon-REPLACE.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:REPLACE:android:REPLACE",
+        "android_client_info": {
+          "package_name": "cl.elpollon.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "REPLACE_WITH_FIREBASE_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

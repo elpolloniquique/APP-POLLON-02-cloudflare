@@ -1,0 +1,697 @@
+/* Admin shell — sidebar adaptable
+ * < 1024px  → hamburguesa + drawer (móvil / POS < ~10")
+ * 1024–1279 → rail fijo solo iconos (tablet / laptop chica)
+ * ≥ 1280px  → sidebar fijo con texto al ras + iconos
+ */
+
+.admin-shell {
+  display: flex;
+  min-height: 100dvh;
+  min-height: 100svh;
+  background: #fafaf9;
+  color: #1c1917;
+}
+
+/* ── Top bar (siempre; hamburguesa solo en modo drawer) ── */
+.admin-shell__topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 3rem;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+}
+
+.admin-shell__burger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #4b5563;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.admin-shell__burger:hover {
+  background: #f9fafb;
+  color: #111827;
+}
+
+.admin-shell__topbar-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.admin-shell__eyebrow {
+  margin: 0;
+  font-size: 0.62rem;
+  font-weight: 750;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #a8a29e;
+  line-height: 1.15;
+  -webkit-font-smoothing: antialiased;
+}
+
+.admin-shell__page-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #1c1917;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  -webkit-font-smoothing: antialiased;
+}
+
+.admin-shell__branch-chip {
+  display: none;
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: #f3f4f6;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+/* ── Backdrop (solo drawer) ── */
+.admin-shell__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgb(0 0 0 / 0.42);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+}
+
+.admin-shell__backdrop.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── Sidebar ── */
+.admin-shell__sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 1210;
+  display: flex;
+  flex-direction: column;
+  width: min(17.5rem, 88vw);
+  background: #000;
+  color: #fff;
+  box-shadow: 8px 0 28px rgb(0 0 0 / 0.45);
+  transform: translateX(-105%);
+  transition: transform 0.22s ease, width 0.2s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.admin-shell__sidebar.is-open {
+  transform: translateX(0);
+}
+
+.admin-shell__brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.9rem 0.95rem 0.8rem;
+  border-bottom: 1px solid rgb(255 255 255 / 0.1);
+  flex-shrink: 0;
+}
+
+.admin-shell__brand-main {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.admin-shell__logo {
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 999px;
+  object-fit: contain;
+  background: rgb(255 255 255 / 0.08);
+  flex-shrink: 0;
+}
+
+.admin-shell__brand-text {
+  min-width: 0;
+}
+
+.admin-shell__brand-name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1.15;
+  color: #fff;
+}
+
+.admin-shell__brand-role {
+  margin: 0.15rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: #fff;
+  letter-spacing: 0.01em;
+  opacity: 0.85;
+}
+
+.admin-shell__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 0.45rem;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}
+
+.admin-shell__close:hover {
+  background: rgb(255 255 255 / 0.1);
+  color: #fff;
+}
+
+.admin-shell__nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.55rem 0.55rem 0.65rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.14) transparent;
+}
+
+.admin-shell__nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.admin-shell__nav::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.14);
+  border-radius: 999px;
+}
+
+.admin-shell__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.admin-shell__divider {
+  height: 1px;
+  margin: 0.55rem 0.4rem 0.4rem;
+  background: rgb(255 255 255 / 0.14);
+}
+
+.admin-shell__group-label {
+  margin: 0 0 0.28rem;
+  padding: 0 0.6rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fff;
+  opacity: 0.7;
+}
+
+.admin-shell__link {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 2.45rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 0.6rem;
+  border: 1px solid transparent;
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.admin-shell__link:hover {
+  background: rgb(255 255 255 / 0.1);
+  color: #fff;
+}
+
+.admin-shell__link.is-active {
+  background: #c62828;
+  color: #fff;
+  border-color: #e53935;
+  box-shadow: 0 2px 10px rgb(198 40 40 / 0.45);
+}
+
+.admin-shell__link.is-active:hover {
+  background: #d32f2f;
+  border-color: #ef5350;
+  color: #fff;
+}
+
+.admin-shell__link-icon {
+  width: 1.2rem;
+  height: 1.2rem;
+  flex-shrink: 0;
+  opacity: 1;
+  color: #fff;
+  stroke-width: 2.15;
+}
+
+.admin-shell__link.is-active .admin-shell__link-icon {
+  opacity: 1;
+  color: #fff;
+}
+
+.admin-shell__link-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.admin-shell__footer {
+  flex-shrink: 0;
+  border-top: 1px solid rgb(255 255 255 / 0.1);
+  padding: 0.75rem 0.85rem 0.9rem;
+}
+
+.admin-shell__email {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-shell__local {
+  margin: 0.2rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #fff;
+  opacity: 0.8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-shell__logout {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.55rem;
+  width: 100%;
+  margin-top: 0.55rem;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  padding: 0.5rem 0.6rem;
+  color: #fff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.admin-shell__logout:hover {
+  background: rgb(255 255 255 / 0.1);
+  color: #fff;
+}
+
+.admin-shell__logout-label {
+  white-space: nowrap;
+}
+
+/* ── Body / main ── */
+.admin-shell__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100dvh;
+}
+
+.admin-shell__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Dashboard: contenedor con altura fija + scroll interno en cualquier tamaño */
+.admin-shell:has(.admin-dashboard),
+.admin-shell:has(.rates-admin) {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+.admin-shell:has(.admin-dashboard) .admin-shell__body,
+.admin-shell:has(.rates-admin) .admin-shell__body {
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.admin-shell__main:has(.admin-dashboard),
+.admin-shell__main:has(.rates-admin) {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-shell__main:has(.admin-dashboard) > .admin-dashboard,
+.admin-shell__main:has(.rates-admin) > .rates-admin {
+  flex: 1 1 auto;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+}
+
+.admin-shell:has(.admin-dashboard) .admin-shell__topbar,
+.admin-shell:has(.rates-admin) .admin-shell__topbar {
+  display: none;
+}
+
+/* Reportes / Usuarios / WhatsApp: una sola pantalla sin scroll en PC grande */
+@media (min-width: 1280px) and (min-height: 760px) {
+  .admin-shell:has(.admin-product-report),
+  .admin-shell:has(.admin-users),
+  .admin-shell:has(.admin-whatsapp) {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+
+  .admin-shell:has(.admin-product-report) .admin-shell__body,
+  .admin-shell:has(.admin-users) .admin-shell__body,
+  .admin-shell:has(.admin-whatsapp) .admin-shell__body {
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+  }
+
+  .admin-shell__main:has(.admin-product-report),
+  .admin-shell__main:has(.admin-users),
+  .admin-shell__main:has(.admin-whatsapp) {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .admin-shell__main:has(.admin-product-report) > .admin-product-report,
+  .admin-shell__main:has(.admin-users) > .admin-users,
+  .admin-shell__main:has(.admin-whatsapp) > .admin-whatsapp {
+    flex: 1 1 auto;
+    height: 100%;
+    max-height: 100%;
+  }
+
+  /* Ocultar topbar genérica — el panel trae su propio título */
+  .admin-shell:has(.admin-product-report) .admin-shell__topbar,
+  .admin-shell:has(.admin-users) .admin-shell__topbar,
+  .admin-shell:has(.admin-whatsapp) .admin-shell__topbar {
+    display: none;
+  }
+}
+
+.admin-shell__alert {
+  margin: 0.65rem 0.75rem 0;
+  border: 1px solid #fde68a;
+  border-radius: 0.75rem;
+  background: #fffbeb;
+  padding: 0.7rem 0.85rem;
+  font-size: 0.75rem;
+  color: #92400e;
+}
+
+/* ══════════════════════════════════════════════
+   Tablet / laptop media (≥1024): rail fijo iconos
+   ══════════════════════════════════════════════ */
+@media (min-width: 1024px) {
+  .admin-shell__burger {
+    display: none;
+  }
+
+  .admin-shell__backdrop {
+    display: none !important;
+  }
+
+  .admin-shell__close {
+    display: none;
+  }
+
+  .admin-shell__sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    height: 100dvh;
+    width: 3.85rem;
+    transform: none !important;
+    box-shadow: 1px 0 0 rgb(255 255 255 / 0.04), 4px 0 18px rgb(0 0 0 / 0.12);
+  }
+
+  .admin-shell__brand {
+    justify-content: center;
+    padding: 0.75rem 0.4rem;
+  }
+
+  .admin-shell__brand-main {
+    justify-content: center;
+  }
+
+  .admin-shell__brand-text,
+  .admin-shell__group-label,
+  .admin-shell__link-label,
+  .admin-shell__email,
+  .admin-shell__local,
+  .admin-shell__logout-label {
+    display: none;
+  }
+
+  .admin-shell__nav {
+    padding: 0.45rem 0.35rem;
+  }
+
+  .admin-shell__link {
+    justify-content: center;
+    gap: 0;
+    min-height: 2.35rem;
+    padding: 0.45rem;
+  }
+
+  .admin-shell__link-icon {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+
+  .admin-shell__divider {
+    margin: 0.55rem 0.3rem;
+  }
+
+  .admin-shell__footer {
+    padding: 0.55rem 0.35rem 0.7rem;
+  }
+
+  .admin-shell__logout {
+    justify-content: center;
+    margin-top: 0;
+    padding: 0.55rem;
+  }
+
+  .admin-shell__branch-chip {
+    display: inline-block;
+  }
+
+  .admin-shell__topbar {
+    padding-inline: 1rem;
+  }
+
+  .admin-shell__page-title {
+    font-size: 1rem;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   Desktop grande (≥1280): sidebar con texto legible
+   ══════════════════════════════════════════════ */
+@media (min-width: 1280px) {
+  .admin-shell__sidebar {
+    width: 15rem;
+  }
+
+  .admin-shell__brand {
+    justify-content: flex-start;
+    padding: 0.85rem 0.85rem 0.75rem;
+  }
+
+  .admin-shell__brand-main {
+    justify-content: flex-start;
+  }
+
+  .admin-shell__brand-name {
+    font-size: 1rem;
+  }
+
+  .admin-shell__brand-role {
+    font-size: 0.78rem;
+  }
+
+  .admin-shell__brand-text,
+  .admin-shell__group-label,
+  .admin-shell__link-label,
+  .admin-shell__email,
+  .admin-shell__local,
+  .admin-shell__logout-label {
+    display: block;
+  }
+
+  .admin-shell__nav {
+    padding: 0.45rem 0.55rem 0.55rem;
+  }
+
+  .admin-shell__group {
+    gap: 0.08rem;
+  }
+
+  .admin-shell__link {
+    justify-content: flex-start;
+    gap: 0.7rem;
+    min-height: 2.35rem;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+  }
+
+  .admin-shell__link-icon {
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+
+  .admin-shell__group-label {
+    font-size: 0.7rem;
+    padding-inline: 0.65rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .admin-shell__footer {
+    padding: 0.65rem 0.8rem 0.8rem;
+  }
+
+  .admin-shell__email {
+    font-size: 0.78rem;
+  }
+
+  .admin-shell__logout {
+    justify-content: flex-start;
+    gap: 0.55rem;
+    margin-top: 0.45rem;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.88rem;
+  }
+}
+
+/* Pantallas altas: compactar un poco sin achicar letras */
+@media (min-width: 1280px) and (min-height: 900px) {
+  .admin-shell__link {
+    min-height: 2.45rem;
+    font-size: 0.92rem;
+  }
+}
+
+/* Pantallas bajas: densificar para evitar scroll excesivo */
+@media (min-width: 1280px) and (max-height: 820px) {
+  .admin-shell__brand {
+    padding: 0.65rem 0.8rem;
+  }
+
+  .admin-shell__logo {
+    width: 2.1rem;
+    height: 2.1rem;
+  }
+
+  .admin-shell__link {
+    min-height: 2.1rem;
+    padding: 0.32rem 0.65rem;
+    font-size: 0.86rem;
+  }
+
+  .admin-shell__link-icon {
+    width: 1.1rem;
+    height: 1.1rem;
+  }
+
+  .admin-shell__nav {
+    padding: 0.35rem 0.5rem 0.4rem;
+  }
+
+  .admin-shell__divider {
+    margin: 0.4rem 0.35rem 0.3rem;
+  }
+
+  .admin-shell__footer {
+    padding: 0.5rem 0.7rem 0.65rem;
+  }
+}
+
+/* Tooltips en modo iconos (tablet) */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .admin-shell__link,
+  .admin-shell__logout {
+    position: relative;
+  }
+
+  .admin-shell__link[data-tip]::after,
+  .admin-shell__logout[data-tip]::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: calc(100% + 0.55rem);
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 50;
+    white-space: nowrap;
+    border-radius: 0.4rem;
+    background: #111827;
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.3rem 0.5rem;
+    box-shadow: 0 6px 16px rgb(0 0 0 / 0.25);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease;
+  }
+
+  .admin-shell__link:hover::after,
+  .admin-shell__logout:hover::after {
+    opacity: 1;
+  }
+}

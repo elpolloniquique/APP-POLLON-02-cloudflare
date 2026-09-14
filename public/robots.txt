@@ -1,0 +1,23 @@
+# Pollería El Pollón
+# Dominios públicos indexables:
+#   • https://el-pollon.cl/          (dominio principal)
+#   • https://app-pollon.vercel.app/ (despliegue Vercel)
+
+User-agent: *
+Allow: /
+Allow: /tienda
+Allow: /sucursal
+Allow: /terminos
+Allow: /libro-reclamaciones
+
+# Áreas privadas o transaccionales (no indexar)
+Disallow: /admin
+Disallow: /admin/
+Disallow: /cuenta
+Disallow: /cuenta/
+Disallow: /checkout
+Disallow: /pedido/
+
+# Sitemaps — uno por dominio (Google Search Console)
+Sitemap: https://el-pollon.cl/sitemap.xml
+Sitemap: https://app-pollon.vercel.app/sitemap-vercel.xml

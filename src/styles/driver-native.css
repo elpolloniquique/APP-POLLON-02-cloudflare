@@ -1,0 +1,337 @@
+/* ── App nativa repartidor · gate + shell ── */
+
+.driver-native-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  overflow-y: auto;
+  padding: max(1rem, env(safe-area-inset-top)) 1rem max(1.25rem, env(safe-area-inset-bottom));
+  background:
+    radial-gradient(ellipse 90% 55% at 50% -15%, rgba(192, 0, 0, 0.45), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 100% 100%, rgba(40, 40, 40, 0.9), transparent 50%),
+    #000;
+  color: #fff;
+  -webkit-font-smoothing: antialiased;
+}
+
+.driver-native-gate__loading {
+  margin: auto;
+  font-size: 0.9rem;
+  color: rgb(255 255 255 / 0.7);
+}
+
+.driver-native-gate__card {
+  width: min(28rem, 100%);
+  margin: auto;
+  padding: 1.5rem 1.25rem 1.75rem;
+  border-radius: 1.25rem;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: rgb(18 18 18 / 0.92);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.55);
+}
+
+.driver-native-gate__logo {
+  display: block;
+  width: 5.5rem;
+  height: 5.5rem;
+  margin: 0 auto 0.75rem;
+  border-radius: 999px;
+  object-fit: contain;
+  background: #fff;
+  border: 2px solid rgb(255 255 255 / 0.2);
+}
+
+.driver-native-gate__logo--sm {
+  width: 4rem;
+  height: 4rem;
+}
+
+.driver-native-gate__brand {
+  margin: 0;
+  text-align: center;
+  font-size: 1.65rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #fff;
+}
+
+.driver-native-gate__badge {
+  margin: 0.35rem 0 0;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #ef4444;
+}
+
+.driver-native-gate__title {
+  margin: 1rem 0 0;
+  text-align: center;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.driver-native-gate__lead {
+  margin: 0.65rem 0 0;
+  text-align: center;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: rgb(255 255 255 / 0.72);
+}
+
+.driver-native-gate__lead span {
+  color: #fca5a5;
+}
+
+.driver-native-gate__benefits {
+  margin: 1.1rem 0 0;
+  padding: 0.75rem 1rem;
+  list-style: none;
+  border-radius: 0.85rem;
+  background: rgb(192 0 0 / 0.15);
+  border: 1px solid rgb(239 68 68 / 0.35);
+}
+
+.driver-native-gate__benefits li {
+  position: relative;
+  padding: 0.28rem 0 0.28rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: #fecaca;
+}
+
+.driver-native-gate__benefits li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.65rem;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: #ef4444;
+}
+
+.driver-native-gate__cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 1.15rem;
+  min-height: 3.1rem;
+  border: 0;
+  border-radius: 0.9rem;
+  background: #c00000;
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 10px 28px rgb(192 0 0 / 0.4);
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.driver-native-gate__cta:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.driver-native-gate__cta:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.driver-native-gate__cta:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.driver-native-gate__cta--ghost {
+  margin-top: 0.65rem;
+  background: transparent;
+  color: #fecaca;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  box-shadow: none;
+}
+
+.driver-native-gate__howto {
+  margin: 1rem 0 0;
+  padding-left: 1.15rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: rgb(255 255 255 / 0.65);
+}
+
+.driver-native-gate__howto li + li {
+  margin-top: 0.35rem;
+}
+
+.driver-native-gate__meta {
+  margin: 1rem 0 0;
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 650;
+  color: rgb(255 255 255 / 0.4);
+}
+
+.driver-native-gate__msg {
+  margin: 0.75rem 0 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.65rem;
+  background: rgb(255 255 255 / 0.06);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #fde68a;
+}
+
+.driver-native-gate__hint {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  margin-top: 0.85rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.75rem;
+  background: rgb(255 255 255 / 0.05);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: rgb(255 255 255 / 0.7);
+}
+
+.driver-native-steps {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.driver-native-step {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: rgb(255 255 255 / 0.04);
+}
+
+.driver-native-step.is-ok {
+  border-color: rgb(16 185 129 / 0.45);
+  background: rgb(16 185 129 / 0.1);
+}
+
+.driver-native-step__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  background: #c00000;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.driver-native-step.is-ok .driver-native-step__icon {
+  background: #10b981;
+}
+
+.driver-native-step__title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.driver-native-step__body {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: rgb(255 255 255 / 0.65);
+}
+
+.driver-native-step__btn {
+  margin-top: 0.65rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: #c00000;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 0.55rem 0.9rem;
+  cursor: pointer;
+}
+
+.driver-native-step__btn:disabled {
+  opacity: 0.5;
+}
+
+.driver-native-step__done {
+  margin: 0.45rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 750;
+  color: #6ee7b7;
+}
+
+.driver-native-gate__oem {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  margin-top: 0.85rem;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  background: rgb(245 158 11 / 0.12);
+  border: 1px solid rgb(245 158 11 / 0.35);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: #fde68a;
+}
+
+.driver-native-gate__oem--battery {
+  background: rgb(255 255 255 / 0.04);
+  border-color: rgb(255 255 255 / 0.1);
+  color: rgb(255 255 255 / 0.65);
+}
+
+.driver-native-gate__oem-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.driver-native-gate__oem-actions button {
+  border: 0;
+  border-radius: 0.5rem;
+  background: rgb(0 0 0 / 0.35);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 750;
+  padding: 0.4rem 0.65rem;
+  cursor: pointer;
+}
+
+/* Shell tabs más nativos */
+.driver-shell {
+  --driver-red: #c00000;
+  --driver-bg: #0a0a0a;
+  --driver-card: #141414;
+}
+
+.driver-shell .driver-tabbar {
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+  background: #0b0b0b;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.driver-shell .driver-tabbar a.is-active {
+  color: #fff;
+}
+
+.driver-shell .driver-tabbar a.is-active::after {
+  background: var(--driver-red);
+}

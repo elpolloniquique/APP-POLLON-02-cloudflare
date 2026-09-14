@@ -1,0 +1,567 @@
+/* WhatsApp inteligente — Pollón (rojo / negro / blanco), denso en PC grande */
+
+.admin-whatsapp {
+  --awa-gap: 0.55rem;
+  --awa-radius: 0.75rem;
+  --awa-border: 1px solid rgb(15 23 42 / 0.08);
+  --awa-shadow: 0 1px 3px rgb(15 23 42 / 0.06), 0 4px 14px rgb(15 23 42 / 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: var(--awa-gap);
+  width: 100%;
+  max-width: 1680px;
+  min-height: 0;
+  height: 100%;
+  padding: 0.55rem 0.75rem 0.7rem;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+.admin-whatsapp--denied {
+  display: grid;
+  place-items: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.awa-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  flex-shrink: 0;
+}
+
+.awa-breadcrumb {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.awa-title {
+  margin: 0.15rem 0 0;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: #0a0a0a;
+}
+
+.awa-title__icon {
+  width: 1.35rem;
+  height: 1.35rem;
+  color: #c00000;
+}
+
+.awa-sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.awa-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.awa-select {
+  min-width: 14rem;
+  border-radius: 999px;
+  border: var(--awa-border);
+  background: #fff;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+.awa-select--locked {
+  display: inline-flex;
+  align-items: center;
+  cursor: default;
+  background: #f8fafc;
+}
+.awa-pill {
+  display: inline-block;
+  margin-left: 0.35rem;
+  border-radius: 999px;
+  padding: 0.08rem 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  background: #e2e8f0;
+  color: #334155;
+  vertical-align: middle;
+}
+.awa-pill--off { background: #fee2e2; color: #991b1b; }
+.awa-kb-io {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 0.55rem;
+}
+.awa-btn--file { cursor: pointer; }
+
+.awa-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.awa-badge--on { background: #dcfce7; color: #166534; }
+.awa-badge--off { background: #fee2e2; color: #991b1b; }
+
+.awa-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: #fff;
+  border: var(--awa-border);
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.awa-toggle input { accent-color: #c00000; width: 1.05rem; height: 1.05rem; }
+
+.awa-flash {
+  flex-shrink: 0;
+  border-radius: var(--awa-radius);
+  padding: 0.55rem 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.awa-flash--ok { background: #ecfdf5; color: #065f46; }
+.awa-flash--err { background: #fef2f2; color: #991b1b; }
+
+.awa-tabs {
+  display: flex;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.awa-tab {
+  border: var(--awa-border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.45rem 0.95rem;
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: #475569;
+  cursor: pointer;
+}
+.awa-tab.is-active {
+  background: #c00000;
+  border-color: #c00000;
+  color: #fff;
+}
+
+.awa-loading {
+  padding: 2rem;
+  text-align: center;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.awa-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.awa-grid {
+  display: grid;
+  gap: 0.7rem;
+}
+.awa-grid--2 { grid-template-columns: 1fr; }
+@media (min-width: 960px) {
+  .awa-grid--2 { grid-template-columns: 1fr 1fr; }
+}
+
+.awa-config,
+.awa-live {
+  display: grid;
+  gap: 0.7rem;
+}
+@media (min-width: 1100px) {
+  .awa-live { grid-template-columns: 1.1fr 0.9fr; }
+}
+
+.awa-card {
+  background: #fff;
+  border: var(--awa-border);
+  border-radius: var(--awa-radius);
+  box-shadow: var(--awa-shadow);
+  padding: 0.9rem 1rem 1rem;
+  min-width: 0;
+}
+.awa-card h2 {
+  margin: 0 0 0.55rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: #0a0a0a;
+}
+
+.awa-help, .awa-meta, .awa-muted {
+  margin: 0.25rem 0;
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.awa-help code, .awa-meta code {
+  font-size: 0.75rem;
+  background: #f1f5f9;
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.3rem;
+}
+
+.awa-phone {
+  margin: 0.4rem 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.awa-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0.5rem 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.6rem;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.awa-qr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.7rem;
+}
+
+.awa-link-modes {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.55rem;
+}
+.awa-link-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: var(--awa-border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #475569;
+  cursor: pointer;
+}
+.awa-link-mode.is-active {
+  background: #0a0a0a;
+  border-color: #0a0a0a;
+  color: #fff;
+}
+.awa-pairing-phone {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #334155;
+  margin-bottom: 0.45rem;
+}
+.awa-pairing-phone input {
+  border: var(--awa-border);
+  border-radius: 0.55rem;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.awa-pairing-box {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
+  margin: 0.35rem 0 0.5rem;
+}
+.awa-pairing-code {
+  margin: 0;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-align: center;
+  padding: 0.7rem 0.5rem;
+  border-radius: 0.75rem;
+  background: #0a0a0a;
+  color: #fff;
+}
+.awa-pairing-steps {
+  margin: 0.45rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #475569;
+  line-height: 1.45;
+}
+.awa-pairing-steps li { margin: 0.12rem 0; }
+
+.awa-qr {
+  width: min(100%, 240px);
+  aspect-ratio: 1;
+  object-fit: contain;
+  border-radius: 0.75rem;
+  border: var(--awa-border);
+  background: #fff;
+}
+.awa-qr--empty {
+  display: grid;
+  place-items: center;
+  color: #94a3b8;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 1rem;
+}
+
+.awa-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 0.65rem;
+  border: var(--awa-border);
+  background: #fff;
+  padding: 0.48rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #0f172a;
+  cursor: pointer;
+}
+.awa-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.awa-btn--red { background: #c00000; border-color: #c00000; color: #fff; }
+.awa-btn--red:hover:not(:disabled) { background: #9a0000; }
+
+.awa-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.4rem 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+.awa-check input { accent-color: #c00000; }
+
+.awa-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0.5rem 0;
+  align-items: flex-end;
+}
+.awa-grow { flex: 1 1 12rem; }
+
+.awa-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #475569;
+}
+.awa-card input[type="text"],
+.awa-card input[type="url"],
+.awa-card input[type="number"],
+.awa-card textarea {
+  width: 100%;
+  border: var(--awa-border);
+  border-radius: 0.55rem;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #0f172a;
+  background: #fff;
+  font-family: inherit;
+}
+.awa-card textarea { resize: vertical; min-height: 4.5rem; }
+
+.awa-templates {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 28rem;
+  overflow: auto;
+}
+@media (min-width: 1100px) {
+  .awa-templates { grid-template-columns: 1fr 1fr; max-height: none; }
+}
+
+.awa-savebar { display: flex; justify-content: flex-end; }
+
+.awa-kb-form, .awa-sim {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+.awa-sim { grid-template-columns: 1fr auto; }
+
+.awa-scroll {
+  max-height: 14rem;
+  overflow: auto;
+  margin: 0.4rem 0 0.6rem;
+  border: var(--awa-border);
+  border-radius: 0.55rem;
+}
+
+.awa-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.awa-table th {
+  text-align: left;
+  padding: 0.4rem 0.55rem;
+  background: #f8fafc;
+  font-weight: 800;
+  color: #64748b;
+  position: sticky;
+  top: 0;
+}
+.awa-table td { padding: 0.4rem 0.55rem; border-top: 1px solid #f1f5f9; }
+.awa-table tr.is-off { opacity: 0.55; }
+
+.awa-icon-btn {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  padding: 0.25rem;
+}
+.awa-icon-btn:hover { color: #c00000; }
+.awa-row-btns { display: flex; gap: 0.15rem; }
+
+.awa-sim-out {
+  background: #0f172a;
+  color: #f8fafc;
+  border-radius: 0.65rem;
+  padding: 0.7rem 0.8rem;
+  font-size: 0.8rem;
+}
+.awa-sim-out pre {
+  white-space: pre-wrap;
+  margin: 0.4rem 0 0;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.awa-alert {
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.8rem;
+}
+.awa-alert.is-unread { background: #fef2f2; }
+.awa-alert p { margin: 0.2rem 0; font-weight: 600; }
+.awa-alert small { color: #94a3b8; }
+
+.awa-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+.awa-kpi {
+  background: #fff;
+  border: var(--awa-border);
+  border-radius: var(--awa-radius);
+  box-shadow: var(--awa-shadow);
+  padding: 0.45rem 0.65rem;
+  min-width: 0;
+}
+.awa-kpi__n {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #c00000;
+  line-height: 1.1;
+}
+.awa-kpi__l {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #64748b;
+}
+
+.awa-metrics {
+  display: grid;
+  gap: 0.7rem;
+}
+@media (min-width: 1100px) {
+  .awa-metrics { grid-template-columns: 1fr 1fr; }
+  .awa-metrics .awa-card:last-child { grid-column: 1 / -1; }
+}
+.awa-metrics__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+.awa-metrics__grid > div {
+  background: #f8fafc;
+  border-radius: 0.55rem;
+  padding: 0.55rem 0.6rem;
+}
+.awa-metrics__grid b {
+  display: block;
+  font-size: 1.15rem;
+  color: #0a0a0a;
+}
+.awa-metrics__grid span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+@media (max-width: 900px) {
+  .awa-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .awa-metrics__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 900px) {
+  .admin-whatsapp {
+    height: auto;
+    overflow: visible;
+    padding: 0.7rem 0.7rem 1.2rem;
+  }
+  .awa-body { overflow: visible; }
+  .awa-title { font-size: 1.3rem; }
+  .awa-sim { grid-template-columns: 1fr; }
+}

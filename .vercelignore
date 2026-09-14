@@ -1,0 +1,10 @@
+# No subir builds Android / APK (demasiado pesados para Vercel Hobby)
+android/app/build
+android/.gradle
+android/build
+public/DESCARGAR-APK/*.apk
+releases
+*.apk
+node_modules
+.git
+dist

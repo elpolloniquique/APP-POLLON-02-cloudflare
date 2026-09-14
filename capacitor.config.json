@@ -1,0 +1,25 @@
+{
+  "appId": "cl.elpollon.app",
+  "appName": "El Pollón",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": true,
+    "useLegacyBridge": true
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_pollon",
+      "iconColor": "#E11D48",
+      "sound": "default"
+    },
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

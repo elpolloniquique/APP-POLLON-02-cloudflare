@@ -1,0 +1,436 @@
+/* =============================================================================
+   Tema unificado del panel admin — misma paleta / tipografía que Pedidos
+   Solo presentación. No cambia lógica.
+   ============================================================================= */
+
+.admin-shell {
+  --ap-ink: #1c1917;
+  --ap-ink-soft: #292524;
+  --ap-muted: #78716c;
+  --ap-line: #e7e5e4;
+  --ap-line-strong: #d6d3d1;
+  --ap-bg: #fafaf9;
+  --ap-card: #ffffff;
+  --ap-head: #1c1917;
+  --ap-head-fg: #fafaf9;
+  --ap-red: #c00000;
+  --ap-red-dark: #9f0000;
+  --ap-radius: 0.6rem;
+  --ap-radius-lg: 0.7rem;
+  --ap-fs-label: 0.58rem;
+  --ap-fs-ui: 0.75rem;
+  --ap-fs-body: 0.78rem;
+  --ap-fs-title: 1.05rem;
+  --ap-shadow: 0 1px 2px rgb(28 25 23 / 0.04);
+  --ap-shadow-table: 0 8px 22px rgb(28 25 23 / 0.08);
+  background: var(--ap-bg);
+  color: var(--ap-ink);
+  font-family: Inter, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.admin-shell__main {
+  display: flex;
+  flex-direction: column;
+  color: var(--ap-ink);
+  font-family: inherit;
+}
+
+.admin-shell__main:has(.admin-page--fill) {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* —— Páginas genéricas (Clientes, Caja, Stock, Menú, Campañas, Sucursales…) —— */
+.admin-shell .admin-page {
+  gap: 0.65rem;
+  padding: 0.55rem 0.75rem 0.85rem;
+  max-width: none;
+  margin: 0;
+  color: var(--ap-ink);
+  font-family: inherit;
+}
+
+@media (min-width: 1024px) {
+  .admin-shell .admin-page {
+    padding: 0.65rem 0.9rem 1rem;
+  }
+}
+
+/* Listas a pantalla completa: el cuadro llega al canto inferior */
+.admin-shell .admin-page--fill {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: calc(100dvh - 3.15rem);
+  max-height: calc(100dvh - 3.15rem);
+  overflow: hidden;
+  padding-bottom: 0.55rem;
+}
+
+.admin-shell .admin-page--fill > .admin-page-header,
+.admin-shell .admin-page--fill > .admin-toolbar,
+.admin-shell .admin-page--fill > .rounded-xl,
+.admin-shell .admin-page--fill > p,
+.admin-shell .admin-page--fill > [class*="border-b"],
+.admin-shell .admin-page--fill > .dispatch-panel__filters,
+.admin-shell .admin-page--fill > .dispatch-panel__alerts,
+.admin-shell .admin-page--fill > .dispatch-panel__meta,
+.admin-shell .admin-page--fill > .dcfg-card,
+.admin-shell .admin-page--fill > .dcfg-alert,
+.admin-shell .admin-page--fill > .dcfg-health-bar {
+  flex-shrink: 0;
+}
+
+.admin-shell .admin-page-fill,
+.admin-shell .admin-page-split {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-shell .admin-page-fill > .admin-toolbar {
+  flex-shrink: 0;
+}
+
+.admin-shell .admin-page-split {
+  gap: 0.65rem;
+}
+
+@media (min-width: 1024px) {
+  .admin-shell .admin-page-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    align-items: stretch;
+  }
+}
+
+.admin-shell .admin-page--fill .admin-table,
+.admin-shell .admin-page-fill .admin-table,
+.admin-shell .admin-page-split .admin-table,
+.admin-shell .admin-list-shell {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.admin-shell .admin-page--fill .admin-scroll-panel,
+.admin-shell .admin-page-fill .admin-scroll-panel,
+.admin-shell .admin-page-split .admin-scroll-panel,
+.admin-shell .admin-list-shell .admin-scroll-panel,
+.admin-shell .admin-scroll-fill {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none !important;
+  height: auto;
+}
+
+.admin-shell .admin-page-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--ap-head);
+  border-radius: var(--ap-radius);
+  background: var(--ap-card);
+  box-shadow: var(--ap-shadow-table);
+}
+
+.admin-shell .admin-list-shell {
+  overflow: hidden;
+  border: 1px solid var(--ap-head);
+  border-radius: var(--ap-radius);
+  background: var(--ap-card);
+  box-shadow: var(--ap-shadow-table);
+}
+
+/* —— Encabezado de página (como toolbar de Pedidos, sin título gigante) —— */
+.admin-shell .admin-page-header {
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.1rem 0 0.05rem;
+}
+
+.admin-shell .admin-page-header__title {
+  margin: 0;
+  font-size: var(--ap-fs-title);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--ap-ink);
+}
+
+.admin-shell .admin-page-header__subtitle {
+  margin: 0.15rem 0 0;
+  font-size: var(--ap-fs-ui);
+  font-weight: 600;
+  color: var(--ap-muted);
+  line-height: 1.35;
+}
+
+.admin-shell .admin-page-header__actions button,
+.admin-shell .admin-page-header__actions a,
+.admin-shell .admin-page-header__actions select {
+  font-size: var(--ap-fs-ui) !important;
+  font-weight: 700;
+  border-radius: 0.5rem;
+}
+
+.admin-shell .admin-page-header__actions button {
+  padding: 0.42rem 0.72rem !important;
+  min-height: 2.05rem;
+}
+
+/* Botón primario Pollón */
+.admin-shell .admin-page-header__actions button.bg-pollon-red,
+.admin-shell .admin-page button.bg-pollon-red {
+  background: var(--ap-red) !important;
+  border: 1px solid #b91c1c;
+  box-shadow: 0 1px 2px rgb(192 0 0 / 0.22);
+}
+
+.admin-shell .admin-page-header__actions button.bg-pollon-red:hover,
+.admin-shell .admin-page button.bg-pollon-red:hover {
+  background: var(--ap-red-dark) !important;
+}
+
+/* —— Toolbar / filtros —— */
+.admin-shell .admin-toolbar {
+  border: 1px solid var(--ap-line);
+  border-radius: var(--ap-radius-lg);
+  background: linear-gradient(180deg, #ffffff 0%, #fafaf9 100%);
+  box-shadow: var(--ap-shadow);
+  padding: 0.55rem 0.65rem;
+}
+
+.admin-shell .admin-toolbar input,
+.admin-shell .admin-toolbar select,
+.admin-shell .admin-page input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]),
+.admin-shell .admin-page select,
+.admin-shell .admin-page textarea {
+  border-color: var(--ap-line-strong);
+  border-radius: 0.4rem;
+  color: var(--ap-ink);
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+.admin-shell .admin-toolbar__date-label {
+  font-size: var(--ap-fs-label);
+  color: var(--ap-muted);
+  letter-spacing: 0.08em;
+}
+
+/* —— Tablas AdminTable —— */
+.admin-shell .admin-data-table {
+  font-size: var(--ap-fs-body);
+  color: var(--ap-ink);
+}
+
+.admin-shell .admin-data-table thead th {
+  background: var(--ap-head) !important;
+  color: var(--ap-head-fg);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  padding: 0.52rem 0.4rem;
+  border-right: 1px solid rgb(255 255 255 / 0.07);
+}
+
+.admin-shell .admin-data-table tbody td {
+  padding: 0.45rem 0.4rem;
+  border-bottom: 1px solid var(--ap-line);
+  color: var(--ap-ink);
+}
+
+.admin-shell .admin-data-table tbody tr:nth-child(even) td {
+  background: #fafaf9;
+}
+
+.admin-shell .admin-data-table tbody tr:hover td {
+  background: #fff7ed;
+}
+
+.admin-shell .admin-table {
+  overflow: hidden;
+  border: 1px solid var(--ap-head);
+  border-radius: var(--ap-radius);
+  background: var(--ap-card);
+  box-shadow: var(--ap-shadow-table);
+}
+
+.admin-shell .admin-table__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  background: var(--ap-head);
+  color: var(--ap-head-fg);
+  padding: 0.4rem 0.65rem;
+}
+
+.admin-shell .admin-table__meta p {
+  margin: 0;
+  color: var(--ap-head-fg);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* Cards blancas genéricas */
+.admin-shell .admin-page .rounded-xl.bg-white,
+.admin-shell .admin-page .rounded-2xl.bg-white,
+.admin-shell .admin-page .rounded-2xl.border.bg-white {
+  border-color: var(--ap-line);
+  box-shadow: var(--ap-shadow);
+}
+
+/* —— Configuración —— */
+.admin-shell .admin-config-page.admin-page {
+  max-width: none;
+  height: 100%;
+}
+
+.admin-shell .admin-config-shell {
+  border: 1px solid var(--ap-line);
+  border-radius: var(--ap-radius);
+  box-shadow: none;
+  background: #f5f4f2;
+}
+
+.admin-shell .admin-config-section__title {
+  font-size: 0.72rem !important;
+  font-weight: 800;
+  color: var(--ap-ink);
+  letter-spacing: 0.06em;
+}
+
+.admin-shell .admin-config-section__desc,
+.admin-shell .admin-config-field__hint {
+  font-size: 0.72rem;
+  color: var(--ap-muted);
+  font-weight: 600;
+}
+
+.admin-shell .admin-config-field__label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #44403c;
+}
+
+.admin-shell .admin-config-input,
+.admin-shell .admin-config-field__control input,
+.admin-shell .admin-config-field__control select,
+.admin-shell .admin-config-field__control textarea {
+  border-color: #a8a29e;
+  border-radius: 0.5rem;
+  font-size: 0.88rem;
+  font-weight: 650;
+  color: var(--ap-ink);
+}
+
+/* —— Dashboard / Usuarios / Reportes de producto (fondos slate → piedra) —— */
+.admin-shell .admin-dashboard,
+.admin-shell .admin-users,
+.admin-shell .admin-product-report {
+  background: var(--ap-bg);
+  color: var(--ap-ink);
+  font-family: inherit;
+}
+
+.admin-shell .dash-header__title,
+.admin-shell .aus-title,
+.admin-shell .apr-header__title {
+  font-size: var(--ap-fs-title) !important;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ap-ink);
+}
+
+.admin-shell .aus-breadcrumb {
+  display: none;
+}
+
+.admin-shell .dash-header__subtitle,
+.admin-shell .apr-header__subtitle {
+  font-size: var(--ap-fs-ui);
+  color: var(--ap-muted);
+  font-weight: 600;
+}
+
+/* —— Reporte repartidores —— */
+.admin-shell .driver-report__filters {
+  border-color: var(--ap-line);
+  border-radius: var(--ap-radius-lg);
+  background: linear-gradient(180deg, #ffffff 0%, #fafaf9 100%);
+  box-shadow: var(--ap-shadow);
+}
+
+.admin-shell .driver-report__field span {
+  font-size: var(--ap-fs-label);
+  color: var(--ap-muted);
+  letter-spacing: 0.08em;
+}
+
+.admin-shell .driver-report__table thead th,
+.admin-shell .driver-report__footer {
+  background: var(--ap-head);
+  color: var(--ap-head-fg);
+}
+
+/* —— Cocina —— */
+.admin-shell .kitchen-card {
+  border: 1px solid var(--ap-line);
+  border-radius: var(--ap-radius);
+  box-shadow: var(--ap-shadow);
+}
+
+.admin-shell .kitchen-card__code {
+  font-size: 0.95rem;
+  color: var(--ap-red);
+}
+
+.admin-shell .kitchen-card__meta,
+.admin-shell .kitchen-card__item-extra {
+  color: var(--ap-muted);
+}
+
+.admin-shell .kitchen-card__item-line {
+  font-size: var(--ap-fs-body);
+  color: var(--ap-ink);
+}
+
+.admin-shell .kitchen-card__view {
+  border-color: var(--ap-line-strong);
+  font-size: var(--ap-fs-ui);
+  color: var(--ap-ink-soft);
+}
+
+.admin-shell .kitchen-empty {
+  background: #fafaf9;
+  border: 1px dashed var(--ap-line-strong);
+  color: var(--ap-muted);
+}
+
+/* —— Alertas / flashes —— */
+.admin-shell .rounded-xl.border.border-red-200,
+.admin-shell .rounded-xl.border.border-emerald-200,
+.admin-shell .rounded-xl.border.border-slate-200 {
+  font-size: 0.78rem;
+}
+
+/* Mapas: no forzar tipografía sobre controles Leaflet/MapLibre */
+.admin-shell .leaflet-container,
+.admin-shell .maplibregl-map {
+  font-family: inherit;
+}

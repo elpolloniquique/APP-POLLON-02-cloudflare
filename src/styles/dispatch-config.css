@@ -1,0 +1,697 @@
+/* Configuración de despacho — denso, centrado, resumen lateral más amplio */
+
+.admin-shell .dispatch-config {
+  --dcfg-gap: 0.55rem;
+  --dcfg-ink: #141210;
+  --dcfg-muted: #57534e;
+  --dcfg-label: #44403c;
+  --dcfg-max: 72rem;
+  gap: var(--dcfg-gap);
+  color: var(--dcfg-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* Página con scroll natural (formulario largo) */
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  padding-bottom: 1.25rem;
+}
+
+.dispatch-config .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* —— Shell: contenido centrado —— */
+.dispatch-config .dcfg-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dcfg-gap);
+  position: relative;
+  width: 100%;
+  max-width: var(--dcfg-max);
+  margin: 0 auto;
+  overflow: visible;
+  min-height: 0;
+}
+
+.dispatch-config .dcfg-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dcfg-gap);
+  overflow: visible;
+  padding-bottom: 4.75rem; /* espacio para barra móvil de guardar */
+}
+
+.dispatch-config .dcfg-aside {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .dispatch-config .dcfg-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 18.5rem;
+    align-items: start;
+    gap: 0.85rem;
+    max-width: min(76rem, 100%);
+  }
+
+  .dispatch-config .dcfg-main {
+    padding-bottom: 0.5rem;
+    overflow: visible;
+  }
+
+  .dispatch-config .dcfg-aside {
+    display: block;
+    width: 18.5rem;
+  }
+
+  .dispatch-config .dcfg-aside__card {
+    position: sticky;
+    top: 0.65rem;
+    border: 1px solid #1c1917;
+    border-radius: 0.65rem;
+    background: #fff;
+    box-shadow: 0 8px 22px rgb(28 25 23 / 0.08);
+    padding: 1.05rem 1.1rem;
+  }
+
+  .dispatch-config .dcfg-mobile-bar {
+    display: none;
+  }
+}
+
+@media (min-width: 1280px) {
+  .dispatch-config .dcfg-shell {
+    grid-template-columns: minmax(0, 1fr) 19.5rem;
+    max-width: min(78rem, 100%);
+  }
+
+  .dispatch-config .dcfg-aside {
+    width: 19.5rem;
+  }
+}
+
+.dispatch-config .dcfg-aside__label {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dcfg-label);
+}
+
+.dispatch-config .dcfg-aside__branch {
+  margin: 0.4rem 0 0.95rem;
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: var(--dcfg-ink);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.dispatch-config .dcfg-aside__summary {
+  margin: 0 0 1.05rem;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid #e7e5e4;
+}
+
+.dispatch-config .dcfg-aside__summary li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid #e7e5e4;
+  font-size: 0.84rem;
+  font-weight: 650;
+  color: var(--dcfg-muted);
+  line-height: 1.2;
+}
+
+.dispatch-config .dcfg-aside__summary strong {
+  color: var(--dcfg-ink);
+  font-weight: 800;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* —— Health —— */
+.dispatch-config .dcfg-health-bar {
+  flex-shrink: 0;
+  border: 1px solid #d6d3d1;
+  border-radius: 0.6rem;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(28 25 23 / 0.05);
+  padding: 0.55rem 0.75rem;
+}
+
+.dispatch-config .dcfg-health-bar__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 0.65rem;
+}
+
+.dispatch-config .dcfg-health-bar__text {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  color: var(--dcfg-ink);
+}
+
+.dispatch-config .dcfg-health-bar__title {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.dispatch-config .dcfg-health-bar__sub {
+  margin: 0.12rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--dcfg-muted);
+  line-height: 1.3;
+}
+
+/* —— Secciones densas —— */
+.dispatch-config .dcfg-section {
+  flex-shrink: 0;
+  border: 1px solid #d6d3d1;
+  border-radius: 0.6rem;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(28 25 23 / 0.05);
+  overflow: hidden;
+}
+
+.dispatch-config .dcfg-section__head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.8rem;
+  border-bottom: 1px solid #e7e5e4;
+  background: #fafaf9;
+  min-height: 2.85rem;
+}
+
+.dispatch-config .dcfg-section__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 0.4rem;
+  background: linear-gradient(135deg, #c00000, #9f0000);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.dispatch-config .dcfg-section__title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--dcfg-ink);
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.dispatch-config .dcfg-section__sub {
+  margin: 0.1rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--dcfg-muted);
+  line-height: 1.3;
+}
+
+.dispatch-config .dcfg-section__body {
+  padding: 0.65rem 0.8rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+/* —— Toggles compactos —— */
+.dispatch-config .dcfg-toggles {
+  display: grid;
+  gap: 0;
+  border: 1px solid #d6d3d1;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: #fff;
+}
+
+.dispatch-config .dcfg-toggle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.7rem;
+  align-items: center;
+  column-gap: 0.75rem;
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid #e7e5e4;
+}
+
+.dispatch-config .dcfg-toggle:last-child {
+  border-bottom: none;
+}
+
+.dispatch-config .dcfg-toggle__text {
+  min-width: 0;
+}
+
+.dispatch-config .dcfg-toggle__label {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: var(--dcfg-ink);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.dispatch-config .dcfg-toggle__help {
+  margin: 0.15rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--dcfg-muted);
+  line-height: 1.35;
+  max-width: 36rem;
+}
+
+.dispatch-config .dcfg-switch {
+  position: relative;
+  width: 2.55rem;
+  height: 1.45rem;
+  border-radius: 999px;
+  border: none;
+  padding: 0;
+  background: #a8a29e;
+  cursor: pointer;
+  flex-shrink: 0;
+  justify-self: end;
+  transition: background 0.18s ease;
+}
+
+.dispatch-config .dcfg-switch.is-on {
+  background: #c00000;
+}
+
+.dispatch-config .dcfg-switch__knob {
+  position: absolute;
+  top: 0.14rem;
+  left: 0.14rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.22);
+  transition: transform 0.18s ease;
+}
+
+.dispatch-config .dcfg-switch.is-on .dcfg-switch__knob {
+  transform: translateX(1.1rem);
+}
+
+.dispatch-config .dcfg-switch:focus-visible {
+  outline: 2px solid #f87171;
+  outline-offset: 2px;
+}
+
+/* —— Campos: anchos controlados, alineados —— */
+.dispatch-config .dcfg-grid {
+  display: grid;
+  gap: 0.55rem 0.7rem;
+  grid-template-columns: 1fr;
+  align-items: start;
+  justify-content: start;
+}
+
+@media (min-width: 560px) {
+  .dispatch-config .dcfg-grid--2 {
+    grid-template-columns: repeat(2, minmax(0, 14.5rem));
+  }
+}
+
+@media (min-width: 760px) {
+  .dispatch-config .dcfg-grid--3 {
+    grid-template-columns: repeat(3, minmax(0, 13.5rem));
+  }
+}
+
+.dispatch-config .dcfg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  min-width: 0;
+  max-width: 16rem;
+}
+
+.dispatch-config .dcfg-field > span:first-child {
+  display: block;
+  min-height: 1rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  color: var(--dcfg-label);
+  line-height: 1.2;
+}
+
+.dispatch-config .dcfg-field__control {
+  display: flex;
+  align-items: stretch;
+  border: 1.5px solid #a8a29e;
+  border-radius: 0.45rem;
+  background: #fff;
+  overflow: hidden;
+  min-height: 2.4rem;
+  width: 100%;
+}
+
+.dispatch-config .dcfg-field__control input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--dcfg-ink);
+  outline: none;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  text-align: left;
+}
+
+.dispatch-config .dcfg-field__unit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.45rem;
+  padding: 0 0.45rem;
+  background: #f5f5f4;
+  border-left: 1px solid #d6d3d1;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--dcfg-label);
+  letter-spacing: 0.02em;
+}
+
+.dispatch-config .dcfg-field select,
+.dispatch-config .dcfg-field textarea {
+  width: 100%;
+  border: 1.5px solid #a8a29e;
+  border-radius: 0.45rem;
+  background: #fff;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--dcfg-ink);
+  outline: none;
+  min-height: 2.4rem;
+}
+
+.dispatch-config .dcfg-field textarea {
+  min-height: 4.75rem;
+  max-width: none;
+  resize: vertical;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.dispatch-config .dcfg-section .dcfg-field:has(textarea) {
+  max-width: none;
+}
+
+.dispatch-config .dcfg-field__control:focus-within,
+.dispatch-config .dcfg-field select:focus,
+.dispatch-config .dcfg-field textarea:focus {
+  border-color: #c00000;
+  box-shadow: 0 0 0 3px rgb(192 0 0 / 0.12);
+}
+
+.dispatch-config .dcfg-field em {
+  display: block;
+  font-style: normal;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--dcfg-muted);
+  line-height: 1.35;
+}
+
+.dispatch-config .dcfg-range {
+  width: 100%;
+  height: 0.45rem;
+  margin: 0.35rem 0 0.15rem;
+  accent-color: #c00000;
+  cursor: pointer;
+}
+
+.dispatch-config .dcfg-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.45rem;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  font-size: 0.74rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.dispatch-config .dcfg-banner p {
+  margin: 0;
+}
+
+.dispatch-config .dcfg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: 0.5rem;
+  border: 1.5px solid #a8a29e;
+  background: #fff;
+  color: var(--dcfg-ink);
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 0.48rem 0.85rem;
+  min-height: 2.3rem;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.dispatch-config .dcfg-btn:hover:not(:disabled) {
+  background: #f5f5f4;
+}
+
+.dispatch-config .dcfg-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.dispatch-config .dcfg-btn--ghost {
+  background: #fff;
+}
+
+.dispatch-config .dcfg-btn--primary {
+  background: #c00000;
+  border-color: #9f0000;
+  color: #fff;
+  box-shadow: 0 1px 3px rgb(192 0 0 / 0.25);
+}
+
+.dispatch-config .dcfg-btn--primary:hover:not(:disabled) {
+  background: #9f0000;
+}
+
+.dispatch-config .dcfg-btn--block {
+  width: 100%;
+  max-width: 22rem;
+}
+
+.dispatch-config .dcfg-aside .dcfg-btn--block {
+  max-width: none;
+}
+
+.dispatch-config .dcfg-mobile-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin: 0 -0.05rem;
+  padding: 0.55rem 0.15rem calc(0.55rem + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, transparent 0%, #fafaf9 35%, #fafaf9 100%);
+}
+
+.dispatch-config .dcfg-mobile-bar .dcfg-btn--block {
+  max-width: none;
+}
+
+.dispatch-config .dcfg-alert {
+  flex-shrink: 0;
+  width: 100%;
+  max-width: var(--dcfg-max);
+  margin-left: auto;
+  margin-right: auto;
+  border-radius: 0.55rem;
+  border: 1px solid;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.dispatch-config .dcfg-alert--error {
+  border-color: #fca5a5;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.dispatch-config .dcfg-alert--ok {
+  border-color: #6ee7b7;
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.dispatch-config .dcfg-alert--warn {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.dispatch-config .dcfg-note {
+  margin: 0.4rem 0 0;
+  font-size: 0.72rem;
+  color: var(--dcfg-muted);
+  font-weight: 600;
+}
+
+.dispatch-config .dcfg-health {
+  margin-top: 0.45rem;
+  border-radius: 0.45rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid;
+}
+
+.dispatch-config .dcfg-health.is-ok {
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+  color: #065f46;
+}
+
+.dispatch-config .dcfg-health.is-bad {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #9a3412;
+}
+
+.dispatch-config .dcfg-health__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.dispatch-config .dcfg-health__err,
+.dispatch-config .dcfg-health__hint {
+  margin: 0.3rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.dispatch-config .dcfg-health__hint code {
+  font-size: 0.68rem;
+  background: rgb(0 0 0 / 0.07);
+  padding: 0.06rem 0.3rem;
+  border-radius: 0.25rem;
+  font-weight: 700;
+}
+
+.dispatch-config .dcfg-health__list {
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.15rem;
+  max-height: 8rem;
+  overflow: auto;
+}
+
+.dispatch-config .dcfg-health__list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 650;
+  padding: 0.18rem 0;
+  border-bottom: 1px solid rgb(0 0 0 / 0.07);
+}
+
+.dispatch-config .dcfg-health__list li.is-ok strong { color: #166534; font-weight: 800; }
+.dispatch-config .dcfg-health__list li.is-bad strong { color: #b91c1c; font-weight: 800; }
+
+.admin-shell .dispatch-config .admin-page-header {
+  width: 100%;
+  max-width: var(--dcfg-max);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.admin-shell .dispatch-config .admin-page-header__title {
+  font-size: 1.1rem !important;
+  letter-spacing: -0.02em;
+  color: var(--dcfg-ink);
+}
+
+.admin-shell .dispatch-config .admin-page-header__subtitle {
+  font-size: 0.78rem !important;
+  font-weight: 650;
+  color: var(--dcfg-muted);
+}
+
+@media (max-width: 560px) {
+  .dispatch-config .dcfg-field {
+    max-width: none;
+  }
+
+  .dispatch-config .dcfg-grid--2,
+  .dispatch-config .dcfg-grid--3 {
+    grid-template-columns: 1fr;
+  }
+
+  .dispatch-config .dcfg-btn--block {
+    max-width: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .dispatch-config .dcfg-section__head,
+  .dispatch-config .dcfg-section__body {
+    padding-left: 0.7rem;
+    padding-right: 0.7rem;
+  }
+
+  .dispatch-config .dcfg-toggle {
+    grid-template-columns: minmax(0, 1fr) 2.45rem;
+    column-gap: 0.55rem;
+    padding: 0.5rem 0.6rem;
+  }
+}

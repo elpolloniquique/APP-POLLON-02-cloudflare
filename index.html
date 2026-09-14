@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es-CL">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/img/logo.png" type="image/png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#C62828" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="El Pollón" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <meta name="description" content="Pollería El Pollón — Pollo a la brasa peruano, delivery y pedidos online en Arica, Iquique y Alto Hospicio." />
+    <meta name="keywords" content="pollo a la brasa, pollería, El Pollón, delivery Arica, delivery Iquique, pedidos online, pollería peruana" />
+    <meta name="author" content="Pollería El Pollón" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <meta name="geo.region" content="CL-AP, CL-TA" />
+    <meta name="geo.placename" content="Arica, Iquique, Alto Hospicio" />
+    <link rel="canonical" href="https://el-pollon.cl/" />
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_CL" />
+    <meta property="og:site_name" content="Pollería El Pollón" />
+    <meta property="og:url" content="https://el-pollon.cl/" />
+    <meta property="og:title" content="Pollería El Pollón | Pollo a la brasa, delivery y pedidos online" />
+    <meta property="og:description" content="Pollo a la brasa peruano en Arica, Iquique y Alto Hospicio. Pide online con delivery rápido." />
+    <meta property="og:image" content="https://el-pollon.cl/img/logo.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Pollería El Pollón | Pollo a la brasa, delivery y pedidos online" />
+    <meta name="twitter:description" content="Pollo a la brasa peruano en Arica, Iquique y Alto Hospicio. Pide online con delivery rápido." />
+    <meta name="twitter:image" content="https://el-pollon.cl/img/logo.png" />
+    <!-- Google Search Console: pegue aquí la meta de verificación que le entrega Google la primera es de cl y la segunda es de vercel-->   
+     <meta name="google-site-verification" content="ydWpNIN2-AoR15prVmIClBOLPblxBssZaOd5K2ztnU8" />
+     <meta name="google-site-verification" content="Y-exIq03uWexSSQLGyUqE8hPsmroaYxX_ggOzc9lYdQ" />
+
+    <title>Pollería El Pollón | Pollo a la brasa, delivery y pedidos online</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Pollería El Pollón",
+        "alternateName": "El Pollón",
+        "url": "https://el-pollon.cl/",
+        "inLanguage": "es-CL",
+        "description": "Pollo a la brasa peruano, delivery y pedidos online en Arica, Iquique y Alto Hospicio."
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      /* Captura el evento de Chrome ANTES de que React cargue (si no, se pierde). */
+      window.__pollonDeferredInstall = null;
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.__pollonDeferredInstall = e;
+      });
+      window.addEventListener('appinstalled', function () {
+        window.__pollonDeferredInstall = null;
+      });
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
