@@ -103,11 +103,25 @@ export function requestGpsFix(timeoutMs = 12000) {
 
 function withTimeout(promise, ms, fallback = null) {
   return Promise.race([
-    promise,
+    Promise.resolve(promise).catch(() => fallback),
     new Promise((resolve) => {
       setTimeout(() => resolve(fallback), ms);
     }),
   ]);
+}
+
+async function withDeadline(promise, ms, message) {
+  let tid;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        tid = setTimeout(() => reject(new Error(message)), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(tid);
+  }
 }
 
 /**
@@ -143,11 +157,11 @@ async function ensureServiceWorkerRegistration() {
  */
 async function softResetPushSubscription() {
   try {
-    const regs = await navigator.serviceWorker.getRegistrations();
-    for (const reg of regs) {
+    const regs = await withTimeout(navigator.serviceWorker.getRegistrations(), 2500, []);
+    for (const reg of regs || []) {
       try {
-        const sub = await reg.pushManager?.getSubscription?.();
-        if (sub) await sub.unsubscribe().catch(() => {});
+        const sub = await withTimeout(reg.pushManager?.getSubscription?.(), 2500, null);
+        if (sub) await withTimeout(sub.unsubscribe(), 2500, true);
       } catch {
         /* ignore */
       }
@@ -181,7 +195,7 @@ export async function getDriverWebPushStatus() {
       const reg = await ensureServiceWorkerRegistration();
       swActive = Boolean(reg?.active);
       if (reg?.pushManager && permission === 'granted') {
-        subscription = await reg.pushManager.getSubscription();
+        subscription = await withTimeout(reg.pushManager.getSubscription(), 3000, null);
       }
     } catch {
       /* ignore */
@@ -302,29 +316,36 @@ function keysMatch(existingKey, wantedKey) {
 }
 
 async function subscribeWithKey(reg, appServerKey) {
-  let sub = await reg.pushManager.getSubscription();
+  let sub = await withTimeout(reg.pushManager.getSubscription(), 3000, null);
   if (sub) {
     const opts = sub.options?.applicationServerKey;
     if (!opts || !keysMatch(opts, appServerKey)) {
-      await sub.unsubscribe().catch(() => {});
+      await withTimeout(sub.unsubscribe(), 2500, true);
       sub = null;
     }
   }
   if (!sub) {
-    // 1) ArrayBuffer (recomendado Chrome reciente)
     try {
-      sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: appServerKey,
-      });
-    } catch (err) {
-      // 2) Uint8Array fallback (algunos WebViews)
-      const msg = String(err?.message || err || '').toLowerCase();
-      if (msg.includes('push service') || msg.includes('registration failed') || msg.includes('applicationServerKey')) {
-        sub = await reg.pushManager.subscribe({
+      sub = await withDeadline(
+        reg.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: new Uint8Array(appServerKey),
-        });
+          applicationServerKey: appServerKey,
+        }),
+        10000,
+        'Chrome tardó demasiado en activar avisos. Pulsa de nuevo.',
+      );
+    } catch (err) {
+      const msg = String(err?.message || err || '').toLowerCase();
+      if (msg.includes('tardó demasiado')) throw err;
+      if (msg.includes('push service') || msg.includes('registration failed') || msg.includes('applicationServerKey')) {
+        sub = await withDeadline(
+          reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: new Uint8Array(appServerKey),
+          }),
+          8000,
+          'Chrome tardó demasiado en activar avisos. Pulsa de nuevo.',
+        );
       } else {
         throw err;
       }
@@ -415,7 +436,11 @@ export async function ensureDriverPushSubscription({ force = false } = {}) {
     const reg = await ensureServiceWorkerRegistration();
     if (!reg?.active) throw new Error('Service Worker no activo');
     const sub = await subscribeWithKey(reg, appServerKey);
-    const saved = await saveSubscriptionToSupabase(sub);
+    const saved = await withDeadline(
+      saveSubscriptionToSupabase(sub),
+      8000,
+      'No se pudo guardar la suscripción. Revisa internet y pulsa de nuevo.',
+    );
     markPushOk();
     return { ok: true, endpoint: saved.endpoint };
   };
@@ -424,6 +449,15 @@ export async function ensureDriverPushSubscription({ force = false } = {}) {
     return await tryOnce();
   } catch (err1) {
     console.warn('[Pollón] push subscribe attempt 1:', err1);
+    const timedOut = String(err1?.message || '').toLowerCase().includes('tardó');
+    if (timedOut) {
+      markDeferred();
+      return {
+        ok: true,
+        deferred: true,
+        warn: err1.message || 'Chrome tardó demasiado en activar avisos. Pulsa de nuevo.',
+      };
+    }
     if (!isPushInfraError(err1)) {
       try {
         return await tryOnce();
@@ -548,14 +582,27 @@ export async function sendDriverSelfTestPush() {
   const token = sessionData?.session?.access_token;
   if (!token) throw new Error('Sin sesión. Vuelve a iniciar sesión.');
 
-  const res = await fetch('/api/notify-driver-offers', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ selfTest: true }),
-  });
+  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const tid = setTimeout(() => {
+    try { ctrl?.abort(); } catch { /* ignore */ }
+  }, 12000);
+  let res;
+  try {
+    res = await fetch('/api/notify-driver-offers', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ selfTest: true }),
+      signal: ctrl?.signal,
+    });
+  } finally {
+    clearTimeout(tid);
+  }
+  if (!res) {
+    throw new Error('El servidor tardó demasiado. Pulsa de nuevo.');
+  }
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(json?.error || `Error ${res.status}`);

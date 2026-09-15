@@ -98,13 +98,17 @@ export function DriverNotifyHome() {
   const enablePush = async () => {
     setBusy('enable');
     setMsg('');
+    const safety = setTimeout(() => {
+      setBusy((cur) => (cur === 'enable' ? '' : cur));
+      setMsg((cur) => cur || 'Chrome tardó en activar avisos. Si pedía permiso, acéptalo y pulsa de nuevo.');
+    }, 16000);
     try {
       if (!hasVapidPublicKey()) {
         throw new Error(
           'Falta configurar notificaciones push (VITE_VAPID_PUBLIC_KEY). Avisa al administrador.'
         );
       }
-      await unlockDriverAudio();
+      await unlockDriverAudio().catch(() => {});
       const res = await ensureDriverPushSubscription({ force: true });
       if (res?.deferred && !res?.endpoint) {
         setMsg(res.warn || 'Permiso OK, pero la suscripción quedó pendiente. Pulsa de nuevo en unos segundos.');
@@ -127,11 +131,12 @@ export function DriverNotifyHome() {
           );
         }
       }
-      await refresh();
+      await Promise.race([refresh().catch(() => {}), new Promise((r) => setTimeout(r, 4000))]);
     } catch (err) {
       setMsg(err.message || 'Activa las notificaciones en Ajustes del celular.');
-      await refresh();
+      await Promise.race([refresh().catch(() => {}), new Promise((r) => setTimeout(r, 4000))]);
     } finally {
+      clearTimeout(safety);
       setBusy('');
     }
   };

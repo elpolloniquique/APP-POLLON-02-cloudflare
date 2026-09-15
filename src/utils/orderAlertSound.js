@@ -23,7 +23,10 @@ export async function unlockDriverAudio() {
     const ctx = getAudioContext();
     if (!ctx) return false;
     if (ctx.state === 'suspended') {
-      await ctx.resume();
+      await Promise.race([
+        ctx.resume(),
+        new Promise((resolve) => setTimeout(resolve, 1200)),
+      ]);
     }
     const buffer = ctx.createBuffer(1, 1, 22050);
     const src = ctx.createBufferSource();
