@@ -142,6 +142,8 @@ export function DriverNotifyHome() {
         );
       } else if (remote?.webConfigured === false) {
         setMsg('Prueba local OK, pero el servidor no tiene VAPID. Avisa al admin.');
+      } else if (remote?.error || remote?.lastError) {
+        setMsg(`Prueba local OK, pero el aviso remoto falló: ${remote.error || remote.lastError}`);
       } else {
         setMsg(
           'Prueba local enviada a la bandeja. Si no ves aviso con la app cerrada, pulsa Reconectar avisos y revisa batería de Chrome.',

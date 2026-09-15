@@ -8,7 +8,6 @@
  *  3) Web Push (VAPID) fallback
  */
 import { createClient } from '@supabase/supabase-js';
-import webpush from 'web-push';
 import {
   env,
   sendFcm,
@@ -17,6 +16,7 @@ import {
   fcmModeLabel,
 } from './_lib/fcmSend.js';
 import { handleGpsPing, isGpsPingRequest } from './_lib/gpsPing.js';
+import { setWebPushVapid, sendWebPushNotification } from './_lib/webPushSend.js';
 
 function moneyCLP(n) {
   try {
@@ -90,7 +90,12 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'No eres repartidor' });
     }
     if (!vapidPublic || !vapidPrivate) {
-      return res.status(200).json({ ok: false, webConfigured: false, webSent: 0, error: 'VAPID no configurado' });
+      return res.status(200).json({
+        ok: false,
+        webConfigured: false,
+        webSent: 0,
+        error: 'VAPID no configurado en el servidor. En Cloudflare Pages falta VAPID_PRIVATE_KEY (secret, Runtime).',
+      });
     }
     const { data: subs } = await admin
       .from('ep_driver_push_subscriptions')
@@ -112,8 +117,9 @@ export default async function handler(req, res) {
       .gt('expires_at', new Date().toISOString());
     const badgeCount = Math.max(1, Number(pendingCount) || 1);
     const stamp = Date.now();
-    webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
+    setWebPushVapid(vapidSubject, vapidPublic, vapidPrivate);
     let webSent = 0;
+    let lastError = '';
     const staleWeb = [];
     await Promise.all(
       subs.map(async (sub) => {
@@ -126,7 +132,7 @@ export default async function handler(req, res) {
           type: 'driver_offer_test',
         });
         try {
-          await webpush.sendNotification(
+          await sendWebPushNotification(
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
             payload,
             { urgency: 'high', TTL: 3600 },
@@ -135,6 +141,7 @@ export default async function handler(req, res) {
         } catch (err) {
           const code = err?.statusCode;
           if (code === 404 || code === 410) staleWeb.push(sub.id);
+          else lastError = err?.message || String(err);
         }
       }),
     );
@@ -147,6 +154,8 @@ export default async function handler(req, res) {
       webConfigured: true,
       badgeCount,
       selfTest: true,
+      lastError: lastError || undefined,
+      error: webSent > 0 ? undefined : (lastError || 'El servidor no pudo entregar el aviso Web Push'),
     });
   }
 
@@ -260,7 +269,7 @@ export default async function handler(req, res) {
       .in('driver_id', driverIds);
 
     if (subs?.length) {
-      webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
+      setWebPushVapid(vapidSubject, vapidPublic, vapidPrivate);
       await Promise.all(
         subs.map(async (sub) => {
           const offer = byDriver[sub.driver_id];
@@ -290,7 +299,7 @@ export default async function handler(req, res) {
             renotify: true,
           });
           try {
-            await webpush.sendNotification(
+            await sendWebPushNotification(
               { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
               payload,
               { urgency: 'high', TTL: 86400 },
@@ -299,6 +308,7 @@ export default async function handler(req, res) {
           } catch (err) {
             const code = err?.statusCode;
             if (code === 404 || code === 410) staleWeb.push(sub.id);
+            else console.warn('[Pollón] Web Push:', err?.message || err);
           }
         }),
       );

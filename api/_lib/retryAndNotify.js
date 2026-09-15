@@ -3,8 +3,8 @@
  * Tag estable pollon-job-{id} → actualiza, no duplica.
  * Usado por cron Vercel y por GPS ping nativo (Hobby no permite cron cada 1 min).
  */
-import webpush from 'web-push';
 import { env, sendFcm, isFcmConfigured } from './fcmSend.js';
+import { setWebPushVapid, sendWebPushNotification } from './webPushSend.js';
 
 function ticketShort(code) {
   const s = String(code || '').replace(/^0+/, '');
@@ -121,7 +121,7 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
     }
 
     if (vapidPublic && vapidPrivate) {
-      webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
+      setWebPushVapid(vapidSubject, vapidPublic, vapidPrivate);
       const { data: subs } = await admin
         .from('ep_driver_push_subscriptions')
         .select('id, endpoint, p256dh, auth, driver_id')
@@ -135,7 +135,7 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
         const name = job.customer_name || 'Cliente';
         const addr = job.customer_address || '';
         try {
-          await webpush.sendNotification(
+          await sendWebPushNotification(
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
             JSON.stringify({
               title: 'El Pollón · Nuevo pedido',
@@ -161,6 +161,7 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
         } catch (err) {
           const code = err?.statusCode;
           if (code === 404 || code === 410) staleWeb.push(sub.id);
+          else console.warn('[Pollón] retry Web Push:', err?.message || err);
         }
       }
     }
