@@ -201,13 +201,25 @@ export async function getDriverWebPushStatus() {
       /* ignore */
     }
   }
-  const subscribed = Boolean(subscription?.endpoint);
   let pushSavedOk = false;
   try {
     pushSavedOk = localStorage.getItem(PUSH_OK_FLAG) === '1';
   } catch {
     /* ignore */
   }
+  if (!subscription && permission === 'granted' && swOk && !pushSavedOk) {
+    try {
+      const readyReg = await withTimeout(navigator.serviceWorker.ready, 5000, null);
+      swActive = Boolean(readyReg?.active || swActive);
+      if (readyReg?.pushManager) {
+        subscription = await withTimeout(readyReg.pushManager.getSubscription(), 4000, null);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  const subscribed = Boolean(subscription?.endpoint);
+  const permissionOk = permission === 'granted';
   return {
     vapidOk,
     swOk,
@@ -216,7 +228,7 @@ export async function getDriverWebPushStatus() {
     permission,
     subscribed,
     pushSavedOk,
-    ready: vapidOk && permission === 'granted' && subscribed,
+    ready: Boolean(vapidOk && permissionOk && (subscribed || pushSavedOk)),
     missingVapid: !vapidOk,
   };
 }

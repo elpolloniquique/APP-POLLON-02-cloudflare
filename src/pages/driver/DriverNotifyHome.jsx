@@ -73,6 +73,11 @@ export function DriverNotifyHome() {
   useEffect(() => {
     ensurePwaInstallListeners();
     refresh();
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      ensureDriverPushSubscription({ force: false })
+        .then(() => refresh())
+        .catch(() => {});
+    }
     const unsub = subscribeDispatch(() => refresh());
     const t = setInterval(refresh, 8000);
     const onMsg = (event) => {
@@ -95,7 +100,8 @@ export function DriverNotifyHome() {
     };
   }, [refresh]);
 
-  const enablePush = async () => {
+  const enablePush = async (opts = {}) => {
+    const force = opts?.force === true;
     setBusy('enable');
     setMsg('');
     const safety = setTimeout(() => {
@@ -109,7 +115,7 @@ export function DriverNotifyHome() {
         );
       }
       await unlockDriverAudio().catch(() => {});
-      const res = await ensureDriverPushSubscription({ force: true });
+      const res = await ensureDriverPushSubscription({ force });
       if (res?.deferred && !res?.endpoint) {
         setMsg(res.warn || 'Permiso OK, pero la suscripción quedó pendiente. Pulsa de nuevo en unos segundos.');
       } else {
@@ -127,7 +133,9 @@ export function DriverNotifyHome() {
           setMsg('Suscripción OK, pero en Cloudflare falta VAPID_PRIVATE_KEY (secreto Runtime).');
         } else {
           setMsg(
-            `Suscripción guardada, pero el aviso remoto falló: ${remote?.error || remote?.lastError || 'revisa VAPID_PRIVATE_KEY en Cloudflare'}`
+            `Avisos activos. ${remote?.error || remote?.lastError
+              ? `Prueba remota: ${remote.error || remote.lastError}`
+              : 'Los pedidos nuevos llegarán a la bandeja.'}`,
           );
         }
       }
@@ -250,7 +258,7 @@ export function DriverNotifyHome() {
                 <p className="mt-1 text-[10px] font-medium text-gray-500">
                   Permiso: {status.permission || '—'}
                   {' · '}SW: {status.swActive ? 'OK' : 'pendiente'}
-                  {' · '}Suscripción: {status.subscribed ? 'OK' : 'no'}
+                  {' · '}Suscripción: {(status.subscribed || status.pushSavedOk) ? 'OK' : 'no'}
                 </p>
               )}
               <div className="mt-2 flex flex-wrap gap-2">
@@ -258,7 +266,7 @@ export function DriverNotifyHome() {
                   <button
                     type="button"
                     disabled={Boolean(busy) || missingVapid}
-                    onClick={enablePush}
+                    onClick={() => enablePush({ force: false })}
                     className="rounded-xl bg-pollon-red px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
                   >
                     {busy === 'enable' ? 'Activando…' : 'Activar notificaciones'}
@@ -278,7 +286,7 @@ export function DriverNotifyHome() {
                   <button
                     type="button"
                     disabled={Boolean(busy)}
-                    onClick={enablePush}
+                    onClick={() => enablePush({ force: true })}
                     className="rounded-xl border border-emerald-300 bg-white px-3 py-2.5 text-xs font-bold text-emerald-800 disabled:opacity-50"
                   >
                     Reconectar avisos
