@@ -60,7 +60,7 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
     return { ok: true, retried: data?.retried || 0, job_ids: [], pushed: 0 };
   }
 
-  const vapidPublic = cleanVapidKey(env('VITE_VAPID_PUBLIC_KEY', 'VAPID_PUBLIC_KEY'));
+  const vapidPublic = cleanVapidKey(env('EP_WEB_PUSH_PUBLIC_KEY', 'VITE_VAPID_PUBLIC_KEY', 'VAPID_PUBLIC_KEY'));
   const vapidPrivate = cleanVapidKey(env('VAPID_PRIVATE_KEY'));
   const vapidSubject = String(env('VAPID_SUBJECT') || 'mailto:contacto@el-pollon.cl').trim();
   const hasFcm = isFcmConfigured();
@@ -160,7 +160,7 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
           webSent += 1;
         } catch (err) {
           const code = err?.statusCode;
-          if (code === 404 || code === 410) staleWeb.push(sub.id);
+          if (code === 404 || code === 410 || code === 403) staleWeb.push(sub.id);
           else console.warn('[Pollón] retry Web Push:', err?.message || err);
         }
       }

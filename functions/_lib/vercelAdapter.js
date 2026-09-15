@@ -16,11 +16,22 @@ export function applyCloudflareEnv(env = {}) {
   if (!process.env.SUPABASE_ANON_KEY && process.env.VITE_SUPABASE_ANON_KEY) {
     process.env.SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY;
   }
-  if (!process.env.VAPID_PUBLIC_KEY && process.env.VITE_VAPID_PUBLIC_KEY) {
-    process.env.VAPID_PUBLIC_KEY = process.env.VITE_VAPID_PUBLIC_KEY;
-  }
   if (!process.env.EP_PUBLIC_SITE_URL && process.env.VITE_PUBLIC_SITE_URL) {
     process.env.EP_PUBLIC_SITE_URL = process.env.VITE_PUBLIC_SITE_URL;
+  }
+  // El panel de Pages no deja borrar VITE_VAPID_PUBLIC_KEY vieja; esta var de wrangler.toml gana.
+  const webPushPublic = String(process.env.EP_WEB_PUSH_PUBLIC_KEY || '')
+    .replace(/\s+/g, '')
+    .trim();
+  if (webPushPublic) {
+    process.env.EP_WEB_PUSH_PUBLIC_KEY = webPushPublic;
+    process.env.VITE_VAPID_PUBLIC_KEY = webPushPublic;
+    process.env.VAPID_PUBLIC_KEY = webPushPublic;
+  } else if (!process.env.VAPID_PUBLIC_KEY && process.env.VITE_VAPID_PUBLIC_KEY) {
+    process.env.VAPID_PUBLIC_KEY = String(process.env.VITE_VAPID_PUBLIC_KEY).replace(/\s+/g, '').trim();
+  }
+  if (process.env.VAPID_PRIVATE_KEY) {
+    process.env.VAPID_PRIVATE_KEY = String(process.env.VAPID_PRIVATE_KEY).replace(/\s+/g, '').trim();
   }
   if (!process.env.CF_PAGES) process.env.CF_PAGES = '1';
 }

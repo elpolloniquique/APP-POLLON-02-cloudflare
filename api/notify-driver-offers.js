@@ -49,7 +49,7 @@ export default async function handler(req, res) {
   const supabaseUrl = env('SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = env('SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   const serviceKey = env('SUPABASE_SERVICE_ROLE_KEY');
-  const vapidPublic = cleanVapidKey(env('VITE_VAPID_PUBLIC_KEY', 'VAPID_PUBLIC_KEY'));
+  const vapidPublic = cleanVapidKey(env('EP_WEB_PUSH_PUBLIC_KEY', 'VITE_VAPID_PUBLIC_KEY', 'VAPID_PUBLIC_KEY'));
   const vapidPrivate = cleanVapidKey(env('VAPID_PRIVATE_KEY'));
   const vapidSubject = String(env('VAPID_SUBJECT') || 'mailto:contacto@el-pollon.cl').trim();
   const hasFcm = isFcmConfigured();
@@ -156,7 +156,7 @@ export default async function handler(req, res) {
           webSent += 1;
         } catch (err) {
           const code = err?.statusCode;
-          if (code === 404 || code === 410) staleWeb.push(sub.id);
+          if (code === 404 || code === 410 || code === 403) staleWeb.push(sub.id);
           else lastError = err?.message || String(err);
         }
       }),
@@ -170,6 +170,7 @@ export default async function handler(req, res) {
       webConfigured: true,
       badgeCount,
       selfTest: true,
+      vapidPublicPrefix: vapidPublic.slice(0, 12),
       lastError: lastError || undefined,
       error: webSent > 0 ? undefined : (lastError || 'El servidor no pudo entregar el aviso Web Push'),
     });
@@ -323,7 +324,7 @@ export default async function handler(req, res) {
             webSent += 1;
           } catch (err) {
             const code = err?.statusCode;
-            if (code === 404 || code === 410) staleWeb.push(sub.id);
+            if (code === 404 || code === 410 || code === 403) staleWeb.push(sub.id);
             else console.warn('[Pollón] Web Push:', err?.message || err);
           }
         }),
