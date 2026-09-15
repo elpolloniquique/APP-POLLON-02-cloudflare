@@ -105,16 +105,27 @@ export function DriverNotifyHome() {
         );
       }
       await unlockDriverAudio();
-      const res = await ensureDriverPushSubscription();
+      const res = await ensureDriverPushSubscription({ force: true });
       if (res?.deferred && !res?.endpoint) {
         setMsg(res.warn || 'Permiso OK, pero la suscripción quedó pendiente. Pulsa de nuevo en unos segundos.');
       } else {
         await setMyOperationalStatus('available').catch(() => {});
-        setMsg('Avisos activos. Te enviamos una prueba a la bandeja…');
         await showLocalTrayTestNotification({
           badgeCount: Math.max(1, pending),
         }).catch(() => {});
-        setMsg('Listo. Los pedidos nuevos llegarán a la bandeja con internet (no necesitas GPS).');
+        const remote = await sendDriverSelfTestPush().catch((err) => ({
+          ok: false,
+          error: err?.message || 'No se pudo contactar al servidor',
+        }));
+        if (remote?.webSent > 0) {
+          setMsg('Listo. Pedido nuevo llegará a la bandeja (desliza desde arriba). Minimiza la app y prueba.');
+        } else if (remote?.webConfigured === false) {
+          setMsg('Suscripción OK, pero en Cloudflare falta VAPID_PRIVATE_KEY (secreto Runtime).');
+        } else {
+          setMsg(
+            `Suscripción guardada, pero el aviso remoto falló: ${remote?.error || remote?.lastError || 'revisa VAPID_PRIVATE_KEY en Cloudflare'}`
+          );
+        }
       }
       await refresh();
     } catch (err) {

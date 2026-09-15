@@ -305,7 +305,7 @@ async function subscribeWithKey(reg, appServerKey) {
   let sub = await reg.pushManager.getSubscription();
   if (sub) {
     const opts = sub.options?.applicationServerKey;
-    if (opts && !keysMatch(opts, appServerKey)) {
+    if (!opts || !keysMatch(opts, appServerKey)) {
       await sub.unsubscribe().catch(() => {});
       sub = null;
     }
@@ -360,7 +360,7 @@ function isPushInfraError(err) {
  * Si Google/FCM falla: reintento suave (sin borrar caché) y deferred.
  * Nunca recarga ni borra SW/caches: eso dejaba la pantalla en blanco.
  */
-export async function ensureDriverPushSubscription() {
+export async function ensureDriverPushSubscription({ force = false } = {}) {
   if (!isSupabaseConfigured() && !isNativeDriverApp()) {
     return { ok: true, demo: true };
   }
@@ -405,6 +405,10 @@ export async function ensureDriverPushSubscription() {
   const appServerKey = toApplicationServerKey(VAPID_PUBLIC);
   if (new Uint8Array(appServerKey).byteLength !== 65) {
     throw new Error('Clave de notificaciones inválida. Avisa al administrador.');
+  }
+
+  if (force) {
+    await softResetPushSubscription();
   }
 
   const tryOnce = async () => {

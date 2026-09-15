@@ -4,7 +4,7 @@
  * Usado por cron Vercel y por GPS ping nativo (Hobby no permite cron cada 1 min).
  */
 import { env, sendFcm, isFcmConfigured } from './fcmSend.js';
-import { setWebPushVapid, sendWebPushNotification } from './webPushSend.js';
+import { setWebPushVapid, sendWebPushNotification, cleanVapidKey } from './webPushSend.js';
 
 function ticketShort(code) {
   const s = String(code || '').replace(/^0+/, '');
@@ -60,9 +60,9 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
     return { ok: true, retried: data?.retried || 0, job_ids: [], pushed: 0 };
   }
 
-  const vapidPublic = env('VITE_VAPID_PUBLIC_KEY', 'VAPID_PUBLIC_KEY');
-  const vapidPrivate = env('VAPID_PRIVATE_KEY');
-  const vapidSubject = env('VAPID_SUBJECT', 'mailto:contacto@el-pollon.cl');
+  const vapidPublic = cleanVapidKey(env('VITE_VAPID_PUBLIC_KEY', 'VAPID_PUBLIC_KEY'));
+  const vapidPrivate = cleanVapidKey(env('VAPID_PRIVATE_KEY'));
+  const vapidSubject = String(env('VAPID_SUBJECT') || 'mailto:contacto@el-pollon.cl').trim();
   const hasFcm = isFcmConfigured();
   let fcmSent = 0;
   let webSent = 0;

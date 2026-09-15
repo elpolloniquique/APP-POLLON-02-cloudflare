@@ -16,7 +16,7 @@ import {
   fcmModeLabel,
 } from './_lib/fcmSend.js';
 import { handleGpsPing, isGpsPingRequest } from './_lib/gpsPing.js';
-import { setWebPushVapid, sendWebPushNotification } from './_lib/webPushSend.js';
+import { setWebPushVapid, sendWebPushNotification, cleanVapidKey } from './_lib/webPushSend.js';
 
 function moneyCLP(n) {
   try {
@@ -41,19 +41,35 @@ export default async function handler(req, res) {
   }
 
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(204).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const supabaseUrl = env('SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = env('SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   const serviceKey = env('SUPABASE_SERVICE_ROLE_KEY');
-  const vapidPublic = env('VITE_VAPID_PUBLIC_KEY', 'VAPID_PUBLIC_KEY');
-  const vapidPrivate = env('VAPID_PRIVATE_KEY');
-  const vapidSubject = env('VAPID_SUBJECT', 'mailto:contacto@el-pollon.cl');
+  const vapidPublic = cleanVapidKey(env('VITE_VAPID_PUBLIC_KEY', 'VAPID_PUBLIC_KEY'));
+  const vapidPrivate = cleanVapidKey(env('VAPID_PRIVATE_KEY'));
+  const vapidSubject = String(env('VAPID_SUBJECT') || 'mailto:contacto@el-pollon.cl').trim();
   const hasFcm = isFcmConfigured();
+
+  // Chequeo público: no revela secretos, sí dice si Cloudflare tiene el par VAPID.
+  if (req.method === 'GET') {
+    const q = req.query || {};
+    if (q.check === 'vapid') {
+      return res.status(200).json({
+        vapidPrivate: Boolean(vapidPrivate),
+        vapidPublicLen: vapidPublic.length,
+        vapidPublicPrefix: vapidPublic.slice(0, 12),
+        vapidSubject,
+        supabase: Boolean(supabaseUrl && anonKey && serviceKey),
+        fcm: hasFcm,
+      });
+    }
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   if (!supabaseUrl || !anonKey || !serviceKey) {
     return res.status(500).json({ error: 'Faltan vars Supabase (URL, ANON, SERVICE_ROLE)' });
