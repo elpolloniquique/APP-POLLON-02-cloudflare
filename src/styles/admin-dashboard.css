@@ -845,6 +845,13 @@
   }
 }
 
+/* Móvil / tablet: la topbar del shell ya muestra “Dashboard”; no duplicar el h1 */
+@media (max-width: 1023px) {
+  .dash-header__titles {
+    display: none;
+  }
+}
+
 /* Móvil */
 @media (max-width: 719px) {
   .admin-dashboard {

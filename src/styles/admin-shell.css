@@ -394,9 +394,12 @@
   min-height: 0;
 }
 
-.admin-shell:has(.admin-dashboard) .admin-shell__topbar,
-.admin-shell:has(.rates-admin) .admin-shell__topbar {
-  display: none;
+/* En PC el sidebar ya está a la vista; en móvil la hamburguesa vive en esta topbar. */
+@media (min-width: 1024px) {
+  .admin-shell:has(.admin-dashboard) .admin-shell__topbar,
+  .admin-shell:has(.rates-admin) .admin-shell__topbar {
+    display: none;
+  }
 }
 
 /* Reportes / Usuarios / WhatsApp: una sola pantalla sin scroll en PC grande */
