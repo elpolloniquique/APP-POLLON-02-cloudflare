@@ -14,10 +14,12 @@ import {
   ensureDriverPushSubscription,
   setDriverAppBadge,
   clearDriverAppBadge,
-  getDriverWebPushStatus,
+  getDriverWebPushStatusSync,
   showLocalTrayTestNotification,
   hasVapidPublicKey,
   sendDriverSelfTestPush,
+  rememberPushForUser,
+  isPushRememberedForUser,
 } from '../../services/pushService';
 import { getMyDriverSummary, ensureMyDriverProfile, setMyOperationalStatus } from '../../services/driverService';
 import { subscribeDispatch } from '../../services/dispatchService';
@@ -40,14 +42,17 @@ import {
  * Sin aceptar pedidos (eso es la APK nativa).
  */
 export function DriverNotifyHome() {
-  const { profile, signOut } = useAuth();
+  const { profile, user, signOut } = useAuth();
+  const userId = user?.id || profile?.authUserId || '';
   const [pending, setPending] = useState(0);
-  const [status, setStatus] = useState(null);
+  const [status, setStatus] = useState(() => getDriverWebPushStatusSync(userId));
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
   const [standalone, setStandalone] = useState(() => isStandaloneDisplayMode());
 
   const refresh = useCallback(async () => {
+    setStatus(getDriverWebPushStatusSync(userId));
+    setStandalone(isStandaloneDisplayMode());
     try {
       await ensureMyDriverProfile().catch(() => {});
       const s = await getMyDriverSummary();
@@ -58,28 +63,25 @@ export function DriverNotifyHome() {
     } catch {
       /* ignore */
     }
-    try {
-      const st = await getDriverWebPushStatus();
-      setStatus(st);
-      if (st?.ready) {
-        await setMyOperationalStatus('available').catch(() => {});
-      }
-    } catch {
-      setStatus({ ready: false, missingVapid: !hasVapidPublicKey() });
+    const st = getDriverWebPushStatusSync(userId);
+    setStatus(st);
+    if (st?.ready) {
+      await setMyOperationalStatus('available').catch(() => {});
     }
-    setStandalone(isStandaloneDisplayMode());
-  }, []);
+  }, [userId]);
+
+  useEffect(() => {
+    setStatus(getDriverWebPushStatusSync(userId));
+  }, [userId]);
 
   useEffect(() => {
     ensurePwaInstallListeners();
     refresh();
-    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      ensureDriverPushSubscription({ force: false })
-        .then(() => refresh())
-        .catch(() => {});
+    if (isPushRememberedForUser(userId) || (typeof Notification !== 'undefined' && Notification.permission === 'granted')) {
+      ensureDriverPushSubscription({ force: false, userId }).catch(() => {});
     }
     const unsub = subscribeDispatch(() => refresh());
-    const t = setInterval(refresh, 8000);
+    const t = setInterval(refresh, 20000);
     const onMsg = (event) => {
       if (event.data?.type === 'DRIVER_NEW_OFFER') {
         refresh();
@@ -98,7 +100,7 @@ export function DriverNotifyHome() {
         navigator.serviceWorker.removeEventListener('message', onMsg);
       }
     };
-  }, [refresh]);
+  }, [refresh, userId]);
 
   const enablePush = async (opts = {}) => {
     const force = opts?.force === true;
@@ -106,8 +108,7 @@ export function DriverNotifyHome() {
     setMsg('');
     const safety = setTimeout(() => {
       setBusy((cur) => (cur === 'enable' ? '' : cur));
-      setMsg((cur) => cur || 'Chrome tardó en activar avisos. Si pedía permiso, acéptalo y pulsa de nuevo.');
-    }, 16000);
+    }, 8000);
     try {
       if (!hasVapidPublicKey()) {
         throw new Error(
@@ -115,34 +116,28 @@ export function DriverNotifyHome() {
         );
       }
       await unlockDriverAudio().catch(() => {});
-      const res = await ensureDriverPushSubscription({ force });
-      if (res?.deferred && !res?.endpoint) {
-        setMsg(res.warn || 'Permiso OK, pero la suscripción quedó pendiente. Pulsa de nuevo en unos segundos.');
-      } else {
-        await setMyOperationalStatus('available').catch(() => {});
-        await showLocalTrayTestNotification({
-          badgeCount: Math.max(1, pending),
-        }).catch(() => {});
-        const remote = await sendDriverSelfTestPush().catch((err) => ({
-          ok: false,
-          error: err?.message || 'No se pudo contactar al servidor',
-        }));
-        if (remote?.webSent > 0) {
-          setMsg('Listo. Pedido nuevo llegará a la bandeja (desliza desde arriba). Minimiza la app y prueba.');
-        } else if (remote?.webConfigured === false) {
-          setMsg('Suscripción OK, pero en Cloudflare falta VAPID_PRIVATE_KEY (secreto Runtime).');
-        } else {
-          setMsg(
-            `Avisos activos. ${remote?.error || remote?.lastError
-              ? `Prueba remota: ${remote.error || remote.lastError}`
-              : 'Los pedidos nuevos llegarán a la bandeja.'}`,
-          );
-        }
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        await Notification.requestPermission();
       }
-      await Promise.race([refresh().catch(() => {}), new Promise((r) => setTimeout(r, 4000))]);
+      if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+        throw new Error('Debes permitir las notificaciones en Chrome / Ajustes del celular.');
+      }
+      rememberPushForUser(userId);
+      setStatus(getDriverWebPushStatusSync(userId));
+      setBusy('');
+      setMsg('Avisos activos. Los pedidos nuevos llegarán a la bandeja.');
+      ensureDriverPushSubscription({ force, userId })
+        .then(() => sendDriverSelfTestPush().catch(() => null))
+        .then((remote) => {
+          if (remote?.webSent > 0) {
+            setMsg('Listo. Pedido nuevo llegará a la bandeja (desliza desde arriba).');
+          }
+        })
+        .catch(() => {});
+      showLocalTrayTestNotification({ badgeCount: Math.max(1, pending) }).catch(() => {});
+      setMyOperationalStatus('available').catch(() => {});
     } catch (err) {
       setMsg(err.message || 'Activa las notificaciones en Ajustes del celular.');
-      await Promise.race([refresh().catch(() => {}), new Promise((r) => setTimeout(r, 4000))]);
     } finally {
       clearTimeout(safety);
       setBusy('');
@@ -199,7 +194,7 @@ export function DriverNotifyHome() {
   };
 
   const name = profile?.fullName || profile?.full_name || 'Repartidor';
-  const pushOk = Boolean(status?.ready);
+  const pushOk = Boolean(status?.ready || isPushRememberedForUser(userId));
   const missingVapid = Boolean(status?.missingVapid);
 
   return (

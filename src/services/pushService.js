@@ -5,14 +5,55 @@ import { isNativeDriverApp } from './backgroundGpsService';
 const VAPID_PUBLIC = (import.meta.env.VITE_VAPID_PUBLIC_KEY || '').trim();
 const NATIVE_NOTIF_FLAG = 'pollon_native_notif_ok';
 const PUSH_OK_FLAG = 'pollon_push_subscribed_ok';
+const PUSH_OK_USER_KEY = 'pollon_push_ok_user';
 const PUSH_DEFERRED_FLAG = 'pollon_push_deferred_ok';
 
 export function isPushConfigured() {
   return hasWebPushSupport();
 }
 
-export function hasVapidPublicKey() {
-  return Boolean(VAPID_PUBLIC);
+export function rememberPushForUser(userId) {
+  try {
+    localStorage.setItem(PUSH_OK_FLAG, '1');
+    localStorage.removeItem(PUSH_DEFERRED_FLAG);
+    if (userId) localStorage.setItem(PUSH_OK_USER_KEY, String(userId));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function isPushRememberedForUser(userId) {
+  try {
+    const ok = localStorage.getItem(PUSH_OK_FLAG) === '1';
+    if (!ok) return false;
+    const owner = localStorage.getItem(PUSH_OK_USER_KEY) || '';
+    if (!userId) return true;
+    if (!owner) {
+      localStorage.setItem(PUSH_OK_USER_KEY, String(userId));
+      return true;
+    }
+    return owner === String(userId);
+  } catch {
+    return false;
+  }
+}
+
+/** Estado inmediato (sin esperar Service Worker). Así no parpadea el botón rojo. */
+export function getDriverWebPushStatusSync(userId) {
+  const permission = getNotificationPermission();
+  const vapidOk = hasVapidPublicKey();
+  const remembered = isPushRememberedForUser(userId);
+  return {
+    vapidOk,
+    swOk: typeof navigator !== 'undefined' && 'serviceWorker' in navigator,
+    swActive: remembered,
+    pushApiOk: typeof window !== 'undefined' && 'PushManager' in window,
+    permission,
+    subscribed: remembered,
+    pushSavedOk: remembered,
+    ready: Boolean(vapidOk && remembered),
+    missingVapid: !vapidOk,
+  };
 }
 
 export function hasWebPushSupport() {
@@ -182,55 +223,9 @@ export async function getExistingPushSubscription() {
   }
 }
 
-/** Estado real de avisos PWA (no fingir OK solo con permission). */
-export async function getDriverWebPushStatus() {
-  const permission = getNotificationPermission();
-  const vapidOk = hasVapidPublicKey();
-  const swOk = typeof navigator !== 'undefined' && 'serviceWorker' in navigator;
-  const pushApiOk = typeof window !== 'undefined' && 'PushManager' in window;
-  let subscription = null;
-  let swActive = false;
-  if (vapidOk && swOk) {
-    try {
-      const reg = await ensureServiceWorkerRegistration();
-      swActive = Boolean(reg?.active);
-      if (reg?.pushManager && permission === 'granted') {
-        subscription = await withTimeout(reg.pushManager.getSubscription(), 3000, null);
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-  let pushSavedOk = false;
-  try {
-    pushSavedOk = localStorage.getItem(PUSH_OK_FLAG) === '1';
-  } catch {
-    /* ignore */
-  }
-  if (!subscription && permission === 'granted' && swOk && !pushSavedOk) {
-    try {
-      const readyReg = await withTimeout(navigator.serviceWorker.ready, 5000, null);
-      swActive = Boolean(readyReg?.active || swActive);
-      if (readyReg?.pushManager) {
-        subscription = await withTimeout(readyReg.pushManager.getSubscription(), 4000, null);
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-  const subscribed = Boolean(subscription?.endpoint);
-  const permissionOk = permission === 'granted';
-  return {
-    vapidOk,
-    swOk,
-    swActive,
-    pushApiOk,
-    permission,
-    subscribed,
-    pushSavedOk,
-    ready: Boolean(vapidOk && permissionOk && (subscribed || pushSavedOk)),
-    missingVapid: !vapidOk,
-  };
+/** Estado de avisos PWA. Si ya se activó en este celular/cuenta, no espera al SW. */
+export async function getDriverWebPushStatus(userId) {
+  return getDriverWebPushStatusSync(userId);
 }
 
 /** Prueba inmediata en bandeja (sin servidor) para validar permiso + SW. */
@@ -370,13 +365,8 @@ function markDeferred() {
   try { localStorage.setItem(PUSH_DEFERRED_FLAG, '1'); } catch { /* ignore */ }
 }
 
-function markPushOk() {
-  try {
-    localStorage.setItem(PUSH_OK_FLAG, '1');
-    localStorage.removeItem(PUSH_DEFERRED_FLAG);
-  } catch {
-    /* ignore */
-  }
+function markPushOk(userId) {
+  rememberPushForUser(userId);
 }
 
 function isPushInfraError(err) {
@@ -393,7 +383,7 @@ function isPushInfraError(err) {
  * Si Google/FCM falla: reintento suave (sin borrar caché) y deferred.
  * Nunca recarga ni borra SW/caches: eso dejaba la pantalla en blanco.
  */
-export async function ensureDriverPushSubscription({ force = false } = {}) {
+export async function ensureDriverPushSubscription({ force = false, userId = '' } = {}) {
   if (!isSupabaseConfigured() && !isNativeDriverApp()) {
     return { ok: true, demo: true };
   }
@@ -419,6 +409,8 @@ export async function ensureDriverPushSubscription({ force = false } = {}) {
   if (permission !== 'granted') {
     throw new Error('Debes permitir las notificaciones para recibir pedidos con la pantalla apagada.');
   }
+
+  rememberPushForUser(userId);
 
   try {
     localStorage.setItem(NATIVE_NOTIF_FLAG, '1');
