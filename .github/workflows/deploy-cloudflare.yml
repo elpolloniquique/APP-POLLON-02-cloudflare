@@ -34,7 +34,7 @@ jobs:
           VITE_WHATSAPP_DEFAULT: ${{ secrets.VITE_WHATSAPP_DEFAULT }}
           VITE_LEGACY_ADMIN_PASSWORD: ${{ secrets.VITE_LEGACY_ADMIN_PASSWORD }}
           VITE_OSRM_URL: ${{ secrets.VITE_OSRM_URL }}
-          VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
+          VITE_VAPID_PUBLIC_KEY: BDo-nPyCpiEwPGYTt0k9ZsWQr7CQ2BhVmTz9OO7UVtDrTeJiR_FJb10H9tuLf8Snpj5yEoKjQz5xNI2mYwPLADE
           VITE_PUBLIC_SITE_URL: ${{ secrets.VITE_PUBLIC_SITE_URL }}
       - uses: cloudflare/wrangler-action@v3
         with:

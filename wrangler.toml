@@ -10,6 +10,6 @@ pages_build_output_dir = "dist"
 VITE_PUBLIC_SITE_URL = "https://www.el-pollon.cl"
 EP_PUBLIC_SITE_URL = "https://www.el-pollon.cl"
 # Pública (ya va en el JS del navegador). Runtime de Functions la necesita para firmar Web Push.
-VITE_VAPID_PUBLIC_KEY = "BPVFCT3ePGeqjap-8N0oukuK-LND9H3xr5VaVOqzF_ME6C0688qWmXsSB-VWkOl7lGpIIKq4tbPhKPoeIfrvR3Q"
-VAPID_PUBLIC_KEY = "BPVFCT3ePGeqjap-8N0oukuK-LND9H3xr5VaVOqzF_ME6C0688qWmXsSB-VWkOl7lGpIIKq4tbPhKPoeIfrvR3Q"
+VITE_VAPID_PUBLIC_KEY = "BDo-nPyCpiEwPGYTt0k9ZsWQr7CQ2BhVmTz9OO7UVtDrTeJiR_FJb10H9tuLf8Snpj5yEoKjQz5xNI2mYwPLADE"
+VAPID_PUBLIC_KEY = "BDo-nPyCpiEwPGYTt0k9ZsWQr7CQ2BhVmTz9OO7UVtDrTeJiR_FJb10H9tuLf8Snpj5yEoKjQz5xNI2mYwPLADE"
 VAPID_SUBJECT = "mailto:contacto@el-pollon.cl"
