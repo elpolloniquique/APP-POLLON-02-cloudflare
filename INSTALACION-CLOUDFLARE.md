@@ -67,7 +67,9 @@ EVOLUTION_INSTANCE_NAME=pollon-bot
 Si pegas `VITE_SUPABASE_URL` pero olvidas `SUPABASE_URL`, el adapter copia `VITE_*` → `SUPABASE_*` en runtime. Aun así, **pon las dos** para no depender de eso.
 
 Build command: `npm run build`  
+Install command: `npm install --include=dev`  
 Output directory: `dist`  
+Node.js version: `22`  
 Compatibility: `nodejs_compat` (ya está en `wrangler.toml`).
 
 ---

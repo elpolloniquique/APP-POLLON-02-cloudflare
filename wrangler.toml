@@ -7,6 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "dist"
 
 [vars]
+NODE_VERSION = "22"
 VITE_PUBLIC_SITE_URL = "https://www.el-pollon.cl"
 EP_PUBLIC_SITE_URL = "https://www.el-pollon.cl"
 # Pública nueva. Nombre distinto para que el panel (claves viejas no editables) no la pise.
