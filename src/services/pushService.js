@@ -12,6 +12,10 @@ export function isPushConfigured() {
   return hasWebPushSupport();
 }
 
+export function hasVapidPublicKey() {
+  return Boolean(VAPID_PUBLIC);
+}
+
 export function rememberPushForUser(userId) {
   try {
     localStorage.setItem(PUSH_OK_FLAG, '1');
