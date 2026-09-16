@@ -83,13 +83,11 @@ export async function ensureNotifyEligibleOffers(admin, jobId) {
     .from('ep_delivery_offers')
     .select('driver_id, status')
     .eq('job_id', jobId);
-  const accepted = new Set(
-    (existing || []).filter((o) => o.status === 'accepted').map((o) => o.driver_id),
-  );
+  const already = new Set((existing || []).map((o) => o.driver_id).filter(Boolean));
 
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   const rows = eligible
-    .filter((d) => !accepted.has(d.id))
+    .filter((d) => !already.has(d.id))
     .map((d) => ({
       job_id: jobId,
       driver_id: d.id,
@@ -99,21 +97,25 @@ export async function ensureNotifyEligibleOffers(admin, jobId) {
       responded_at: null,
     }));
 
-  if (!rows.length) return { added: 0, reason: 'ya_aceptado' };
+  if (!rows.length) {
+    return { added: 0, reason: already.size ? 'ya_existentes' : 'ya_aceptado', existing: already.size };
+  }
 
-  const { error: upErr } = await admin
-    .from('ep_delivery_offers')
-    .upsert(rows, { onConflict: 'job_id,driver_id' });
-  if (upErr) return { added: 0, reason: upErr.message };
+  const { error: insErr } = await admin.from('ep_delivery_offers').insert(rows);
+  if (insErr && !String(insErr.message || '').toLowerCase().includes('duplicate')) {
+    return { added: 0, reason: insErr.message };
+  }
 
-  await admin
-    .from('ep_delivery_jobs')
-    .update({
-      status: 'offered',
-      offered_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', jobId);
+  if (job.status !== 'offered') {
+    await admin
+      .from('ep_delivery_jobs')
+      .update({
+        status: 'offered',
+        offered_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', jobId);
+  }
 
   return { added: rows.length, reason: 'ok' };
 }

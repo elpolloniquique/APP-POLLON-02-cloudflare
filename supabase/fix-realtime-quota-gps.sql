@@ -1,29 +1,38 @@
 -- =============================================================================
 -- Baja el consumo de Realtime SIN perder funcionalidad.
 --
--- Causa: cada ping GPS (hasta 1/seg) se retransmitía a TODOS los paneles
---        abiertos. Eso gastó 5.8 M de mensajes (cuota Pro = 5 M).
+-- Causa: cada ping GPS se retransmitía a TODOS los paneles abiertos.
+--        Eso gastó 7.9 M de mensajes (cuota Pro = 5 M).
 --
 -- Qué hace:
---  1) Saca ep_driver_location_latest de Realtime (el mapa ya consulta cada 8–10 s).
---  2) El GPS se sigue guardando. Pedidos, ofertas y jobs siguen en vivo.
+--  1) Saca GPS y perfiles de moto de Realtime (el mapa ya consulta cada 8–10 s).
+--  2) El GPS se sigue guardando. Pedidos, cocina y avisos siguen en vivo.
 --  3) No escribe de nuevo si el último punto tiene menos de 8 segundos.
 --
--- Pedidos / cocina / ofertas / despacho NO se tocan.
--- Ejecutar en el SQL Editor de Supabase.
+-- Ejecutar TODO este archivo en el SQL Editor de Supabase UNA vez.
 -- =============================================================================
 
 DO $$
+DECLARE
+  t text;
 BEGIN
-  IF EXISTS (
-    SELECT 1
-    FROM pg_publication_tables
-    WHERE pubname = 'supabase_realtime'
-      AND schemaname = 'public'
-      AND tablename = 'ep_driver_location_latest'
-  ) THEN
-    ALTER PUBLICATION supabase_realtime DROP TABLE public.ep_driver_location_latest;
-  END IF;
+  FOREACH t IN ARRAY ARRAY[
+    'ep_driver_location_latest',
+    'ep_driver_location_events',
+    'ep_driver_profiles',
+    'ep_delivery_assignments'
+  ]
+  LOOP
+    IF EXISTS (
+      SELECT 1
+      FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime'
+        AND schemaname = 'public'
+        AND tablename = t
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime DROP TABLE public.%I', t);
+    END IF;
+  END LOOP;
 END $$;
 
 CREATE OR REPLACE FUNCTION public.ep_upsert_driver_location(

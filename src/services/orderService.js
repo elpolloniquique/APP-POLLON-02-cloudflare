@@ -293,13 +293,36 @@ function startPollingFallback(sb) {
   }, 15000);
 }
 
-function subscribeRealtime(sb) {
+const BRANCH_SCOPED_ROLES = new Set([
+  'cajera', 'cajero', 'admin_sucursal', 'administrador', 'cocina', 'cocinero', 'despachador',
+]);
+
+async function loadPedidosRealtimeFilter(sb) {
+  try {
+    const { data: sessionData } = await sb.auth.getSession();
+    const uid = sessionData?.session?.user?.id;
+    if (!uid) return null;
+    const { data: profile } = await sb
+      .from('profiles')
+      .select('role, branch_id')
+      .eq('auth_user_id', uid)
+      .maybeSingle();
+    const role = String(profile?.role || '').toLowerCase();
+    if (role === 'super_admin' || !BRANCH_SCOPED_ROLES.has(role) || !profile?.branch_id) return null;
+    return String(profile.branch_id);
+  } catch {
+    return null;
+  }
+}
+
+function subscribeRealtime(sb, branchId = null) {
   if (channel) sb.removeChannel(channel);
+  const filter = branchId ? { filter: `branch_id=eq.${branchId}` } : {};
   channel = sb
-    .channel('pollon-pedidos-rt')
+    .channel(branchId ? `pollon-pedidos-rt-${branchId}` : 'pollon-pedidos-rt')
     .on(
       'postgres_changes',
-      { event: '*', schema: 'public', table: 'pedidos' },
+      { event: '*', schema: 'public', table: 'pedidos', ...filter },
       (payload) => {
         console.info('[Pollón] Pedido en tiempo real:', payload.eventType, payload.new?.id || payload.old?.id);
         if (!applyRealtimePayload(payload)) {
@@ -341,7 +364,8 @@ async function ensureInitialized() {
       lastRealtimeAt = Date.now();
       realtimeConnectionStatus = 'connecting';
       notifyListeners({ source: 'init' });
-      subscribeRealtime(sb);
+      const branchFilter = await loadPedidosRealtimeFilter(sb);
+      subscribeRealtime(sb, branchFilter);
       startPollingFallback(sb);
     } catch (e) {
       console.warn('[Pollón] initOrders:', e);
