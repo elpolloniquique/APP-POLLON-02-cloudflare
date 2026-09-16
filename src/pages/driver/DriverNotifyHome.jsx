@@ -20,6 +20,7 @@ import {
   sendDriverSelfTestPush,
   rememberPushForUser,
   isPushRememberedForUser,
+  fetchPushConnectionStatus,
 } from '../../services/pushService';
 import { getMyDriverSummary, ensureMyDriverProfile, setMyOperationalStatus } from '../../services/driverService';
 import { subscribeDispatch } from '../../services/dispatchService';
@@ -49,6 +50,7 @@ export function DriverNotifyHome() {
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
   const [standalone, setStandalone] = useState(() => isStandaloneDisplayMode());
+  const [chain, setChain] = useState(null);
 
   const refresh = useCallback(async () => {
     setStatus(getDriverWebPushStatusSync(userId));
@@ -65,6 +67,7 @@ export function DriverNotifyHome() {
     }
     const st = getDriverWebPushStatusSync(userId);
     setStatus(st);
+    fetchPushConnectionStatus().then(setChain).catch(() => {});
     if (st?.ready) {
       await setMyOperationalStatus('available').catch(() => {});
     }
@@ -289,6 +292,26 @@ export function DriverNotifyHome() {
                 )}
               </div>
             </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white px-3 py-3">
+            <p className="text-sm font-bold text-gray-900">Conexión para avisos reales</p>
+            <ul className="mt-1.5 space-y-1 text-xs text-gray-700">
+              <li>{chain?.vapidPrivate && chain?.vapidPublic ? '✓' : '✗'} Clave del servidor (Cloudflare VAPID)</li>
+              <li>{chain?.supabase ? '✓' : '✗'} Base de datos (Supabase)</li>
+              <li>{(chain?.pushSubscriptions || 0) > 0 || pushOk ? '✓' : '✗'} Este pollito con avisos guardados{(chain?.pushSubscriptions != null) ? ` (${chain.pushSubscriptions})` : ''}</li>
+              <li>{chain?.fcm ? '✓' : '·'} App nativa FCM (alarma aparte)</li>
+            </ul>
+            {chain && chain.ready === false && (
+              <p className="mt-1.5 text-[11px] text-red-700">
+                Falta: {(chain.missing || []).join(', ') || chain.error || 'revisar servidor'}.
+              </p>
+            )}
+            {chain?.ready && (
+              <p className="mt-1.5 text-[11px] text-emerald-800">
+                Cadena lista. Un pedido Nuevo o Reasignar debe llegar a la bandeja (no hace falta GPS).
+              </p>
+            )}
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-3">

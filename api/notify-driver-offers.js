@@ -17,7 +17,7 @@ import {
 } from './_lib/fcmSend.js';
 import { handleGpsPing, isGpsPingRequest } from './_lib/gpsPing.js';
 import { setWebPushVapid, sendWebPushNotification, cleanVapidKey } from './_lib/webPushSend.js';
-import { ensureNotifyEligibleOffers } from './_lib/ensureNotifyOffers.js';
+import { ensureNotifyEligibleOffers, listOpenNotifyJobIds, unwrapJobId } from './_lib/ensureNotifyOffers.js';
 
 function moneyCLP(n) {
   try {
@@ -58,15 +58,39 @@ export default async function handler(req, res) {
   // Chequeo público: no revela secretos, sí dice si Cloudflare tiene el par VAPID.
   if (req.method === 'GET') {
     const q = req.query || {};
-    if (q.check === 'vapid') {
-      return res.status(200).json({
+    if (q.check === 'vapid' || q.check === 'chain') {
+      const report = {
         vapidPrivate: Boolean(vapidPrivate),
+        vapidPublic: Boolean(vapidPublic),
         vapidPublicLen: vapidPublic.length,
         vapidPublicPrefix: vapidPublic.slice(0, 12),
         vapidSubject,
         supabase: Boolean(supabaseUrl && anonKey && serviceKey),
         fcm: hasFcm,
-      });
+      };
+      if (q.check === 'chain' && supabaseUrl && serviceKey) {
+        const admin = createClient(supabaseUrl, serviceKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+        });
+        const [{ count: pushSubs }, { count: pendingOffers }, openIds] = await Promise.all([
+          admin.from('ep_driver_push_subscriptions').select('id', { count: 'exact', head: true }),
+          admin.from('ep_delivery_offers').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+          listOpenNotifyJobIds(admin),
+        ]);
+        report.pushSubscriptions = Number(pushSubs) || 0;
+        report.pendingOffers = Number(pendingOffers) || 0;
+        report.openJobs = openIds.length;
+        report.ready = Boolean(
+          vapidPublic && vapidPrivate && supabaseUrl && serviceKey && (Number(pushSubs) || 0) > 0,
+        );
+        report.missing = [
+          !vapidPublic ? 'clave_publica' : null,
+          !vapidPrivate ? 'clave_privada' : null,
+          !(supabaseUrl && serviceKey) ? 'supabase' : null,
+          !(Number(pushSubs) > 0) ? 'suscripcion_pollito' : null,
+        ].filter(Boolean);
+      }
+      return res.status(200).json(report);
     }
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -81,7 +105,8 @@ export default async function handler(req, res) {
   if (!token) return res.status(401).json({ error: 'Sin autorización' });
 
   const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-  const jobId = body.jobId;
+  let jobId = unwrapJobId(body.jobId);
+  const orderId = String(body.orderId || body.order_id || '').trim();
   const selfTest = Boolean(body.selfTest);
 
   const userClient = createClient(supabaseUrl, anonKey, {
@@ -175,6 +200,19 @@ export default async function handler(req, res) {
       lastError: lastError || undefined,
       error: webSent > 0 ? undefined : (lastError || 'El servidor no pudo entregar el aviso Web Push'),
     });
+  }
+
+  if (!jobId && orderId) {
+    const { data: upserted } = await admin.rpc('ep_upsert_job_from_pedido', { p_order_id: orderId });
+    jobId = unwrapJobId(upserted);
+    if (!jobId) {
+      const { data: existing } = await admin
+        .from('ep_delivery_jobs')
+        .select('id')
+        .eq('source_order_id', orderId)
+        .maybeSingle();
+      jobId = existing?.id || '';
+    }
   }
 
   if (!jobId) return res.status(400).json({ error: 'jobId requerido' });

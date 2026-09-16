@@ -554,21 +554,27 @@ export async function checkDriverReadyPermissions() {
   };
 }
 
-export async function notifyDriversForJob(jobId) {
-  if (!jobId || !isSupabaseConfigured()) return { skipped: true };
+export async function notifyDriversForJob(jobId, extra = {}) {
+  if ((!jobId && !extra?.orderId) || !isSupabaseConfigured()) return { skipped: true };
   try {
     const sb = getSupabase();
     const { data: sessionData } = await sb.auth.getSession();
     const token = sessionData?.session?.access_token;
     if (!token) return { skipped: true, reason: 'no-session' };
 
+    const id = jobId && typeof jobId === 'object'
+      ? String(jobId.id || jobId.job_id || jobId.jobId || '')
+      : String(jobId || '');
     const res = await fetch('/api/notify-driver-offers', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ jobId }),
+      body: JSON.stringify({
+        jobId: id || undefined,
+        orderId: extra.orderId || extra.order_id || undefined,
+      }),
     });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
@@ -579,6 +585,17 @@ export async function notifyDriversForJob(jobId) {
   } catch (err) {
     console.warn('[Pollón] notify-driver-offers:', err?.message || err);
     return { ok: false, error: err?.message };
+  }
+}
+
+/** Estado de la cadena: claves, Supabase y suscripciones guardadas. */
+export async function fetchPushConnectionStatus() {
+  try {
+    const res = await fetch('/api/notify-driver-offers?check=chain');
+    if (!res.ok) return { ready: false, error: `http_${res.status}` };
+    return await res.json();
+  } catch {
+    return { ready: false, error: 'sin_servidor' };
   }
 }
 

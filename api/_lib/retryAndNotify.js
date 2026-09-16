@@ -5,7 +5,7 @@
  */
 import { env, sendFcm, isFcmConfigured } from './fcmSend.js';
 import { setWebPushVapid, sendWebPushNotification, cleanVapidKey } from './webPushSend.js';
-import { ensureNotifyEligibleOffers } from './ensureNotifyOffers.js';
+import { ensureNotifyEligibleOffers, listOpenNotifyJobIds } from './ensureNotifyOffers.js';
 
 function ticketShort(code) {
   const s = String(code || '').replace(/^0+/, '');
@@ -40,6 +40,9 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
   }
 
   let jobIds = [...(data?.job_ids || [])].filter(Boolean);
+
+  const openIds = await listOpenNotifyJobIds(admin).catch(() => []);
+  jobIds = [...new Set([...jobIds, ...openIds])];
 
   // Respaldo: si el RPC no listó jobs (TTL viejo / offered_at), igual avisar ofertas pending
   if (!jobIds.length) {

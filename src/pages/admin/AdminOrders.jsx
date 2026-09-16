@@ -215,7 +215,7 @@ export function AdminOrders() {
     const tick = () => {
       retryStaleDriverSearches()
         .then((r) => {
-          if (r?.retried > 0) setTimeout(refreshDelivery, 800);
+          if (r?.retried > 0 || r?.notified > 0) setTimeout(refreshDelivery, 800);
         })
         .catch(() => {});
     };

@@ -11,6 +11,8 @@ let jobCache = {};
 let driverCache = {};
 let lastFetch = 0;
 const settingsCache = new Map(); // branchId -> { at, data }
+const lastJobNotifyAt = new Map();
+const JOB_NOTIFY_GAP_MS = 3 * 60 * 1000;
 
 async function settingsForBranch(branchId) {
   if (!branchId) return getDispatchSettings(null);
@@ -105,19 +107,13 @@ export async function autoDispatchNewOrder(orderId) {
     if (error) { console.warn('[Pollón] autoDispatch upsert:', error.message); return null; }
     if (!jobId) return null;
 
-    if (!settings.auto_offer) {
-      const notifyRes = await notifyDriversForJob(jobId).catch(() => null);
-      lastFetch = 0;
-      return { jobId, skippedSearch: true, reason: 'auto_offer_off', notify: notifyRes };
+    if (settings.auto_offer !== false) {
+      const { error: sErr } = await sb.rpc('ep_start_driver_search', { p_job_id: jobId });
+      if (sErr) console.warn('[Pollón] autoDispatch search:', sErr.message);
     }
-
-    const { data: searchResult, error: sErr } = await sb.rpc('ep_start_driver_search', { p_job_id: jobId });
-    if (sErr) { console.warn('[Pollón] autoDispatch search:', sErr.message); }
-    // Siempre avisar (PWA no tiene GPS; la API crea la oferta y manda Web Push)
-    const notifyRes = await notifyDriversForJob(jobId).catch(() => null);
-
+    const notifyRes = await notifyDriversForJob(jobId, { orderId }).catch(() => null);
     lastFetch = 0;
-    return { jobId, searchResult, notify: notifyRes };
+    return { jobId, notify: notifyRes };
   } catch (e) {
     console.warn('[Pollón] autoDispatch:', e.message);
     return null;
@@ -145,7 +141,7 @@ export async function manualSearchDrivers(orderId) {
     throw new Error(data.message || 'Despacho desactivado en esta sucursal');
   }
 
-  const notifyRes = await notifyDriversForJob(jobId).catch(() => null);
+  const notifyRes = await notifyDriversForJob(jobId, { orderId }).catch(() => null);
   const web = Number(notifyRes?.webSent) || 0;
   const fcm = Number(notifyRes?.fcmSent) || 0;
   const offeredNow = Number(data?.offered) || 0;
@@ -190,14 +186,28 @@ export async function retryStaleDriverSearches() {
     const { data, error } = await sb.rpc('ep_retry_stale_driver_searches');
     if (error) {
       console.warn('[Pollón] retryStaleDriverSearches:', error.message);
-      return { ok: false, error: error.message };
     }
-    const jobIds = data?.job_ids || [];
+    const jobIds = new Set((data?.job_ids || []).filter(Boolean));
+    const { data: openJobs } = await sb
+      .from('ep_delivery_jobs')
+      .select('id, source_order_id')
+      .is('assigned_driver_id', null)
+      .in('status', ['pending_prep', 'searching_driver', 'offered', 'ready_for_dispatch'])
+      .limit(40);
+    for (const row of openJobs || []) {
+      if (row?.id) jobIds.add(row.id);
+    }
+    let notified = 0;
     for (const jobId of jobIds) {
-      notifyDriversForJob(jobId).catch(() => {});
+      const prev = lastJobNotifyAt.get(jobId) || 0;
+      if (Date.now() - prev < JOB_NOTIFY_GAP_MS) continue;
+      lastJobNotifyAt.set(jobId, Date.now());
+      const job = (openJobs || []).find((row) => row.id === jobId);
+      const res = await notifyDriversForJob(jobId, { orderId: job?.source_order_id }).catch(() => null);
+      if (res?.webSent > 0 || res?.fcmSent > 0) notified += 1;
     }
-    if (jobIds.length) lastFetch = 0;
-    return data || { ok: true, retried: 0 };
+    if (jobIds.size) lastFetch = 0;
+    return { ...(data || { ok: true }), retried: jobIds.size, notified };
   } catch (e) {
     console.warn('[Pollón] retryStaleDriverSearches:', e.message);
     return { ok: false, error: e.message };

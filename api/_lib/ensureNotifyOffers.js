@@ -50,9 +50,6 @@ export async function ensureNotifyEligibleOffers(admin, jobId) {
 
   const eligible = (drivers || []).filter((d) => {
     if (BLOCKED_STATUS.has(d.operational_status)) return false;
-    if (job.branch_id && d.preferred_branch_id && d.preferred_branch_id !== job.branch_id) {
-      return false;
-    }
     return true;
   });
   if (!eligible.length) {
@@ -96,4 +93,28 @@ export async function ensureNotifyEligibleOffers(admin, jobId) {
     .eq('id', jobId);
 
   return { added: rows.length, reason: 'ok' };
+}
+
+const OPEN_JOB_STATUS = ['pending_prep', 'searching_driver', 'offered', 'ready_for_dispatch'];
+
+export async function listOpenNotifyJobIds(admin, { hours = 18, limit = 40 } = {}) {
+  if (!admin) return [];
+  const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+  const { data } = await admin
+    .from('ep_delivery_jobs')
+    .select('id')
+    .is('assigned_driver_id', null)
+    .in('status', OPEN_JOB_STATUS)
+    .gte('created_at', since)
+    .limit(limit);
+  return [...new Set((data || []).map((row) => row.id).filter(Boolean))];
+}
+
+export function unwrapJobId(value) {
+  if (!value) return '';
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (typeof value === 'object') {
+    return String(value.id || value.job_id || value.jobId || '');
+  }
+  return '';
 }
