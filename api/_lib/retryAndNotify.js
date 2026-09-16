@@ -48,7 +48,7 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
   let webSent = 0;
   let lastWebError = '';
   // Pocos y los más nuevos: 16 jobs × 25 suscripciones hace timeout en Cloudflare y no llega nada.
-  for (const jobId of jobIds.slice(0, 4)) {
+  for (const jobId of jobIds.slice(0, 2)) {
     await ensureNotifyEligibleOffers(admin, jobId).catch(() => null);
     const sent = await sendPushesForJob(admin, jobId);
     fcmSent += Number(sent?.fcmSent) || 0;
@@ -59,7 +59,7 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
   return {
     ok: true,
     retried: data?.retried || 0,
-    job_ids: jobIds.slice(0, 4),
+    job_ids: jobIds.slice(0, 2),
     fcmSent,
     webSent,
     lastWebError: lastWebError || undefined,

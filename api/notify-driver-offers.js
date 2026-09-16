@@ -93,6 +93,7 @@ export default async function handler(req, res) {
         report.ready = Boolean(
           vapidPublic && vapidPrivate && supabaseUrl && serviceKey && (Number(pushSubs) || 0) > 0,
         );
+        report.pushEngine = 'webcrypto';
         report.missing = [
           !vapidPublic ? 'clave_publica' : null,
           !vapidPrivate ? 'clave_privada' : null,

@@ -91,7 +91,7 @@ async function getKeyPair() {
 export async function sendWebPushNotification(subscription, payload, options = {}) {
   const keyPair = await getKeyPair();
   const body = typeof payload === 'string' ? payload : JSON.stringify(payload);
-  const res = await sendPushNotification(
+  const send = sendPushNotification(
     keyPair,
     {
       endpoint: subscription.endpoint,
@@ -108,6 +108,16 @@ export async function sendWebPushNotification(subscription, payload, options = {
       ttl: options.TTL ?? 3600,
     },
   );
+  const res = await Promise.race([
+    send,
+    new Promise((_, reject) => {
+      setTimeout(() => {
+        const err = new Error('Web Push timeout');
+        err.statusCode = 0;
+        reject(err);
+      }, 8000);
+    }),
+  ]);
   if (!res || res.status < 200 || res.status >= 300) {
     const text = await res?.text?.().catch(() => '') || '';
     const err = new Error((text || '').slice(0, 300) || `Web Push ${res?.status || 0}`);
