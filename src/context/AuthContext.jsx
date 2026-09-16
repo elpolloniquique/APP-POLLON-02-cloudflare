@@ -163,6 +163,19 @@ export function AuthProvider({ children }) {
         } catch (err) {
           console.warn('[Pollón] boot profile:', err);
         }
+        const cached = profileCacheRef.current;
+        if (isDriverRole(roleOf(cached))) {
+          const uid = s.user.id;
+          import('../services/pushService')
+            .then((m) => {
+              m.rememberPushForUser(uid);
+              return m.ensureDriverPushSubscription({ force: false, userId: uid });
+            })
+            .catch(() => {});
+          import('../services/fcmService')
+            .then((m) => m.kickoffNativePushRegistration())
+            .catch(() => {});
+        }
       }
       if (!cancelled) setLoading(false);
     };
@@ -257,6 +270,18 @@ export function AuthProvider({ children }) {
     writeStaffProfileCache(resolved);
     profileUserIdRef.current = user.id;
     profileCacheRef.current = resolved;
+    if (isDriverRole(roleOf(resolved))) {
+      const uid = user.id;
+      import('../services/pushService')
+        .then((m) => {
+          m.rememberPushForUser(uid);
+          return m.ensureDriverPushSubscription({ force: false, userId: uid });
+        })
+        .catch(() => {});
+      import('../services/fcmService')
+        .then((m) => m.kickoffNativePushRegistration())
+        .catch(() => {});
+    }
     return { session: s, profile: resolved };
   };
 

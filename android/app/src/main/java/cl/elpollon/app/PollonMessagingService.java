@@ -104,8 +104,9 @@ public class PollonMessagingService extends FirebaseMessagingService {
             | Notification.FLAG_ONGOING_EVENT;
 
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        int notifId = 72001 + (Math.abs(offerId.hashCode()) % 8000);
         if (nm != null) {
-            nm.notify(NOTIF_ID, notif);
+            nm.notify(notifId, notif);
         }
 
         try {

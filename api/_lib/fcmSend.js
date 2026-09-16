@@ -107,7 +107,8 @@ async function sendFcmV1(sa, deviceToken, { title, body, data }) {
       body: JSON.stringify({
         message: {
           token: deviceToken,
-          notification: { title, body },
+          // Solo `data` + HIGH: así onMessageReceived SIEMPRE corre
+          // (pantalla apagada / GPS en primer plano). El Java pinta la bandeja.
           data: Object.fromEntries(
             Object.entries({
               ...data,
@@ -117,20 +118,8 @@ async function sendFcmV1(sa, deviceToken, { title, body, data }) {
           ),
           android: {
             priority: 'HIGH',
-            ttl: '600s',
-            notification: {
-              channelId: 'pollon_driver_alarm_v3',
-              sound: 'default',
-              defaultVibrateTimings: true,
-              defaultSound: true,
-              notificationPriority: 'PRIORITY_MAX',
-              visibility: 'PUBLIC',
-              tag: data.tag || 'pollon-offer',
-              notificationCount: Math.max(1, Number(data.badgeCount) || 1),
-              ticker: title,
-              sticky: true,
-              clickAction: 'FCM_PLUGIN_ACTIVITY',
-            },
+            ttl: '86400s',
+            directBootOk: true,
           },
         },
       }),
@@ -160,14 +149,7 @@ async function sendFcmLegacy(token, { title, body, data }) {
       to: token,
       priority: 'high',
       content_available: true,
-      notification: {
-        title,
-        body,
-        sound: 'default',
-        click_action: 'FCM_PLUGIN_ACTIVITY',
-        tag: data.tag || 'pollon-offer',
-        android_channel_id: 'pollon_driver_alarm_v3',
-      },
+      time_to_live: 86400,
       data: {
         ...data,
         title,

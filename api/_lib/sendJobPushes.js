@@ -286,7 +286,7 @@ export async function remindDriverWebPush(admin, driverId, { skipWeb = false } =
             type: 'driver_offer',
             renotify: true,
           }),
-          { urgency: 'high', TTL: 120 },
+          { urgency: 'high', TTL: 86400 },
         );
         webSent += 1;
       } catch (err) {

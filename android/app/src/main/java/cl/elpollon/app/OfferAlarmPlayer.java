@@ -3,6 +3,7 @@ package cl.elpollon.app;
 import android.content.Context;
 import android.media.AudioManager;
 import android.media.ToneGenerator;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
@@ -32,7 +33,11 @@ final class OfferAlarmPlayer {
         try {
             PowerManager pm = (PowerManager) app.getSystemService(Context.POWER_SERVICE);
             if (pm != null) {
-                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ElPollon::OfferAlarm");
+                int flags = PowerManager.PARTIAL_WAKE_LOCK;
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1) {
+                    flags = PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.ON_AFTER_RELEASE;
+                }
+                wakeLock = pm.newWakeLock(flags, "ElPollon::OfferAlarm");
                 wakeLock.setReferenceCounted(false);
                 wakeLock.acquire(BEATS * BEAT_MS + 3000L);
             }
