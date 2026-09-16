@@ -219,18 +219,30 @@ export async function getMyDriverSummary() {
   if (offersRes.error) throw new Error(rpcError(offersRes.error, 'Error ofertas'));
   if (assignRes.error) throw new Error(rpcError(assignRes.error, 'Error asignaciones'));
 
-  // Una oferta por job (evita duplicados al reintentar a los 3 min)
+  // Una oferta por job (evita duplicados al reintentar)
   const byJob = new Map();
   for (const o of (offersRes.data || [])) {
     const jid = o.job_id || o.ep_delivery_jobs?.id;
     if (!jid) continue;
+    if (o.ep_delivery_jobs?.assigned_driver_id) continue;
     const prev = byJob.get(jid);
     if (!prev || new Date(o.expires_at || 0) > new Date(prev.expires_at || 0)) {
       byJob.set(jid, o);
     }
   }
-  const pendingOffers = [...byJob.values()]
+  let pendingOffers = [...byJob.values()]
     .sort((a, b) => new Date(b.expires_at || 0) - new Date(a.expires_at || 0));
+
+  const orderIds = [...new Set(pendingOffers.map((o) => o.ep_delivery_jobs?.source_order_id).filter(Boolean))];
+  if (orderIds.length) {
+    const { data: peds } = await sb.from('pedidos').select('id, estado').in('id', orderIds);
+    const nuevo = new Set(
+      (peds || [])
+        .filter((p) => ['pendiente', 'nuevo'].includes(String(p.estado || '').toLowerCase()))
+        .map((p) => p.id),
+    );
+    pendingOffers = pendingOffers.filter((o) => nuevo.has(o.ep_delivery_jobs?.source_order_id));
+  }
 
   const done = doneRes.data || [];
   return {

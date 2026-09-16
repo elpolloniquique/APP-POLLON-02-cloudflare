@@ -4,7 +4,7 @@
  */
 import { sendFcm, isFcmConfigured, env } from './fcmSend.js';
 import { setWebPushVapid, sendWebPushNotification, cleanVapidKey } from './webPushSend.js';
-import { ensureNotifyEligibleOffers, unwrapJobId, ensureJobsFromPendingPedidos } from './ensureNotifyOffers.js';
+import { ensureNotifyEligibleOffers, unwrapJobId, ensureJobsFromPendingPedidos, jobIsNuevoUnassigned, NUEVO_PEDIDO_ESTADOS } from './ensureNotifyOffers.js';
 
 function ticketLabel(code) {
   const s = String(code || '').trim();
@@ -53,6 +53,13 @@ function vapidPair() {
 export async function sendPushesForJob(admin, jobId) {
   if (!admin || !jobId) {
     return { ok: false, sent: 0, fcmSent: 0, webSent: 0, offers: 0, reason: 'missing' };
+  }
+
+  const gate = await jobIsNuevoUnassigned(admin, jobId);
+  if (!gate.ok) {
+    return {
+      ok: true, sent: 0, fcmSent: 0, webSent: 0, offers: 0, skipped: true, reason: gate.reason, estado: gate.estado,
+    };
   }
 
   let ensured = { added: 0 };
@@ -207,8 +214,8 @@ export async function notifyDeliveryOrder(admin, orderId) {
   if (String(pedido.tipo_entrega || 'delivery') !== 'delivery') {
     return { skipped: true, reason: 'not_delivery' };
   }
-  if (['cancelado', 'entregado'].includes(pedido.estado)) {
-    return { skipped: true, reason: 'closed' };
+  if (!NUEVO_PEDIDO_ESTADOS.has(String(pedido.estado || '').toLowerCase())) {
+    return { skipped: true, reason: 'not_nuevo', estado: pedido.estado };
   }
 
   const { data: upserted, error } = await admin.rpc('ep_upsert_job_from_pedido', {
@@ -253,13 +260,10 @@ export async function remindDriverWebPush(admin, driverId, { skipWeb = false } =
   let lastError = '';
   const orders = [];
   for (const jobId of jobIds.slice(0, 8)) {
+    const gate = await jobIsNuevoUnassigned(admin, jobId);
+    if (!gate.ok) continue;
     await ensureNotifyEligibleOffers(admin, jobId).catch(() => null);
-    const { data: job } = await admin
-      .from('ep_delivery_jobs')
-      .select('id, ticket_code, customer_name, customer_address, delivery_fee, assigned_driver_id')
-      .eq('id', jobId)
-      .maybeSingle();
-    if (!job || job.assigned_driver_id) continue;
+    const job = gate.job;
     const notice = offerNoticeText(job, { jobId, fee: job.delivery_fee });
     orders.push(notice);
     if (skipWeb) continue;

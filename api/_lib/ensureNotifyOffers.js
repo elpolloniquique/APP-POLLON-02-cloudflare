@@ -15,19 +15,42 @@ const CLOSED_JOB = new Set([
 
 const BLOCKED_STATUS = new Set(['blocked', 'paused']);
 
+/** En el panel, "Nuevo" es pedidos.estado = pendiente. */
+export const NUEVO_PEDIDO_ESTADOS = new Set(['pendiente', 'nuevo']);
+
+export async function jobIsNuevoUnassigned(admin, jobId) {
+  if (!admin || !jobId) return { ok: false, reason: 'missing' };
+  const { data: job } = await admin
+    .from('ep_delivery_jobs')
+    .select('id, status, assigned_driver_id, source_order_id, ticket_code, customer_address, delivery_fee')
+    .eq('id', jobId)
+    .maybeSingle();
+  if (!job) return { ok: false, reason: 'job_missing' };
+  if (job.assigned_driver_id) return { ok: false, reason: 'assigned', job };
+  if (CLOSED_JOB.has(job.status)) return { ok: false, reason: 'job_closed', job, status: job.status };
+  if (!job.source_order_id) return { ok: false, reason: 'no_order', job };
+  const { data: pedido } = await admin
+    .from('pedidos')
+    .select('id, estado, tipo_entrega')
+    .eq('id', String(job.source_order_id))
+    .maybeSingle();
+  if (!pedido) return { ok: false, reason: 'pedido_missing', job };
+  if (String(pedido.tipo_entrega || 'delivery') !== 'delivery') {
+    return { ok: false, reason: 'not_delivery', job, pedido };
+  }
+  const estado = String(pedido.estado || '').toLowerCase();
+  if (!NUEVO_PEDIDO_ESTADOS.has(estado)) {
+    return { ok: false, reason: 'not_nuevo', job, pedido, estado };
+  }
+  return { ok: true, job, pedido };
+}
+
 export async function ensureNotifyEligibleOffers(admin, jobId) {
   if (!admin || !jobId) return { added: 0, reason: 'missing' };
 
-  const { data: job, error: jobErr } = await admin
-    .from('ep_delivery_jobs')
-    .select('id, status, branch_id, delivery_fee, assigned_driver_id')
-    .eq('id', jobId)
-    .maybeSingle();
-  if (jobErr) return { added: 0, reason: jobErr.message };
-  if (!job) return { added: 0, reason: 'job_missing' };
-  if (job.assigned_driver_id || CLOSED_JOB.has(job.status)) {
-    return { added: 0, reason: 'job_not_open', status: job.status };
-  }
+  const gate = await jobIsNuevoUnassigned(admin, jobId);
+  if (!gate.ok) return { added: 0, reason: gate.reason, status: gate.status, estado: gate.estado };
+  const job = gate.job;
 
   const [{ data: subs }, { data: fcmRows }] = await Promise.all([
     admin.from('ep_driver_push_subscriptions').select('driver_id'),
@@ -95,20 +118,25 @@ export async function ensureNotifyEligibleOffers(admin, jobId) {
   return { added: rows.length, reason: 'ok' };
 }
 
-const OPEN_JOB_STATUS = ['pending_prep', 'searching_driver', 'offered', 'ready_for_dispatch'];
-
 export async function listOpenNotifyJobIds(admin, { hours = 18, limit = 40 } = {}) {
   if (!admin) return [];
   const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
-  const { data } = await admin
+  const { data: peds, error } = await admin
+    .from('pedidos')
+    .select('id')
+    .eq('tipo_entrega', 'delivery')
+    .in('estado', ['pendiente', 'nuevo'])
+    .gte('creado_en', since)
+    .order('creado_en', { ascending: false })
+    .limit(limit);
+  const orderIds = error ? [] : (peds || []).map((p) => p.id).filter(Boolean);
+  if (!orderIds.length) return [];
+  const { data: jobs } = await admin
     .from('ep_delivery_jobs')
     .select('id')
-    .is('assigned_driver_id', null)
-    .in('status', OPEN_JOB_STATUS)
-    .gte('created_at', since)
-    .order('created_at', { ascending: false })
-    .limit(limit);
-  return [...new Set((data || []).map((row) => row.id).filter(Boolean))];
+    .in('source_order_id', orderIds)
+    .is('assigned_driver_id', null);
+  return [...new Set((jobs || []).map((row) => row.id).filter(Boolean))];
 }
 
 /** Pedidos delivery en Nuevo/pendiente → crea job aunque el panel de cocina esté cerrado. */

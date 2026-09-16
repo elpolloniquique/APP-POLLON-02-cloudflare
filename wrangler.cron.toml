@@ -1,11 +1,11 @@
-# Reloj de 1 min: avisa al pollito mientras haya pedidos sin aceptar.
+# Reloj de 2 min: avisa al pollito solo pedidos en estado Nuevo, sin repartidor.
 # 15:00 UTC: cola del bot WhatsApp.
 name = "el-pollon-cron"
 main = "cloudflare/cron-worker.js"
 compatibility_date = "2025-09-01"
 
 [triggers]
-crons = ["* * * * *", "0 15 * * *"]
+crons = ["*/2 * * * *", "0 15 * * *"]
 
 [vars]
 EP_PUBLIC_SITE_URL = "https://www.el-pollon.cl"

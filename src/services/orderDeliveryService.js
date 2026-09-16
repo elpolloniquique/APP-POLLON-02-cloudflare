@@ -12,7 +12,7 @@ let driverCache = {};
 let lastFetch = 0;
 const settingsCache = new Map(); // branchId -> { at, data }
 const lastJobNotifyAt = new Map();
-const JOB_NOTIFY_GAP_MS = 55 * 1000;
+const JOB_NOTIFY_GAP_MS = 120 * 1000;
 
 async function settingsForBranch(branchId) {
   if (!branchId) return getDispatchSettings(null);

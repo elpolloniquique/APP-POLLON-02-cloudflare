@@ -123,7 +123,7 @@ export function DriverNotifyHome() {
         .catch(() => {});
     };
     remind();
-    const tRemind = setInterval(remind, 60000);
+    const tRemind = setInterval(remind, 120000);
     const onMsg = (event) => {
       if (event.data?.type === 'DRIVER_NEW_OFFER') {
         refresh();
