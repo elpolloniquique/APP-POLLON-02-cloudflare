@@ -1,7 +1,7 @@
 /**
  * Reaviso de ofertas sin aceptar + push (FCM / Web Push).
  */
-import { ensureNotifyEligibleOffers, listOpenNotifyJobIds } from './ensureNotifyOffers.js';
+import { ensureNotifyEligibleOffers, listOpenNotifyJobIds, ensureJobsFromPendingPedidos, unwrapJobId } from './ensureNotifyOffers.js';
 import { sendPushesForJob } from './sendJobPushes.js';
 
 let lastRunAt = 0;
@@ -19,10 +19,11 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
     return { ok: false, error: error.message };
   }
 
+  const fromPedidos = await ensureJobsFromPendingPedidos(admin).catch(() => []);
   let jobIds = [...(data?.job_ids || [])].filter(Boolean);
   const openIds = await listOpenNotifyJobIds(admin).catch(() => []);
-  // Los pedidos nuevos primero: si hay muchos abiertos, el pollito no se quedaba sin el aviso de hoy.
-  jobIds = [...new Set([...openIds, ...jobIds])];
+  // Pedidos en estado Nuevo primero, luego jobs abiertos.
+  jobIds = [...new Set([...fromPedidos, ...openIds, ...jobIds].map((id) => unwrapJobId(id)).filter(Boolean))];
 
   if (!jobIds.length) {
     const { data: pending } = await admin

@@ -111,6 +111,41 @@ export async function listOpenNotifyJobIds(admin, { hours = 18, limit = 40 } = {
   return [...new Set((data || []).map((row) => row.id).filter(Boolean))];
 }
 
+/** Pedidos delivery en Nuevo/pendiente → crea job aunque el panel de cocina esté cerrado. */
+export async function ensureJobsFromPendingPedidos(admin, { hours = 18, limit = 8 } = {}) {
+  if (!admin) return [];
+  const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+  let rows = [];
+  const first = await admin
+    .from('pedidos')
+    .select('id')
+    .eq('tipo_entrega', 'delivery')
+    .in('estado', ['pendiente', 'nuevo'])
+    .gte('creado_en', since)
+    .order('creado_en', { ascending: false })
+    .limit(limit);
+  if (first.error) {
+    const fallback = await admin
+      .from('pedidos')
+      .select('id')
+      .eq('tipo_entrega', 'delivery')
+      .in('estado', ['pendiente', 'nuevo'])
+      .order('id', { ascending: false })
+      .limit(limit);
+    rows = fallback.data || [];
+  } else {
+    rows = first.data || [];
+  }
+  const ids = [];
+  for (const row of rows) {
+    if (!row?.id) continue;
+    const { data: upserted } = await admin.rpc('ep_upsert_job_from_pedido', { p_order_id: String(row.id) });
+    const jobId = unwrapJobId(upserted);
+    if (jobId) ids.push(jobId);
+  }
+  return ids;
+}
+
 export function unwrapJobId(value) {
   if (!value) return '';
   if (typeof value === 'string' || typeof value === 'number') return String(value);

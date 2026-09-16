@@ -77,13 +77,7 @@ self.addEventListener('push', (event) => {
       ].filter(Boolean).join(' · ')
       || 'Nuevo pedido · Ábrelo en la app nativa para aceptar';
 
-    // Misma etiqueta = se actualiza en bandeja; se cierra y vuelve a mostrar para que suene otra vez.
-    const prev = await self.registration.getNotifications({ tag: stableTag });
-    for (const n of prev) {
-      try { n.close(); } catch { /* ignore */ }
-    }
-
-    await self.registration.showNotification(titleText, {
+    const opts = {
       body: bodyText,
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
@@ -93,10 +87,6 @@ self.addEventListener('push', (event) => {
       requireInteraction: true,
       silent: false,
       timestamp: Date.now(),
-      actions: [
-        { action: 'open', title: 'Ver aviso' },
-        { action: 'dismiss', title: 'Cerrar' },
-      ],
       data: {
         url: payload.url || '/repartidor',
         offerId: payload.offerId || null,
@@ -104,7 +94,19 @@ self.addEventListener('push', (event) => {
         ticket: payload.ticket || null,
         badgeCount: badgeN,
       },
-    });
+    };
+
+    try {
+      await self.registration.showNotification(titleText, {
+        ...opts,
+        actions: [
+          { action: 'open', title: 'Ver aviso' },
+          { action: 'dismiss', title: 'Cerrar' },
+        ],
+      });
+    } catch {
+      await self.registration.showNotification(titleText, opts);
+    }
   })());
 });
 

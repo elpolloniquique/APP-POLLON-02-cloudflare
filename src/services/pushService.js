@@ -232,6 +232,28 @@ export async function getDriverWebPushStatus(userId) {
   return getDriverWebPushStatusSync(userId);
 }
 
+/** Aviso local por pedido: Nº, dirección y delivery. Misma etiqueta = se actualiza y suena. */
+export function formatLocalOrderNotice(job = {}, extra = {}) {
+  const raw = String(job.ticket_code || extra.ticket || '').trim();
+  const ticket = /^\d+$/.test(raw) ? raw.padStart(6, '0') : (raw || '—');
+  const addr = String(job.customer_address || extra.address || '').replace(/\s+/g, ' ').trim().slice(0, 140);
+  const feeNum = Number(extra.fee ?? job.delivery_fee ?? 0) || 0;
+  let money = `$${Math.round(feeNum)}`;
+  try {
+    money = new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(feeNum);
+  } catch {
+    /* keep */
+  }
+  const jobId = extra.jobId || job.id || '';
+  return {
+    title: `NUEVO PEDIDO Nº ${ticket}`,
+    body: [addr || null, `Delivery ${money}`].filter(Boolean).join(' · ') || `Delivery ${money}`,
+    tag: jobId ? `pollon-job-${jobId}` : (extra.tag || 'pollon-driver-offer'),
+    ticket,
+    jobId,
+  };
+}
+
 /** Prueba inmediata en bandeja (sin servidor) para validar permiso + SW. */
 export async function showLocalTrayTestNotification({
   title = 'El Pollón · Prueba de aviso',

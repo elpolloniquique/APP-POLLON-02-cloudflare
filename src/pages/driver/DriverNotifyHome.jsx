@@ -22,6 +22,7 @@ import {
   isPushRememberedForUser,
   remindDriverPendingPush,
   fetchPushConnectionStatus,
+  formatLocalOrderNotice,
 } from '../../services/pushService';
 import { getMyDriverSummary, ensureMyDriverProfile, setMyOperationalStatus } from '../../services/driverService';
 import { subscribeDispatch } from '../../services/dispatchService';
@@ -91,20 +92,31 @@ export function DriverNotifyHome() {
     const remind = () => {
       remindDriverPendingPush()
         .then(async (r) => {
-          const orders = Array.isArray(r?.orders) ? r.orders : [];
-          const count = Math.max(Number(r?.jobs) || 0, orders.length, 0);
-          if (count > 0) await setDriverAppBadge(count).catch(() => {});
-          // Si el servidor ya mandó Web Push, la bandeja se actualiza sola (un aviso por pedido).
-          // Solo avisamos en local si el push remoto no salió.
-          if (Number(r?.webSent) <= 0 && orders.length) {
-            for (const order of orders) {
-              await showLocalTrayTestNotification({
-                title: order.title || `NUEVO PEDIDO Nº ${order.ticket || ''}`.trim(),
-                body: order.body || [order.address, order.fee ? `Delivery ${order.fee}` : null].filter(Boolean).join(' · '),
-                badgeCount: count || 1,
-                tag: order.tag || (order.jobId ? `pollon-job-${order.jobId}` : 'pollon-driver-offer'),
-              }).catch(() => {});
-            }
+          const fromServer = Array.isArray(r?.orders) ? r.orders : [];
+          let fromSummary = [];
+          try {
+            const s = await getMyDriverSummary();
+            fromSummary = (s?.pendingOffers || []).map((o) => formatLocalOrderNotice(o?.ep_delivery_jobs || {}, {
+              jobId: o?.job_id || o?.ep_delivery_jobs?.id,
+              fee: o?.offered_fee,
+            }));
+          } catch {
+            /* ignore */
+          }
+          const byTag = new Map();
+          for (const n of [...fromServer, ...fromSummary]) {
+            if (!n?.title) continue;
+            byTag.set(n.tag || n.jobId || n.title, n);
+          }
+          const notices = [...byTag.values()];
+          if (notices.length) await setDriverAppBadge(notices.length).catch(() => {});
+          for (const order of notices) {
+            await showLocalTrayTestNotification({
+              title: order.title,
+              body: order.body,
+              badgeCount: notices.length,
+              tag: order.tag,
+            }).catch(() => {});
           }
           refresh();
         })

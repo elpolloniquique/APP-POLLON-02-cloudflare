@@ -77,7 +77,8 @@ export default async function handler(req, res) {
     const dispatched = await dispatchQueue(admin, { orderId: order.id, limit: 8 });
     let driverPush = null;
     const isDelivery = String(order.tipo || 'delivery') === 'delivery';
-    if (isDelivery && (isInsert || order.estado === 'pendiente')) {
+    const estado = String(order.estado || '').toLowerCase();
+    if (isDelivery && (isInsert || ['pendiente', 'nuevo'].includes(estado))) {
       driverPush = await notifyDeliveryOrder(admin, order.id).catch((err) => ({
         ok: false,
         reason: err?.message || 'push_failed',

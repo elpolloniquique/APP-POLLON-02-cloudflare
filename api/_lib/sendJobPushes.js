@@ -4,7 +4,7 @@
  */
 import { sendFcm, isFcmConfigured, env } from './fcmSend.js';
 import { setWebPushVapid, sendWebPushNotification, cleanVapidKey } from './webPushSend.js';
-import { ensureNotifyEligibleOffers, unwrapJobId, listOpenNotifyJobIds } from './ensureNotifyOffers.js';
+import { ensureNotifyEligibleOffers, unwrapJobId, listOpenNotifyJobIds, ensureJobsFromPendingPedidos } from './ensureNotifyOffers.js';
 
 function ticketLabel(code) {
   const s = String(code || '').trim();
@@ -244,14 +244,16 @@ export async function remindDriverWebPush(admin, driverId) {
     .eq('driver_id', driverId);
   if (!subs?.length) return { ok: false, webSent: 0, reason: 'sin_suscripcion' };
 
-  const jobIds = await listOpenNotifyJobIds(admin, { hours: 18, limit: 20 });
+  const fromPedidos = await ensureJobsFromPendingPedidos(admin).catch(() => []);
+  const openIds = await listOpenNotifyJobIds(admin, { hours: 18, limit: 20 });
+  const jobIds = [...new Set([...fromPedidos, ...openIds].filter(Boolean))];
   if (!jobIds.length) return { ok: true, webSent: 0, jobs: 0, orders: [], reason: 'sin_pedidos_abiertos' };
 
   setWebPushVapid(vapidSubject, vapidPublic, vapidPrivate);
   let webSent = 0;
   let lastError = '';
   const orders = [];
-  for (const jobId of jobIds) {
+  for (const jobId of jobIds.slice(0, 8)) {
     await ensureNotifyEligibleOffers(admin, jobId).catch(() => null);
     const { data: job } = await admin
       .from('ep_delivery_jobs')

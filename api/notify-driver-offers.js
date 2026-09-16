@@ -63,6 +63,33 @@ export default async function handler(req, res) {
         report.pushSubscriptions = Number(pushSubs) || 0;
         report.pendingOffers = Number(pendingOffers) || 0;
         report.openJobs = openIds.length;
+        const latestRes = await admin
+          .from('pedidos')
+          .select('id, codigo_pedido, estado, tipo_entrega, creado_en')
+          .in('estado', ['pendiente', 'nuevo'])
+          .order('creado_en', { ascending: false })
+          .limit(8);
+        const latest = latestRes.data || [];
+        const latestIds = latest.map((p) => p.id).filter(Boolean);
+        let jobsByOrder = {};
+        if (latestIds.length) {
+          const { data: jobRows } = await admin
+            .from('ep_delivery_jobs')
+            .select('id, source_order_id, status, ticket_code, assigned_driver_id')
+            .in('source_order_id', latestIds);
+          jobsByOrder = Object.fromEntries((jobRows || []).map((j) => [j.source_order_id, j]));
+        }
+        report.latestNuevos = latest.map((p) => {
+          const job = jobsByOrder[p.id];
+          return {
+            codigo: p.codigo_pedido || '',
+            estado: p.estado,
+            tipo: p.tipo_entrega || 'delivery',
+            hasJob: Boolean(job),
+            jobStatus: job?.status || null,
+            assigned: Boolean(job?.assigned_driver_id),
+          };
+        });
         report.ready = Boolean(
           vapidPublic && vapidPrivate && supabaseUrl && serviceKey && (Number(pushSubs) || 0) > 0,
         );
