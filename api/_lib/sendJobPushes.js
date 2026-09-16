@@ -4,7 +4,7 @@
  */
 import { sendFcm, isFcmConfigured, env } from './fcmSend.js';
 import { setWebPushVapid, sendWebPushNotification, cleanVapidKey } from './webPushSend.js';
-import { ensureNotifyEligibleOffers, unwrapJobId, listOpenNotifyJobIds, ensureJobsFromPendingPedidos } from './ensureNotifyOffers.js';
+import { ensureNotifyEligibleOffers, unwrapJobId, ensureJobsFromPendingPedidos } from './ensureNotifyOffers.js';
 
 function ticketLabel(code) {
   const s = String(code || '').trim();
@@ -231,8 +231,8 @@ export async function notifyDeliveryOrder(admin, orderId) {
   return { ...pushed, jobId };
 }
 
-/** Reaviso solo al pollito de este repartidor (cada ~1 min hasta que alguien acepte). */
-export async function remindDriverWebPush(admin, driverId) {
+/** Reaviso al pollito de este repartidor. skipWeb: el cron/global ya mandó el push. */
+export async function remindDriverWebPush(admin, driverId, { skipWeb = false } = {}) {
   if (!admin || !driverId) return { ok: false, webSent: 0, reason: 'missing' };
   const { vapidPublic, vapidPrivate, vapidSubject } = vapidPair();
   if (!vapidPublic || !vapidPrivate) {
@@ -245,8 +245,7 @@ export async function remindDriverWebPush(admin, driverId) {
   if (!subs?.length) return { ok: false, webSent: 0, reason: 'sin_suscripcion' };
 
   const fromPedidos = await ensureJobsFromPendingPedidos(admin).catch(() => []);
-  const openIds = await listOpenNotifyJobIds(admin, { hours: 18, limit: 20 });
-  const jobIds = [...new Set([...fromPedidos, ...openIds].filter(Boolean))];
+  const jobIds = [...new Set((fromPedidos || []).filter(Boolean))];
   if (!jobIds.length) return { ok: true, webSent: 0, jobs: 0, orders: [], reason: 'sin_pedidos_abiertos' };
 
   setWebPushVapid(vapidSubject, vapidPublic, vapidPrivate);
@@ -263,6 +262,7 @@ export async function remindDriverWebPush(admin, driverId) {
     if (!job || job.assigned_driver_id) continue;
     const notice = offerNoticeText(job, { jobId, fee: job.delivery_fee });
     orders.push(notice);
+    if (skipWeb) continue;
     await Promise.all(subs.map(async (sub) => {
       try {
         await sendWebPushNotification(
@@ -289,11 +289,11 @@ export async function remindDriverWebPush(admin, driverId) {
     }));
   }
   return {
-    ok: webSent > 0,
-    webSent,
+    ok: skipWeb || webSent > 0,
+    webSent: skipWeb ? jobIds.length : webSent,
     jobs: orders.length,
     orders,
     lastError: lastError || undefined,
-    reason: webSent > 0 ? 'ok' : (lastError || 'push_zero'),
+    reason: skipWeb ? 'global' : (webSent > 0 ? 'ok' : (lastError || 'push_zero')),
   };
 }

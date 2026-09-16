@@ -18,6 +18,7 @@ import { handleGpsPing, isGpsPingRequest } from './_lib/gpsPing.js';
 import { setWebPushVapid, sendWebPushNotification, cleanVapidKey } from './_lib/webPushSend.js';
 import { listOpenNotifyJobIds, unwrapJobId, findDriverIdForAuthUser } from './_lib/ensureNotifyOffers.js';
 import { sendPushesForJob, remindDriverWebPush } from './_lib/sendJobPushes.js';
+import { retryAndNotifyOffers } from './_lib/retryAndNotify.js';
 
 export default async function handler(req, res) {
   if (isGpsPingRequest(req)) {
@@ -94,6 +95,20 @@ export default async function handler(req, res) {
           vapidPublic && vapidPrivate && supabaseUrl && serviceKey && (Number(pushSubs) || 0) > 0,
         );
         report.pushEngine = 'webcrypto';
+        try {
+          const { data: stamp } = await admin
+            .from('ep_internal_secrets')
+            .select('value, updated_at')
+            .eq('key', 'last_driver_notify_at')
+            .maybeSingle();
+          if (stamp?.updated_at) {
+            const ago = Math.round((Date.now() - new Date(stamp.updated_at).getTime()) / 1000);
+            report.lastNotifyAgoSec = ago;
+            report.lastNotifyAt = stamp.updated_at;
+          }
+        } catch {
+          /* sin tabla de sello */
+        }
         report.missing = [
           !vapidPublic ? 'clave_publica' : null,
           !vapidPrivate ? 'clave_privada' : null,
@@ -214,8 +229,12 @@ export default async function handler(req, res) {
     if (!driverId) {
       return res.status(403).json({ error: 'No eres repartidor' });
     }
-    const reminded = await remindDriverWebPush(admin, driverId);
-    return res.status(200).json({ ...reminded, remindMe: true });
+    // Un pollito abierto mantiene el reloj de 1 min para TODOS los repartidores.
+    const global = await retryAndNotifyOffers(admin, { force: false }).catch(() => null);
+    const reminded = await remindDriverWebPush(admin, driverId, {
+      skipWeb: Number(global?.webSent) > 0,
+    });
+    return res.status(200).json({ ...reminded, remindMe: true, globalWeb: global?.webSent || 0 });
   }
 
   if (!jobId && orderId) {

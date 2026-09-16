@@ -1,11 +1,11 @@
 /**
  * Reloj Cloudflare: cada minuto avisa al pollito (Web Push) mientras
- * haya pedidos sin aceptar. A las 15:00 UTC despacha la cola del bot.
+ * haya pedidos en estado Nuevo sin repartidor. A las 15:00 UTC, cola del bot.
  *
  * Deploy: npx wrangler deploy -c wrangler.cron.toml
  */
 export default {
-  async scheduled(event, env) {
+  async scheduled(event, env, ctx) {
     const base = String(env.EP_PUBLIC_SITE_URL || env.VITE_PUBLIC_SITE_URL || 'https://www.el-pollon.cl').replace(/\/$/, '');
     const secret = String(env.CRON_SECRET || '');
     const headers = {
@@ -18,10 +18,23 @@ export default {
       : '/api/cron-retry-driver-offers';
     const url = new URL(`${base}${path}`);
     if (secret) url.searchParams.set('secret', secret);
-    const res = await fetch(url.toString(), { method: 'GET', headers });
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`Cron ${path} → ${res.status} ${text.slice(0, 300)}`);
+
+    const run = async () => {
+      try {
+        await fetch(url.toString(), {
+          method: 'GET',
+          headers,
+          signal: AbortSignal.timeout(25000),
+        });
+      } catch (err) {
+        console.error('[Pollón cron]', path, err?.message || err);
+      }
+    };
+
+    if (typeof ctx?.waitUntil === 'function') {
+      ctx.waitUntil(run());
+      return;
     }
+    await run();
   },
 };
