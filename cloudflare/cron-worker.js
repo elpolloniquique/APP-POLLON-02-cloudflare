@@ -1,5 +1,5 @@
 /**
- * Reloj Cloudflare: cada 2 minutos avisa al pollito solo si el pedido
+ * Reloj Cloudflare: cada 1 minuto avisa al pollito solo si el pedido
  * sigue en estado Nuevo y sin repartidor. A las 15:00 UTC, cola del bot.
  *
  * Deploy: npx wrangler deploy -c wrangler.cron.toml

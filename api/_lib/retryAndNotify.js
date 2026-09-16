@@ -1,12 +1,12 @@
 /**
  * Reaviso de pedidos en estado Nuevo sin repartidor.
- * Cada ~2 min: Web Push a todos los pollitos hasta que alguien acepte.
+ * Cada ~1 min: Web Push a todos los pollitos hasta que alguien acepte.
  */
 import { ensureNotifyEligibleOffers, ensureJobsFromPendingPedidos, unwrapJobId } from './ensureNotifyOffers.js';
 import { sendPushesForJob } from './sendJobPushes.js';
 
 let lastRunAt = 0;
-const MIN_INTERVAL_MS = 115_000;
+const MIN_INTERVAL_MS = 55_000;
 
 async function markNotifyRun(admin, extra = {}) {
   try {
