@@ -511,7 +511,6 @@ export async function saveOrder(order) {
         estado: order.estado || 'pendiente',
       });
       pingDriverNotifyNow(order);
-      pingCashierNotifyNow(order);
       return order;
     }
 
@@ -557,14 +556,6 @@ function pingDriverNotifyNow(order) {
   if (estado && !['pendiente', 'nuevo'].includes(estado)) return;
   import('./pushService')
     .then(({ notifyDriversForJob }) => notifyDriversForJob('', { orderId: order.id }))
-    .catch(() => {});
-}
-
-function pingCashierNotifyNow(order) {
-  const estado = String(order.estado || 'pendiente').toLowerCase();
-  if (estado && !['pendiente', 'nuevo'].includes(estado)) return;
-  import('./pushService')
-    .then(({ notifyCashiersForOrder }) => notifyCashiersForOrder(order.id))
     .catch(() => {});
 }
 

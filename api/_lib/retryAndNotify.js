@@ -4,7 +4,6 @@
  */
 import { ensureNotifyEligibleOffers, ensureJobsFromPendingPedidos, unwrapJobId } from './ensureNotifyOffers.js';
 import { sendPushesForJob } from './sendJobPushes.js';
-import { notifyCashiersForPendingOrders } from './sendCashierPushes.js';
 
 let lastRunAt = 0;
 const MIN_INTERVAL_MS = 55_000;
@@ -38,8 +37,7 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
   const jobIds = [...new Set((fromPedidos || []).map((id) => unwrapJobId(id)).filter(Boolean))];
 
   if (!jobIds.length) {
-    const cashierRes = await notifyCashiersForPendingOrders(admin).catch(() => null);
-    await markNotifyRun(admin, { jobs: 0, webSent: 0, fcmSent: 0, cashierWeb: Number(cashierRes?.webSent) || 0 });
+    await markNotifyRun(admin, { jobs: 0, webSent: 0, fcmSent: 0 });
     return {
       ok: true,
       retried: 0,
@@ -47,17 +45,13 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
       pushed: 0,
       webSent: 0,
       fcmSent: 0,
-      cashierWeb: Number(cashierRes?.webSent) || 0,
     };
   }
 
-  const [results, cashierRes] = await Promise.all([
-    Promise.all(jobIds.map(async (jobId) => {
-      await ensureNotifyEligibleOffers(admin, jobId).catch(() => null);
-      return sendPushesForJob(admin, jobId);
-    })),
-    notifyCashiersForPendingOrders(admin).catch(() => null),
-  ]);
+  const results = await Promise.all(jobIds.map(async (jobId) => {
+    await ensureNotifyEligibleOffers(admin, jobId).catch(() => null);
+    return sendPushesForJob(admin, jobId);
+  }));
 
   let fcmSent = 0;
   let webSent = 0;
@@ -72,7 +66,6 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
     jobs: jobIds.length,
     webSent,
     fcmSent,
-    cashierWeb: Number(cashierRes?.webSent) || 0,
     lastWebError: lastWebError || undefined,
   });
 
@@ -82,7 +75,6 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
     job_ids: jobIds,
     fcmSent,
     webSent,
-    cashierWeb: Number(cashierRes?.webSent) || 0,
     lastWebError: lastWebError || undefined,
     pushed: fcmSent + webSent,
   };
