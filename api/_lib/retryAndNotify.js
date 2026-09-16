@@ -21,7 +21,8 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
 
   let jobIds = [...(data?.job_ids || [])].filter(Boolean);
   const openIds = await listOpenNotifyJobIds(admin).catch(() => []);
-  jobIds = [...new Set([...jobIds, ...openIds])];
+  // Los pedidos nuevos primero: si hay muchos abiertos, el pollito no se quedaba sin el aviso de hoy.
+  jobIds = [...new Set([...openIds, ...jobIds])];
 
   if (!jobIds.length) {
     const { data: pending } = await admin
@@ -44,7 +45,7 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
 
   let fcmSent = 0;
   let webSent = 0;
-  for (const jobId of jobIds.slice(0, 8)) {
+  for (const jobId of jobIds.slice(0, 16)) {
     await ensureNotifyEligibleOffers(admin, jobId).catch(() => null);
     const sent = await sendPushesForJob(admin, jobId);
     fcmSent += Number(sent?.fcmSent) || 0;

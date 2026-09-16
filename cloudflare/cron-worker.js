@@ -1,9 +1,8 @@
 /**
- * Cron Triggers de Cloudflare (backup diario, igual que vercel.json).
- * El reloj real de 1 min sigue en Supabase pg_cron → /api/cron-retry-driver-offers
+ * Reloj Cloudflare: cada minuto avisa al pollito (Web Push) mientras
+ * haya pedidos sin aceptar. A las 15:00 UTC despacha la cola del bot.
  *
  * Deploy: npx wrangler deploy -c wrangler.cron.toml
- * Secret: npx wrangler secret put CRON_SECRET -c wrangler.cron.toml
  */
 export default {
   async scheduled(event, env) {

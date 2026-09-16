@@ -1,10 +1,11 @@
-# Backup diario (el reloj de 1 min sigue siendo Supabase pg_cron)
+# Reloj de 1 min: avisa al pollito mientras haya pedidos sin aceptar.
+# 15:00 UTC: cola del bot WhatsApp.
 name = "el-pollon-cron"
 main = "cloudflare/cron-worker.js"
 compatibility_date = "2025-09-01"
 
 [triggers]
-crons = ["0 12 * * *", "0 15 * * *"]
+crons = ["* * * * *", "0 15 * * *"]
 
 [vars]
 EP_PUBLIC_SITE_URL = "https://www.el-pollon.cl"

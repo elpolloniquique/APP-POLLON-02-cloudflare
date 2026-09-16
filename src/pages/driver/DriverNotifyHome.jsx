@@ -91,17 +91,18 @@ export function DriverNotifyHome() {
     const remind = () => {
       remindDriverPendingPush()
         .then((r) => {
-          if (r?.jobs > 0) {
-            const n = Number(r.jobs) || 1;
+          const n = Number(r?.jobs) || 0;
+          if (n > 0 || Number(r?.webSent) > 0) {
+            const count = Math.max(n, Number(r?.webSent) || 0, 1);
             showLocalTrayTestNotification({
               title: 'El Pollón · Nuevo pedido',
-              body: n > 1
-                ? `Tienes ${n} pedidos nuevos. Acepta en la app nativa.`
+              body: count > 1
+                ? `Tienes ${count} pedidos nuevos. Acepta en la app nativa.`
                 : 'Pedido nuevo. Acepta en la app nativa.',
-              badgeCount: n,
+              badgeCount: count,
               tag: 'pollon-driver-offer',
             }).catch(() => {});
-            setDriverAppBadge(n).catch(() => {});
+            setDriverAppBadge(count).catch(() => {});
           }
           refresh();
         })

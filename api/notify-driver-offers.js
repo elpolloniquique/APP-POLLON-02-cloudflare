@@ -16,7 +16,7 @@ import {
 } from './_lib/fcmSend.js';
 import { handleGpsPing, isGpsPingRequest } from './_lib/gpsPing.js';
 import { setWebPushVapid, sendWebPushNotification, cleanVapidKey } from './_lib/webPushSend.js';
-import { listOpenNotifyJobIds, unwrapJobId } from './_lib/ensureNotifyOffers.js';
+import { listOpenNotifyJobIds, unwrapJobId, findDriverIdForAuthUser } from './_lib/ensureNotifyOffers.js';
 import { sendPushesForJob, remindDriverWebPush } from './_lib/sendJobPushes.js';
 
 export default async function handler(req, res) {
@@ -106,12 +106,8 @@ export default async function handler(req, res) {
 
   // Prueba Web Push del propio repartidor (PWA pollito → bandeja)
   if (selfTest) {
-    const { data: driver } = await admin
-      .from('ep_driver_profiles')
-      .select('id')
-      .eq('profile_id', userData.user.id)
-      .maybeSingle();
-    if (!driver?.id) {
+    const driverId = await findDriverIdForAuthUser(admin, userData.user.id);
+    if (!driverId) {
       return res.status(403).json({ error: 'No eres repartidor' });
     }
     if (!vapidPublic || !vapidPrivate) {
@@ -125,7 +121,7 @@ export default async function handler(req, res) {
     const { data: subs } = await admin
       .from('ep_driver_push_subscriptions')
       .select('id, endpoint, p256dh, auth')
-      .eq('driver_id', driver.id);
+      .eq('driver_id', driverId);
     if (!subs?.length) {
       return res.status(200).json({
         ok: false,
@@ -137,7 +133,7 @@ export default async function handler(req, res) {
     const { count: pendingCount } = await admin
       .from('ep_delivery_offers')
       .select('id', { count: 'exact', head: true })
-      .eq('driver_id', driver.id)
+      .eq('driver_id', driverId)
       .eq('status', 'pending')
       .gt('expires_at', new Date().toISOString());
     const badgeCount = Math.max(1, Number(pendingCount) || 1);
@@ -165,7 +161,7 @@ export default async function handler(req, res) {
           webSent += 1;
         } catch (err) {
           const code = err?.statusCode;
-          if (code === 404 || code === 410 || code === 403) staleWeb.push(sub.id);
+          if (code === 404 || code === 410) staleWeb.push(sub.id);
           else lastError = err?.message || String(err);
         }
       }),
@@ -186,15 +182,11 @@ export default async function handler(req, res) {
   }
 
   if (body.remindMe) {
-    const { data: driver } = await admin
-      .from('ep_driver_profiles')
-      .select('id')
-      .eq('profile_id', userData.user.id)
-      .maybeSingle();
-    if (!driver?.id) {
+    const driverId = await findDriverIdForAuthUser(admin, userData.user.id);
+    if (!driverId) {
       return res.status(403).json({ error: 'No eres repartidor' });
     }
-    const reminded = await remindDriverWebPush(admin, driver.id);
+    const reminded = await remindDriverWebPush(admin, driverId);
     return res.status(200).json({ ...reminded, remindMe: true });
   }
 

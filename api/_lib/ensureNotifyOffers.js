@@ -106,6 +106,7 @@ export async function listOpenNotifyJobIds(admin, { hours = 18, limit = 40 } = {
     .is('assigned_driver_id', null)
     .in('status', OPEN_JOB_STATUS)
     .gte('created_at', since)
+    .order('created_at', { ascending: false })
     .limit(limit);
   return [...new Set((data || []).map((row) => row.id).filter(Boolean))];
 }
@@ -117,4 +118,27 @@ export function unwrapJobId(value) {
     return String(value.id || value.job_id || value.jobId || '');
   }
   return '';
+}
+
+/** profiles.id ≠ auth.users.id. El pollito debe resolverse por auth_user_id. */
+export async function findDriverIdForAuthUser(admin, authUserId) {
+  if (!admin || !authUserId) return null;
+  const { data: byAuth } = await admin
+    .from('ep_driver_profiles')
+    .select('id')
+    .eq('profile_id', authUserId)
+    .maybeSingle();
+  if (byAuth?.id) return byAuth.id;
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('id')
+    .eq('auth_user_id', authUserId)
+    .maybeSingle();
+  if (!profile?.id) return null;
+  const { data: byProfile } = await admin
+    .from('ep_driver_profiles')
+    .select('id')
+    .eq('profile_id', profile.id)
+    .maybeSingle();
+  return byProfile?.id || null;
 }
