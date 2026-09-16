@@ -105,8 +105,8 @@ export async function sendPushesForJob(admin, jobId) {
   const sampleOffer = offers[0];
   const sampleJob = sampleOffer?.ep_delivery_jobs || {};
 
-  // Web Push PRIMERO: la nativa ya llega por FCM; si el worker se queda corto, el pollito no avisaba.
-  if (vapidPublic && vapidPrivate) {
+  const sendWeb = async () => {
+    if (!vapidPublic || !vapidPrivate) return;
     setWebPushVapid(vapidSubject, vapidPublic, vapidPrivate);
     const { data: subs } = await admin
       .from('ep_driver_push_subscriptions')
@@ -146,21 +146,21 @@ export async function sendPushesForJob(admin, jobId) {
     if (staleWeb.length) {
       await admin.from('ep_driver_push_subscriptions').delete().in('id', staleWeb);
     }
-  }
+  };
 
-  if (hasFcm) {
+  const sendNative = async () => {
+    if (!hasFcm) return;
     const { data: fcmRows } = await admin
       .from('ep_driver_fcm_tokens')
-      .select('id, driver_id, token')
-      .in('driver_id', driverIds);
+      .select('id, driver_id, token');
     await Promise.all((fcmRows || []).map(async (row) => {
-      const offer = byDriver[row.driver_id];
+      const offer = byDriver[row.driver_id] || sampleOffer;
       if (!offer) return;
-      const job = offer.ep_delivery_jobs || {};
+      const job = offer.ep_delivery_jobs || sampleJob;
       const fee = offer.offered_fee ?? job.delivery_fee ?? 0;
       const notice = offerNoticeText(job, { jobId, offerId: offer.id, fee });
       const name = job.customer_name || 'Cliente';
-      const badgeCount = Math.max(1, Number(pendingByDriver[row.driver_id]) || 1);
+      const badgeCount = Math.max(1, Number(pendingByDriver[row.driver_id]) || offers.length || 1);
       try {
         const result = await sendFcm(row.token, {
           title: notice.title,
@@ -188,7 +188,9 @@ export async function sendPushesForJob(admin, jobId) {
     if (staleFcm.length) {
       await admin.from('ep_driver_fcm_tokens').delete().in('id', staleFcm);
     }
-  }
+  };
+
+  await Promise.all([sendWeb(), sendNative()]);
 
   return {
     ok: webSent + fcmSent > 0,

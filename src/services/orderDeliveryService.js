@@ -91,27 +91,25 @@ export function getDeliveryInfo(orderId) {
   return jobCache[orderId] || null;
 }
 
-/** Auto-create delivery job + search drivers for a new delivery order */
+/** Auto-create delivery job + avisa al instante a todos los repartidores */
 export async function autoDispatchNewOrder(orderId) {
   if (!isSupabaseConfigured() || !orderId) return null;
   const sb = getSupabase();
   try {
-    const branchId = await resolveOrderBranchId(orderId);
-    const settings = await settingsForBranch(branchId);
-
-    if (!settings.enabled) {
-      return { skipped: true, reason: 'dispatch_disabled' };
-    }
-
     const { data: jobId, error } = await sb.rpc('ep_upsert_job_from_pedido', { p_order_id: orderId });
     if (error) { console.warn('[Pollón] autoDispatch upsert:', error.message); return null; }
     if (!jobId) return null;
 
-    if (settings.auto_offer !== false) {
-      const { error: sErr } = await sb.rpc('ep_start_driver_search', { p_job_id: jobId });
-      if (sErr) console.warn('[Pollón] autoDispatch search:', sErr.message);
-    }
+    // Aviso YA, sin esperar GPS ni la búsqueda SQL.
     const notifyRes = await notifyDriversForJob(jobId, { orderId }).catch(() => null);
+
+    const branchId = await resolveOrderBranchId(orderId);
+    const settings = await settingsForBranch(branchId);
+    if (settings?.enabled !== false && settings?.auto_offer !== false) {
+      sb.rpc('ep_start_driver_search', { p_job_id: jobId }).catch((err) => {
+        console.warn('[Pollón] autoDispatch search:', err?.message || err);
+      });
+    }
     lastFetch = 0;
     return { jobId, notify: notifyRes };
   } catch (e) {
@@ -134,6 +132,8 @@ export async function manualSearchDrivers(orderId) {
   const { data: jobId, error } = await sb.rpc('ep_upsert_job_from_pedido', { p_order_id: orderId });
   if (error) throw new Error(error.message || 'Error creando job de delivery');
   if (!jobId) throw new Error('No se pudo crear trabajo de delivery');
+
+  const notifyRes = await notifyDriversForJob(jobId, { orderId }).catch(() => null);
 
   const { data, error: sErr } = await sb.rpc('ep_start_driver_search', { p_job_id: jobId });
   if (sErr) throw new Error(sErr.message || 'Error buscando repartidores');

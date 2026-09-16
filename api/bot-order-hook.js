@@ -73,23 +73,28 @@ export default async function handler(req, res) {
   }
 
   try {
-    const enqueued = await enqueueFromPedidoChange(admin, { order, prevEstado, isInsert });
-    const dispatched = await dispatchQueue(admin, { orderId: order.id, limit: 8 });
-    let driverPush = null;
     const isDelivery = String(order.tipo || 'delivery') === 'delivery';
     const estado = String(order.estado || '').toLowerCase();
-    if (isDelivery && (isInsert || ['pendiente', 'nuevo'].includes(estado))) {
-      driverPush = await notifyDeliveryOrder(admin, order.id).catch((err) => ({
+    const shouldPush = isDelivery && (isInsert || ['pendiente', 'nuevo'].includes(estado));
+    // Aviso a repartidores YA: no esperar WhatsApp ni la cola.
+    const driverPushPromise = shouldPush
+      ? notifyDeliveryOrder(admin, order.id).catch((err) => ({
         ok: false,
         reason: err?.message || 'push_failed',
-      }));
-    }
+      }))
+      : Promise.resolve(null);
+    const waPromise = (async () => {
+      const enqueued = await enqueueFromPedidoChange(admin, { order, prevEstado, isInsert });
+      const dispatched = await dispatchQueue(admin, { orderId: order.id, limit: 8 });
+      return { enqueued, dispatched };
+    })();
+    const [driverPush, wa] = await Promise.all([driverPushPromise, waPromise]);
     return res.status(200).json({
       ok: true,
       orderId: order.id,
       codigo: order.codigo,
-      enqueued,
-      dispatched,
+      enqueued: wa.enqueued,
+      dispatched: wa.dispatched,
       driverPush,
     });
   } catch (err) {

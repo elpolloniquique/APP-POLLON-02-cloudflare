@@ -486,6 +486,7 @@ export async function saveOrder(order) {
         phone: order.customer?.phone,
         estado: order.estado || 'pendiente',
       });
+      pingDriverNotifyNow(order);
       return order;
     }
 
@@ -522,6 +523,16 @@ function pingWaOrderNotify(payload) {
   } catch {
     /* no bloquear pedidos si el bot falla */
   }
+}
+
+function pingDriverNotifyNow(order) {
+  const tipo = String(order.orderType || order.tipo_entrega || 'delivery').toLowerCase();
+  if (tipo && tipo !== 'delivery') return;
+  const estado = String(order.estado || 'pendiente').toLowerCase();
+  if (estado && !['pendiente', 'nuevo'].includes(estado)) return;
+  import('./pushService')
+    .then(({ notifyDriversForJob }) => notifyDriversForJob('', { orderId: order.id }))
+    .catch(() => {});
 }
 
 export async function updateOrder(order) {
