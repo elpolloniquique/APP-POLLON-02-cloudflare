@@ -9,6 +9,7 @@ import { enqueueFromPedidoChange, loadOrderWithItems } from '../lib/bot/orderNot
 import { dispatchQueue } from '../lib/bot/queue.js';
 import { requireStaff, webhookSecretOk } from '../lib/bot/auth.js';
 import { clientIp, rateLimitHit } from '../lib/bot/rateLimit.js';
+import { notifyDeliveryOrder } from './_lib/sendJobPushes.js';
 
 const STAFF_ROLES = ['super_admin', 'admin_sucursal', 'cajera', 'cajero', 'despachador', 'cocina', 'cocinero'];
 
@@ -74,7 +75,22 @@ export default async function handler(req, res) {
   try {
     const enqueued = await enqueueFromPedidoChange(admin, { order, prevEstado, isInsert });
     const dispatched = await dispatchQueue(admin, { orderId: order.id, limit: 8 });
-    return res.status(200).json({ ok: true, orderId: order.id, codigo: order.codigo, enqueued, dispatched });
+    let driverPush = null;
+    const isDelivery = String(order.tipo || 'delivery') === 'delivery';
+    if (isDelivery && (isInsert || order.estado === 'pendiente')) {
+      driverPush = await notifyDeliveryOrder(admin, order.id).catch((err) => ({
+        ok: false,
+        reason: err?.message || 'push_failed',
+      }));
+    }
+    return res.status(200).json({
+      ok: true,
+      orderId: order.id,
+      codigo: order.codigo,
+      enqueued,
+      dispatched,
+      driverPush,
+    });
   } catch (err) {
     return res.status(500).json({ ok: false, error: String(err?.message || err) });
   }
