@@ -17,7 +17,7 @@ import {
 import { handleGpsPing, isGpsPingRequest } from './_lib/gpsPing.js';
 import { setWebPushVapid, sendWebPushNotification, cleanVapidKey } from './_lib/webPushSend.js';
 import { listOpenNotifyJobIds, unwrapJobId } from './_lib/ensureNotifyOffers.js';
-import { sendPushesForJob } from './_lib/sendJobPushes.js';
+import { sendPushesForJob, remindDriverWebPush } from './_lib/sendJobPushes.js';
 
 export default async function handler(req, res) {
   if (isGpsPingRequest(req)) {
@@ -183,6 +183,19 @@ export default async function handler(req, res) {
       lastError: lastError || undefined,
       error: webSent > 0 ? undefined : (lastError || 'El servidor no pudo entregar el aviso Web Push'),
     });
+  }
+
+  if (body.remindMe) {
+    const { data: driver } = await admin
+      .from('ep_driver_profiles')
+      .select('id')
+      .eq('profile_id', userData.user.id)
+      .maybeSingle();
+    if (!driver?.id) {
+      return res.status(403).json({ error: 'No eres repartidor' });
+    }
+    const reminded = await remindDriverWebPush(admin, driver.id);
+    return res.status(200).json({ ...reminded, remindMe: true });
   }
 
   if (!jobId && orderId) {

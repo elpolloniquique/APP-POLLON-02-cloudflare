@@ -4,7 +4,7 @@
  */
 import { sendFcm, isFcmConfigured, env } from './fcmSend.js';
 import { setWebPushVapid, sendWebPushNotification, cleanVapidKey } from './webPushSend.js';
-import { ensureNotifyEligibleOffers, unwrapJobId } from './ensureNotifyOffers.js';
+import { ensureNotifyEligibleOffers, unwrapJobId, listOpenNotifyJobIds } from './ensureNotifyOffers.js';
 
 function ticketShort(code) {
   const s = String(code || '').replace(/^0+/, '');
@@ -72,9 +72,55 @@ export async function sendPushesForJob(admin, jobId) {
   const { vapidPublic, vapidPrivate, vapidSubject } = vapidPair();
   let fcmSent = 0;
   let webSent = 0;
+  let lastWebError = '';
   const staleWeb = [];
   const staleFcm = [];
   const stamp = Date.now();
+  const sampleOffer = offers[0];
+  const sampleJob = sampleOffer?.ep_delivery_jobs || {};
+
+  // Web Push PRIMERO: la nativa ya llega por FCM; si el worker se queda corto, el pollito no avisaba.
+  if (vapidPublic && vapidPrivate) {
+    setWebPushVapid(vapidSubject, vapidPublic, vapidPrivate);
+    const { data: subs } = await admin
+      .from('ep_driver_push_subscriptions')
+      .select('id, driver_id, endpoint, p256dh, auth');
+    await Promise.all((subs || []).map(async (sub) => {
+      const offer = byDriver[sub.driver_id] || sampleOffer;
+      const job = offer?.ep_delivery_jobs || sampleJob;
+      const fee = offer?.offered_fee ?? job.delivery_fee ?? 0;
+      const ticket = ticketShort(job.ticket_code);
+      const name = job.customer_name || 'Cliente';
+      const addr = String(job.customer_address || '').slice(0, 120);
+      const badgeCount = Math.max(1, Number(pendingByDriver[sub.driver_id]) || offers.length || 1);
+      try {
+        await sendWebPushNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          JSON.stringify({
+            title: 'El Pollón · Nuevo pedido',
+            body: [`Pedido Nº ${ticket}`, name, addr || null, `Delivery ${moneyCLP(fee)}`, 'Acepta en app nativa']
+              .filter(Boolean).join(' · '),
+            url: '/repartidor',
+            offerId: offer?.id || null,
+            jobId,
+            tag: `pollon-job-${jobId}-${stamp}`,
+            badgeCount,
+            type: 'driver_offer',
+            renotify: true,
+          }),
+          { urgency: 'high', TTL: 86400 },
+        );
+        webSent += 1;
+      } catch (err) {
+        const code = err?.statusCode;
+        if (code === 404 || code === 410) staleWeb.push(sub.id);
+        else lastWebError = err?.message || String(err);
+      }
+    }));
+    if (staleWeb.length) {
+      await admin.from('ep_driver_push_subscriptions').delete().in('id', staleWeb);
+    }
+  }
 
   if (hasFcm) {
     const { data: fcmRows } = await admin
@@ -120,51 +166,6 @@ export async function sendPushesForJob(admin, jobId) {
     }
   }
 
-  if (vapidPublic && vapidPrivate) {
-    setWebPushVapid(vapidSubject, vapidPublic, vapidPrivate);
-    const { data: subs } = await admin
-      .from('ep_driver_push_subscriptions')
-      .select('id, driver_id, endpoint, p256dh, auth')
-      .in('driver_id', driverIds);
-    await Promise.all((subs || []).map(async (sub) => {
-      const offer = byDriver[sub.driver_id];
-      if (!offer) return;
-      const job = offer.ep_delivery_jobs || {};
-      const fee = offer.offered_fee ?? job.delivery_fee ?? 0;
-      const ticket = ticketShort(job.ticket_code);
-      const name = job.customer_name || 'Cliente';
-      const addr = job.customer_address || '';
-      const badgeCount = Math.max(1, Number(pendingByDriver[sub.driver_id]) || 1);
-      try {
-        await sendWebPushNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify({
-            title: 'El Pollón · Nuevo pedido',
-            body: [`Pedido Nº ${ticket}`, name, addr || null, `Delivery ${moneyCLP(fee)}`, 'Acepta en app nativa']
-              .filter(Boolean).join(' · '),
-            address: addr,
-            url: '/repartidor',
-            offerId: offer.id,
-            jobId,
-            tag: `pollon-job-${jobId}-${stamp}`,
-            badgeCount,
-            type: 'driver_offer',
-            renotify: true,
-          }),
-          { urgency: 'high', TTL: 86400 },
-        );
-        webSent += 1;
-      } catch (err) {
-        const code = err?.statusCode;
-        if (code === 404 || code === 410 || code === 403) staleWeb.push(sub.id);
-        else console.warn('[Pollón] Web Push:', err?.message || err);
-      }
-    }));
-    if (staleWeb.length) {
-      await admin.from('ep_driver_push_subscriptions').delete().in('id', staleWeb);
-    }
-  }
-
   return {
     ok: webSent + fcmSent > 0,
     sent: fcmSent + webSent,
@@ -172,7 +173,8 @@ export async function sendPushesForJob(admin, jobId) {
     webSent,
     offers: offers.length,
     ensured,
-    reason: webSent + fcmSent > 0 ? 'ok' : 'push_zero',
+    lastWebError: lastWebError || undefined,
+    reason: webSent + fcmSent > 0 ? 'ok' : (lastWebError || 'push_zero'),
   };
 }
 
@@ -210,4 +212,67 @@ export async function notifyDeliveryOrder(admin, orderId) {
 
   const pushed = await sendPushesForJob(admin, jobId);
   return { ...pushed, jobId };
+}
+
+/** Reaviso solo al pollito de este repartidor (cada ~1 min hasta que alguien acepte). */
+export async function remindDriverWebPush(admin, driverId) {
+  if (!admin || !driverId) return { ok: false, webSent: 0, reason: 'missing' };
+  const { vapidPublic, vapidPrivate, vapidSubject } = vapidPair();
+  if (!vapidPublic || !vapidPrivate) {
+    return { ok: false, webSent: 0, reason: 'vapid' };
+  }
+  const { data: subs } = await admin
+    .from('ep_driver_push_subscriptions')
+    .select('id, endpoint, p256dh, auth')
+    .eq('driver_id', driverId);
+  if (!subs?.length) return { ok: false, webSent: 0, reason: 'sin_suscripcion' };
+
+  const jobIds = await listOpenNotifyJobIds(admin, { hours: 18, limit: 8 });
+  if (!jobIds.length) return { ok: true, webSent: 0, jobs: 0, reason: 'sin_pedidos_abiertos' };
+
+  setWebPushVapid(vapidSubject, vapidPublic, vapidPrivate);
+  let webSent = 0;
+  let lastError = '';
+  const stamp = Date.now();
+  for (const jobId of jobIds) {
+    await ensureNotifyEligibleOffers(admin, jobId).catch(() => null);
+    const { data: job } = await admin
+      .from('ep_delivery_jobs')
+      .select('ticket_code, customer_name, customer_address, delivery_fee, assigned_driver_id')
+      .eq('id', jobId)
+      .maybeSingle();
+    if (!job || job.assigned_driver_id) continue;
+    const ticket = ticketShort(job.ticket_code);
+    const name = job.customer_name || 'Cliente';
+    const addr = String(job.customer_address || '').slice(0, 120);
+    const body = [`Pedido Nº ${ticket}`, name, addr || null, 'Acepta en app nativa'].filter(Boolean).join(' · ');
+    await Promise.all(subs.map(async (sub) => {
+      try {
+        await sendWebPushNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          JSON.stringify({
+            title: 'El Pollón · Nuevo pedido',
+            body,
+            url: '/repartidor',
+            jobId,
+            tag: `pollon-job-${jobId}-${stamp}`,
+            badgeCount: jobIds.length,
+            type: 'driver_offer',
+            renotify: true,
+          }),
+          { urgency: 'high', TTL: 120 },
+        );
+        webSent += 1;
+      } catch (err) {
+        lastError = err?.message || String(err);
+      }
+    }));
+  }
+  return {
+    ok: webSent > 0,
+    webSent,
+    jobs: jobIds.length,
+    lastError: lastError || undefined,
+    reason: webSent > 0 ? 'ok' : (lastError || 'push_zero'),
+  };
 }

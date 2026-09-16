@@ -237,6 +237,7 @@ export async function showLocalTrayTestNotification({
   title = 'El Pollón · Prueba de aviso',
   body = 'Si ves esto en la bandeja, las notificaciones del sistema están. Los pedidos reales llegarán igual.',
   badgeCount = 1,
+  tag = 'pollon-push-test',
 } = {}) {
   if (typeof Notification === 'undefined') {
     throw new Error('Este celular no soporta notificaciones del sistema.');
@@ -250,7 +251,7 @@ export async function showLocalTrayTestNotification({
       body,
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
-      tag: 'pollon-push-test',
+      tag,
       renotify: true,
       requireInteraction: true,
       vibrate: [200, 100, 200],
@@ -632,5 +633,25 @@ export async function sendDriverSelfTestPush() {
   if (!res.ok) {
     throw new Error(json?.error || `Error ${res.status}`);
   }
+  return json;
+}
+
+/** El pollito pide reaviso de pedidos abiertos (cada 1 min hasta que alguien acepte). */
+export async function remindDriverPendingPush() {
+  if (!isSupabaseConfigured()) return { skipped: true };
+  const sb = getSupabase();
+  const { data: sessionData } = await sb.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) return { skipped: true, reason: 'no-session' };
+  const res = await fetch('/api/notify-driver-offers', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ remindMe: true }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, status: res.status, ...json };
   return json;
 }

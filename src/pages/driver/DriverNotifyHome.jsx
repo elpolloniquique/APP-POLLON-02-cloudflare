@@ -20,6 +20,7 @@ import {
   sendDriverSelfTestPush,
   rememberPushForUser,
   isPushRememberedForUser,
+  remindDriverPendingPush,
   fetchPushConnectionStatus,
 } from '../../services/pushService';
 import { getMyDriverSummary, ensureMyDriverProfile, setMyOperationalStatus } from '../../services/driverService';
@@ -83,11 +84,39 @@ export function DriverNotifyHome() {
     if (isPushRememberedForUser(userId) || (typeof Notification !== 'undefined' && Notification.permission === 'granted')) {
       ensureDriverPushSubscription({ force: false, userId }).catch(() => {});
     }
-    const unsub = subscribeDispatch(() => refresh());
+    const unsub = subscribeDispatch(() => {
+      refresh();
+    });
     const t = setInterval(refresh, 20000);
+    const remind = () => {
+      remindDriverPendingPush()
+        .then((r) => {
+          if (r?.jobs > 0) {
+            const n = Number(r.jobs) || 1;
+            showLocalTrayTestNotification({
+              title: 'El Pollón · Nuevo pedido',
+              body: n > 1
+                ? `Tienes ${n} pedidos nuevos. Acepta en la app nativa.`
+                : 'Pedido nuevo. Acepta en la app nativa.',
+              badgeCount: n,
+              tag: 'pollon-driver-offer',
+            }).catch(() => {});
+            setDriverAppBadge(n).catch(() => {});
+          }
+          refresh();
+        })
+        .catch(() => {});
+    };
+    remind();
+    const tRemind = setInterval(remind, 60000);
     const onMsg = (event) => {
       if (event.data?.type === 'DRIVER_NEW_OFFER') {
         refresh();
+        showLocalTrayTestNotification({
+          title: event.data.title || 'El Pollón · Nuevo pedido',
+          body: event.data.body || 'Pedido nuevo. Acepta en la app nativa.',
+          badgeCount: event.data.badgeCount || 1,
+        }).catch(() => {});
         if (event.data?.fromClick) {
           setMsg('Abre la app nativa del repartidor para aceptar el pedido.');
         }
@@ -99,6 +128,7 @@ export function DriverNotifyHome() {
     return () => {
       unsub();
       clearInterval(t);
+      clearInterval(tRemind);
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.removeEventListener('message', onMsg);
       }

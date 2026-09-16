@@ -44,7 +44,7 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
 
   let fcmSent = 0;
   let webSent = 0;
-  for (const jobId of jobIds) {
+  for (const jobId of jobIds.slice(0, 8)) {
     await ensureNotifyEligibleOffers(admin, jobId).catch(() => null);
     const sent = await sendPushesForJob(admin, jobId);
     fcmSent += Number(sent?.fcmSent) || 0;
