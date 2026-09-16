@@ -247,6 +247,12 @@ export async function showLocalTrayTestNotification({
   }
   const reg = await ensureServiceWorkerRegistration();
   if (reg?.showNotification) {
+    try {
+      const prev = await reg.getNotifications({ tag });
+      for (const n of prev) n.close();
+    } catch {
+      /* ignore */
+    }
     await reg.showNotification(title, {
       body,
       icon: '/icons/icon-192.png',
@@ -254,7 +260,9 @@ export async function showLocalTrayTestNotification({
       tag,
       renotify: true,
       requireInteraction: true,
-      vibrate: [200, 100, 200],
+      silent: false,
+      timestamp: Date.now(),
+      vibrate: [280, 120, 280, 120, 400],
       data: { url: '/repartidor', badgeCount },
     });
   } else {

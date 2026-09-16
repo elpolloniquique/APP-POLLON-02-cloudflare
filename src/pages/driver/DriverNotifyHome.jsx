@@ -90,19 +90,21 @@ export function DriverNotifyHome() {
     const t = setInterval(refresh, 20000);
     const remind = () => {
       remindDriverPendingPush()
-        .then((r) => {
-          const n = Number(r?.jobs) || 0;
-          if (n > 0 || Number(r?.webSent) > 0) {
-            const count = Math.max(n, Number(r?.webSent) || 0, 1);
-            showLocalTrayTestNotification({
-              title: 'El Pollón · Nuevo pedido',
-              body: count > 1
-                ? `Tienes ${count} pedidos nuevos. Acepta en la app nativa.`
-                : 'Pedido nuevo. Acepta en la app nativa.',
-              badgeCount: count,
-              tag: 'pollon-driver-offer',
-            }).catch(() => {});
-            setDriverAppBadge(count).catch(() => {});
+        .then(async (r) => {
+          const orders = Array.isArray(r?.orders) ? r.orders : [];
+          const count = Math.max(Number(r?.jobs) || 0, orders.length, 0);
+          if (count > 0) await setDriverAppBadge(count).catch(() => {});
+          // Si el servidor ya mandó Web Push, la bandeja se actualiza sola (un aviso por pedido).
+          // Solo avisamos en local si el push remoto no salió.
+          if (Number(r?.webSent) <= 0 && orders.length) {
+            for (const order of orders) {
+              await showLocalTrayTestNotification({
+                title: order.title || `NUEVO PEDIDO Nº ${order.ticket || ''}`.trim(),
+                body: order.body || [order.address, order.fee ? `Delivery ${order.fee}` : null].filter(Boolean).join(' · '),
+                badgeCount: count || 1,
+                tag: order.tag || (order.jobId ? `pollon-job-${order.jobId}` : 'pollon-driver-offer'),
+              }).catch(() => {});
+            }
           }
           refresh();
         })
@@ -113,11 +115,6 @@ export function DriverNotifyHome() {
     const onMsg = (event) => {
       if (event.data?.type === 'DRIVER_NEW_OFFER') {
         refresh();
-        showLocalTrayTestNotification({
-          title: event.data.title || 'El Pollón · Nuevo pedido',
-          body: event.data.body || 'Pedido nuevo. Acepta en la app nativa.',
-          badgeCount: event.data.badgeCount || 1,
-        }).catch(() => {});
         if (event.data?.fromClick) {
           setMsg('Abre la app nativa del repartidor para aceptar el pedido.');
         }

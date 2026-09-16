@@ -19,11 +19,12 @@ async function updateAppBadge(count) {
 
 self.addEventListener('push', (event) => {
   let payload = {
-    title: 'El Pollón · Nuevo pedido',
-    body: 'Tienes un nuevo pedido de delivery. Ábrelo en la app nativa para aceptar.',
+    title: 'NUEVO PEDIDO',
+    body: 'Nuevo pedido de delivery. Ábrelo en la app nativa para aceptar.',
     url: '/repartidor',
     tag: 'pollon-driver-offer',
     badgeCount: 1,
+    renotify: true,
   };
 
   try {
@@ -50,6 +51,7 @@ self.addEventListener('push', (event) => {
           jobId: payload.jobId || null,
           title: payload.title,
           body: payload.body,
+          tag: payload.tag,
           badgeCount: payload.badgeCount || 1,
         });
       } catch {
@@ -64,16 +66,24 @@ self.addEventListener('push', (event) => {
       ? `pollon-job-${payload.jobId}`
       : (payload.offerId ? `pollon-offer-${payload.offerId}` : (payload.tag || 'pollon-driver-offer'));
 
+    const titleText = payload.title
+      || (payload.ticket ? `NUEVO PEDIDO Nº ${payload.ticket}` : 'NUEVO PEDIDO');
+
     const bodyText = payload.body
       || [
-        payload.ticket ? `Pedido Nº ${payload.ticket}` : null,
-        payload.customerName || null,
+        payload.ticket ? `Nº ${payload.ticket}` : null,
         payload.address || payload.customerAddress || null,
-        'Acepta en app nativa',
+        payload.fee ? `Delivery ${payload.fee}` : null,
       ].filter(Boolean).join(' · ')
       || 'Nuevo pedido · Ábrelo en la app nativa para aceptar';
 
-    await self.registration.showNotification(payload.title || 'El Pollón · Nuevo pedido', {
+    // Misma etiqueta = se actualiza en bandeja; se cierra y vuelve a mostrar para que suene otra vez.
+    const prev = await self.registration.getNotifications({ tag: stableTag });
+    for (const n of prev) {
+      try { n.close(); } catch { /* ignore */ }
+    }
+
+    await self.registration.showNotification(titleText, {
       body: bodyText,
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
@@ -91,6 +101,7 @@ self.addEventListener('push', (event) => {
         url: payload.url || '/repartidor',
         offerId: payload.offerId || null,
         jobId: payload.jobId || null,
+        ticket: payload.ticket || null,
         badgeCount: badgeN,
       },
     });

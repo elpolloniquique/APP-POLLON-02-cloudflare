@@ -6,9 +6,11 @@ import { sendFcm, isFcmConfigured, env } from './fcmSend.js';
 import { setWebPushVapid, sendWebPushNotification, cleanVapidKey } from './webPushSend.js';
 import { ensureNotifyEligibleOffers, unwrapJobId, listOpenNotifyJobIds } from './ensureNotifyOffers.js';
 
-function ticketShort(code) {
-  const s = String(code || '').replace(/^0+/, '');
-  return s || String(code || '—');
+function ticketLabel(code) {
+  const s = String(code || '').trim();
+  if (!s) return '—';
+  if (/^\d+$/.test(s)) return s.padStart(6, '0');
+  return s;
 }
 
 function moneyCLP(n) {
@@ -21,6 +23,24 @@ function moneyCLP(n) {
   } catch {
     return `$${Math.round(Number(n) || 0)}`;
   }
+}
+
+/** Un aviso por pedido: título con Nº, cuerpo con dirección y delivery. */
+export function offerNoticeText(job, { jobId, offerId, fee } = {}) {
+  const ticket = ticketLabel(job?.ticket_code);
+  const addr = String(job?.customer_address || '').replace(/\s+/g, ' ').trim().slice(0, 140);
+  const money = moneyCLP(fee ?? job?.delivery_fee ?? 0);
+  const id = String(jobId || job?.id || '');
+  return {
+    title: `NUEVO PEDIDO Nº ${ticket}`,
+    body: [addr || null, `Delivery ${money}`].filter(Boolean).join(' · ') || `Delivery ${money}`,
+    ticket,
+    address: addr,
+    fee: money,
+    tag: id ? `pollon-job-${id}` : 'pollon-driver-offer',
+    jobId: id || null,
+    offerId: offerId || null,
+  };
 }
 
 function vapidPair() {
@@ -75,7 +95,6 @@ export async function sendPushesForJob(admin, jobId) {
   let lastWebError = '';
   const staleWeb = [];
   const staleFcm = [];
-  const stamp = Date.now();
   const sampleOffer = offers[0];
   const sampleJob = sampleOffer?.ep_delivery_jobs || {};
 
@@ -89,21 +108,21 @@ export async function sendPushesForJob(admin, jobId) {
       const offer = byDriver[sub.driver_id] || sampleOffer;
       const job = offer?.ep_delivery_jobs || sampleJob;
       const fee = offer?.offered_fee ?? job.delivery_fee ?? 0;
-      const ticket = ticketShort(job.ticket_code);
-      const name = job.customer_name || 'Cliente';
-      const addr = String(job.customer_address || '').slice(0, 120);
+      const notice = offerNoticeText(job, { jobId, offerId: offer?.id, fee });
       const badgeCount = Math.max(1, Number(pendingByDriver[sub.driver_id]) || offers.length || 1);
       try {
         await sendWebPushNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           JSON.stringify({
-            title: 'El Pollón · Nuevo pedido',
-            body: [`Pedido Nº ${ticket}`, name, addr || null, `Delivery ${moneyCLP(fee)}`, 'Acepta en app nativa']
-              .filter(Boolean).join(' · '),
+            title: notice.title,
+            body: notice.body,
             url: '/repartidor',
-            offerId: offer?.id || null,
-            jobId,
-            tag: `pollon-job-${jobId}-${stamp}`,
+            offerId: notice.offerId,
+            jobId: notice.jobId,
+            ticket: notice.ticket,
+            address: notice.address,
+            fee: notice.fee,
+            tag: notice.tag,
             badgeCount,
             type: 'driver_offer',
             renotify: true,
@@ -132,26 +151,24 @@ export async function sendPushesForJob(admin, jobId) {
       if (!offer) return;
       const job = offer.ep_delivery_jobs || {};
       const fee = offer.offered_fee ?? job.delivery_fee ?? 0;
-      const ticket = ticketShort(job.ticket_code);
+      const notice = offerNoticeText(job, { jobId, offerId: offer.id, fee });
       const name = job.customer_name || 'Cliente';
-      const addr = job.customer_address || '';
       const badgeCount = Math.max(1, Number(pendingByDriver[row.driver_id]) || 1);
       try {
         const result = await sendFcm(row.token, {
-          title: 'El Pollón · Pedido nuevo',
-          body: [`Nº ${ticket}`, name, addr || null, `Delivery ${moneyCLP(fee)}`, 'Acepta en app nativa']
-            .filter(Boolean).join(' · '),
+          title: notice.title,
+          body: notice.body,
           data: {
             type: 'driver_offer',
             offerId: String(offer.id),
             jobId: String(jobId),
             deepLink: '/repartidor',
             url: '/repartidor',
-            tag: `pollon-job-${jobId}-${stamp}`,
+            tag: notice.tag,
             badgeCount: String(badgeCount),
-            ticket,
+            ticket: notice.ticket,
             customerName: name,
-            address: addr,
+            address: notice.address,
             fee: String(fee),
           },
         });
@@ -227,35 +244,36 @@ export async function remindDriverWebPush(admin, driverId) {
     .eq('driver_id', driverId);
   if (!subs?.length) return { ok: false, webSent: 0, reason: 'sin_suscripcion' };
 
-  const jobIds = await listOpenNotifyJobIds(admin, { hours: 18, limit: 8 });
-  if (!jobIds.length) return { ok: true, webSent: 0, jobs: 0, reason: 'sin_pedidos_abiertos' };
+  const jobIds = await listOpenNotifyJobIds(admin, { hours: 18, limit: 20 });
+  if (!jobIds.length) return { ok: true, webSent: 0, jobs: 0, orders: [], reason: 'sin_pedidos_abiertos' };
 
   setWebPushVapid(vapidSubject, vapidPublic, vapidPrivate);
   let webSent = 0;
   let lastError = '';
-  const stamp = Date.now();
+  const orders = [];
   for (const jobId of jobIds) {
     await ensureNotifyEligibleOffers(admin, jobId).catch(() => null);
     const { data: job } = await admin
       .from('ep_delivery_jobs')
-      .select('ticket_code, customer_name, customer_address, delivery_fee, assigned_driver_id')
+      .select('id, ticket_code, customer_name, customer_address, delivery_fee, assigned_driver_id')
       .eq('id', jobId)
       .maybeSingle();
     if (!job || job.assigned_driver_id) continue;
-    const ticket = ticketShort(job.ticket_code);
-    const name = job.customer_name || 'Cliente';
-    const addr = String(job.customer_address || '').slice(0, 120);
-    const body = [`Pedido Nº ${ticket}`, name, addr || null, 'Acepta en app nativa'].filter(Boolean).join(' · ');
+    const notice = offerNoticeText(job, { jobId, fee: job.delivery_fee });
+    orders.push(notice);
     await Promise.all(subs.map(async (sub) => {
       try {
         await sendWebPushNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
           JSON.stringify({
-            title: 'El Pollón · Nuevo pedido',
-            body,
+            title: notice.title,
+            body: notice.body,
             url: '/repartidor',
-            jobId,
-            tag: `pollon-job-${jobId}-${stamp}`,
+            jobId: notice.jobId,
+            ticket: notice.ticket,
+            address: notice.address,
+            fee: notice.fee,
+            tag: notice.tag,
             badgeCount: jobIds.length,
             type: 'driver_offer',
             renotify: true,
@@ -271,7 +289,8 @@ export async function remindDriverWebPush(admin, driverId) {
   return {
     ok: webSent > 0,
     webSent,
-    jobs: jobIds.length,
+    jobs: orders.length,
+    orders,
     lastError: lastError || undefined,
     reason: webSent > 0 ? 'ok' : (lastError || 'push_zero'),
   };
