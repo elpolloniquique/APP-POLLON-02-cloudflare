@@ -4,6 +4,7 @@
  */
 import { ensureNotifyEligibleOffers, ensureJobsFromPendingPedidos, unwrapJobId } from './ensureNotifyOffers.js';
 import { sendPushesForJob } from './sendJobPushes.js';
+import { notifyCashiersForPendingOrders } from './sendCashierPushes.js';
 
 let lastRunAt = 0;
 const MIN_INTERVAL_MS = 55_000;
@@ -37,14 +38,26 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
   const jobIds = [...new Set((fromPedidos || []).map((id) => unwrapJobId(id)).filter(Boolean))];
 
   if (!jobIds.length) {
-    await markNotifyRun(admin, { jobs: 0, webSent: 0, fcmSent: 0 });
-    return { ok: true, retried: 0, job_ids: [], pushed: 0, webSent: 0, fcmSent: 0 };
+    const cashierRes = await notifyCashiersForPendingOrders(admin).catch(() => null);
+    await markNotifyRun(admin, { jobs: 0, webSent: 0, fcmSent: 0, cashierWeb: Number(cashierRes?.webSent) || 0 });
+    return {
+      ok: true,
+      retried: 0,
+      job_ids: [],
+      pushed: 0,
+      webSent: 0,
+      fcmSent: 0,
+      cashierWeb: Number(cashierRes?.webSent) || 0,
+    };
   }
 
-  const results = await Promise.all(jobIds.map(async (jobId) => {
-    await ensureNotifyEligibleOffers(admin, jobId).catch(() => null);
-    return sendPushesForJob(admin, jobId);
-  }));
+  const [results, cashierRes] = await Promise.all([
+    Promise.all(jobIds.map(async (jobId) => {
+      await ensureNotifyEligibleOffers(admin, jobId).catch(() => null);
+      return sendPushesForJob(admin, jobId);
+    })),
+    notifyCashiersForPendingOrders(admin).catch(() => null),
+  ]);
 
   let fcmSent = 0;
   let webSent = 0;
@@ -55,7 +68,13 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
     if (sent?.lastWebError) lastWebError = sent.lastWebError;
   }
 
-  await markNotifyRun(admin, { jobs: jobIds.length, webSent, fcmSent, lastWebError: lastWebError || undefined });
+  await markNotifyRun(admin, {
+    jobs: jobIds.length,
+    webSent,
+    fcmSent,
+    cashierWeb: Number(cashierRes?.webSent) || 0,
+    lastWebError: lastWebError || undefined,
+  });
 
   return {
     ok: true,
@@ -63,6 +82,7 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
     job_ids: jobIds,
     fcmSent,
     webSent,
+    cashierWeb: Number(cashierRes?.webSent) || 0,
     lastWebError: lastWebError || undefined,
     pushed: fcmSent + webSent,
   };

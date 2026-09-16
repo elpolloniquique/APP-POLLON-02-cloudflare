@@ -11,6 +11,7 @@ import {
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import '../../styles/admin-shell.css';
 import '../../styles/admin-theme.css';
+import { CashierNotifyBanner } from './CashierNotifyBanner';
 
 const ICON_MAP = {
   LayoutDashboard, BookOpen, ShoppingBag, ChefHat, Users, Megaphone,
@@ -227,6 +228,7 @@ export function AdminLayout() {
               Tu cuenta no tiene sucursal asignada. Solo verás datos vacíos hasta que el super admin configure tu <code>branch_id</code>.
             </div>
           )}
+          <CashierNotifyBanner />
           <Outlet />
         </main>
       </div>

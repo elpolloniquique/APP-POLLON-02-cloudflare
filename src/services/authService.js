@@ -42,6 +42,11 @@ export function isDriverRole(role) {
   return r === ROLES.DELIVERY || r === 'repartidor';
 }
 
+export function isCashierRole(role) {
+  const r = normalizeRole(role);
+  return r === ROLES.CAJERA || r === 'cajero';
+}
+
 export function isCustomerRole(role) {
   return normalizeRole(role) === ROLES.CLIENTE;
 }

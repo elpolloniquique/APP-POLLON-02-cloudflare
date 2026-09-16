@@ -10,6 +10,7 @@ import { dispatchQueue } from '../lib/bot/queue.js';
 import { requireStaff, webhookSecretOk } from '../lib/bot/auth.js';
 import { clientIp, rateLimitHit } from '../lib/bot/rateLimit.js';
 import { notifyDeliveryOrder } from './_lib/sendJobPushes.js';
+import { notifyCashiersForOrder } from './_lib/sendCashierPushes.js';
 
 const STAFF_ROLES = ['super_admin', 'admin_sucursal', 'cajera', 'cajero', 'despachador', 'cocina', 'cocinero'];
 
@@ -75,7 +76,8 @@ export default async function handler(req, res) {
   try {
     const isDelivery = String(order.tipo || 'delivery') === 'delivery';
     const estado = String(order.estado || '').toLowerCase();
-    const shouldPush = isDelivery && (isInsert || ['pendiente', 'nuevo'].includes(estado));
+    const isNuevo = isInsert || ['pendiente', 'nuevo'].includes(estado);
+    const shouldPush = isDelivery && isNuevo;
     // Aviso a repartidores YA: no esperar WhatsApp ni la cola.
     const driverPushPromise = shouldPush
       ? notifyDeliveryOrder(admin, order.id).catch((err) => ({
@@ -83,12 +85,22 @@ export default async function handler(req, res) {
         reason: err?.message || 'push_failed',
       }))
       : Promise.resolve(null);
+    const cashierPushPromise = isNuevo
+      ? notifyCashiersForOrder(admin, order.id).catch((err) => ({
+        ok: false,
+        reason: err?.message || 'cashier_push_failed',
+      }))
+      : Promise.resolve(null);
     const waPromise = (async () => {
       const enqueued = await enqueueFromPedidoChange(admin, { order, prevEstado, isInsert });
       const dispatched = await dispatchQueue(admin, { orderId: order.id, limit: 8 });
       return { enqueued, dispatched };
     })();
-    const [driverPush, wa] = await Promise.all([driverPushPromise, waPromise]);
+    const [driverPush, cashierPush, wa] = await Promise.all([
+      driverPushPromise,
+      cashierPushPromise,
+      waPromise,
+    ]);
     return res.status(200).json({
       ok: true,
       orderId: order.id,
@@ -96,6 +108,7 @@ export default async function handler(req, res) {
       enqueued: wa.enqueued,
       dispatched: wa.dispatched,
       driverPush,
+      cashierPush,
     });
   } catch (err) {
     return res.status(500).json({ ok: false, error: String(err?.message || err) });

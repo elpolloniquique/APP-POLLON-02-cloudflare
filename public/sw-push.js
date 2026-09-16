@@ -43,12 +43,17 @@ self.addEventListener('push', (event) => {
 
   event.waitUntil((async () => {
     const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const isCashier = String(payload.type || '').startsWith('cashier_');
+    const defaultUrl = isCashier ? '/admin/pedidos' : '/repartidor';
+    const msgType = isCashier ? 'CASHIER_NEW_ORDER' : 'DRIVER_NEW_OFFER';
+
     for (const client of clientsList) {
       try {
         client.postMessage({
-          type: 'DRIVER_NEW_OFFER',
+          type: msgType,
           offerId: payload.offerId || null,
           jobId: payload.jobId || null,
+          orderId: payload.orderId || null,
           title: payload.title,
           body: payload.body,
           tag: payload.tag,
@@ -62,9 +67,10 @@ self.addEventListener('push', (event) => {
     let badgeN = Math.max(1, Number(payload.badgeCount) || 1);
     await updateAppBadge(badgeN);
 
-    const stableTag = payload.jobId
-      ? `pollon-job-${payload.jobId}`
-      : (payload.offerId ? `pollon-offer-${payload.offerId}` : (payload.tag || 'pollon-driver-offer'));
+    const stableTag = payload.tag
+      || (payload.orderId ? `pollon-cashier-${payload.orderId}` : null)
+      || (payload.jobId ? `pollon-job-${payload.jobId}` : null)
+      || (payload.offerId ? `pollon-offer-${payload.offerId}` : (isCashier ? 'pollon-cashier-order' : 'pollon-driver-offer'));
 
     const titleText = payload.title
       || (payload.ticket ? `NUEVO PEDIDO Nº ${payload.ticket}` : 'NUEVO PEDIDO');
@@ -75,7 +81,7 @@ self.addEventListener('push', (event) => {
         payload.address || payload.customerAddress || null,
         payload.fee ? `Delivery ${payload.fee}` : null,
       ].filter(Boolean).join(' · ')
-      || 'Nuevo pedido · Ábrelo en la app nativa para aceptar';
+      || (isCashier ? 'Nuevo pedido de tu sucursal' : 'Nuevo pedido · Ábrelo en la app nativa para aceptar');
 
     const opts = {
       body: bodyText,
@@ -88,9 +94,10 @@ self.addEventListener('push', (event) => {
       silent: false,
       timestamp: Date.now(),
       data: {
-        url: payload.url || '/repartidor',
+        url: payload.url || defaultUrl,
         offerId: payload.offerId || null,
         jobId: payload.jobId || null,
+        orderId: payload.orderId || null,
         ticket: payload.ticket || null,
         badgeCount: badgeN,
       },
@@ -119,6 +126,7 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const target = event.notification?.data?.url || '/repartidor';
   const absolute = new URL(target, self.location.origin).href;
+  const clickType = String(target).includes('/admin') ? 'CASHIER_NEW_ORDER' : 'DRIVER_NEW_OFFER';
 
   event.waitUntil(
     (async () => {
@@ -127,7 +135,7 @@ self.addEventListener('notificationclick', (event) => {
         if (client.url.startsWith(self.location.origin) && 'focus' in client) {
           await client.focus();
           try {
-            client.postMessage({ type: 'DRIVER_NEW_OFFER', fromClick: true });
+            client.postMessage({ type: clickType, fromClick: true });
           } catch {
             /* ignore */
           }

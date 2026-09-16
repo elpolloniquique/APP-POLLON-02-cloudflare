@@ -260,6 +260,7 @@ export async function showLocalTrayTestNotification({
   body = 'Si ves esto en la bandeja, las notificaciones del sistema están. Los pedidos reales llegarán igual.',
   badgeCount = 1,
   tag = 'pollon-push-test',
+  url = '/repartidor',
 } = {}) {
   if (typeof Notification === 'undefined') {
     throw new Error('Este celular no soporta notificaciones del sistema.');
@@ -285,7 +286,7 @@ export async function showLocalTrayTestNotification({
       silent: false,
       timestamp: Date.now(),
       vibrate: [280, 120, 280, 120, 400],
-      data: { url: '/repartidor', badgeCount },
+      data: { url, badgeCount },
     });
   } else {
     // eslint-disable-next-line no-new
@@ -674,6 +675,187 @@ export async function remindDriverPendingPush() {
   const token = sessionData?.session?.access_token;
   if (!token) return { skipped: true, reason: 'no-session' };
   const res = await fetch('/api/notify-driver-offers', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ remindMe: true }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, status: res.status, ...json };
+  return json;
+}
+
+async function loadMyCashierProfile() {
+  if (!isSupabaseConfigured()) return null;
+  const sb = getSupabase();
+  const { data: sessionData } = await sb.auth.getSession();
+  const uid = sessionData?.session?.user?.id;
+  if (!uid) return null;
+  const { data, error } = await sb
+    .from('profiles')
+    .select('id, role, branch_id, is_active, auth_user_id')
+    .eq('auth_user_id', uid)
+    .maybeSingle();
+  if (error || !data) return null;
+  const role = String(data.role || '').toLowerCase();
+  if (role !== 'cajera' && role !== 'cajero') return null;
+  if (data.is_active === false) return null;
+  return data;
+}
+
+async function saveCashierSubscriptionToSupabase(sub) {
+  const json = sub.toJSON();
+  const endpoint = json.endpoint;
+  const p256dh = json.keys?.p256dh;
+  const auth = json.keys?.auth;
+  if (!endpoint || !p256dh || !auth) {
+    throw new Error('No se pudo crear la suscripción push.');
+  }
+  if (!isSupabaseConfigured()) return { endpoint };
+  const profile = await loadMyCashierProfile();
+  if (!profile?.id) throw new Error('No eres cajera.');
+  if (!profile.branch_id) throw new Error('Tu cuenta no tiene sucursal asignada.');
+  const sb = getSupabase();
+  const { error } = await sb.from('ep_cashier_push_subscriptions').upsert(
+    {
+      profile_id: profile.id,
+      branch_id: profile.branch_id,
+      endpoint,
+      p256dh,
+      auth,
+      user_agent: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 400) : null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'endpoint' },
+  );
+  if (error) throw new Error(error.message || 'No se pudo guardar la suscripción push');
+  return { endpoint };
+}
+
+export async function ensureCashierPushSubscription({ force = false, userId = '' } = {}) {
+  if (!isSupabaseConfigured()) return { ok: true, demo: true };
+  if (!VAPID_PUBLIC) {
+    throw new Error('Falta configurar notificaciones push (VITE_VAPID_PUBLIC_KEY). Avisa al administrador.');
+  }
+  if (typeof Notification === 'undefined') {
+    throw new Error('Este navegador no soporta notificaciones del sistema.');
+  }
+  let permission = Notification.permission;
+  if (permission === 'default') {
+    permission = await Notification.requestPermission();
+  }
+  if (permission !== 'granted') {
+    throw new Error('Debes permitir las notificaciones para recibir pedidos con la pantalla apagada.');
+  }
+  rememberPushForUser(userId);
+
+  const appServerKey = toApplicationServerKey(VAPID_PUBLIC);
+  if (new Uint8Array(appServerKey).byteLength !== 65) {
+    throw new Error('Clave de notificaciones inválida. Avisa al administrador.');
+  }
+  if (force) await softResetPushSubscription();
+
+  const tryOnce = async () => {
+    const reg = await ensureServiceWorkerRegistration();
+    if (!reg?.active) throw new Error('Service Worker no activo');
+    const sub = await subscribeWithKey(reg, appServerKey);
+    const saved = await withDeadline(
+      saveCashierSubscriptionToSupabase(sub),
+      8000,
+      'No se pudo guardar la suscripción. Revisa internet y pulsa de nuevo.',
+    );
+    markPushOk(userId);
+    return { ok: true, endpoint: saved.endpoint };
+  };
+
+  try {
+    return await tryOnce();
+  } catch (err1) {
+    console.warn('[Pollón] cashier push subscribe:', err1);
+    const timedOut = String(err1?.message || '').toLowerCase().includes('tardó');
+    if (timedOut) {
+      markDeferred();
+      return { ok: true, deferred: true, warn: err1.message };
+    }
+    if (!isPushInfraError(err1)) {
+      try {
+        return await tryOnce();
+      } catch (errSave) {
+        markDeferred();
+        return { ok: true, deferred: true, warn: errSave?.message || 'No se pudo guardar la suscripción.' };
+      }
+    }
+  }
+  try {
+    await softResetPushSubscription();
+    await new Promise((r) => setTimeout(r, 400));
+    return await tryOnce();
+  } catch (err2) {
+    console.warn('[Pollón] cashier push retry:', err2);
+  }
+  markDeferred();
+  return {
+    ok: true,
+    deferred: true,
+    warn: 'Permiso OK. El registro push se reintentará solo.',
+  };
+}
+
+export async function notifyCashiersForOrder(orderId) {
+  if (!orderId || !isSupabaseConfigured()) return { skipped: true };
+  try {
+    const sb = getSupabase();
+    const { data: sessionData } = await sb.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) return { skipped: true, reason: 'no-session' };
+    const res = await fetch('/api/notify-cashier-orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ orderId }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      console.warn('[Pollón] notify-cashier-orders:', res.status, text);
+      return { ok: false, status: res.status, body: text };
+    }
+    return await res.json().catch(() => ({ ok: true }));
+  } catch (err) {
+    console.warn('[Pollón] notify-cashier-orders:', err?.message || err);
+    return { ok: false, error: err?.message };
+  }
+}
+
+export async function sendCashierSelfTestPush() {
+  if (!isSupabaseConfigured()) return { skipped: true };
+  const sb = getSupabase();
+  const { data: sessionData } = await sb.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) throw new Error('Sin sesión. Vuelve a iniciar sesión.');
+  const res = await fetch('/api/notify-cashier-orders', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ selfTest: true }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.error || `Error ${res.status}`);
+  return json;
+}
+
+export async function remindCashierPendingPush() {
+  if (!isSupabaseConfigured()) return { skipped: true };
+  const sb = getSupabase();
+  const { data: sessionData } = await sb.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) return { skipped: true, reason: 'no-session' };
+  const res = await fetch('/api/notify-cashier-orders', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
