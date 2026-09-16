@@ -141,7 +141,6 @@ export async function manualSearchDrivers(orderId) {
     throw new Error(data.message || 'Despacho desactivado en esta sucursal');
   }
 
-  const notifyRes = await notifyDriversForJob(jobId, { orderId }).catch(() => null);
   const web = Number(notifyRes?.webSent) || 0;
   const fcm = Number(notifyRes?.fcmSent) || 0;
   const offeredNow = Number(data?.offered) || 0;
