@@ -106,18 +106,18 @@ export async function autoDispatchNewOrder(orderId) {
     if (!jobId) return null;
 
     if (!settings.auto_offer) {
+      const notifyRes = await notifyDriversForJob(jobId).catch(() => null);
       lastFetch = 0;
-      return { jobId, skippedSearch: true, reason: 'auto_offer_off' };
+      return { jobId, skippedSearch: true, reason: 'auto_offer_off', notify: notifyRes };
     }
 
     const { data: searchResult, error: sErr } = await sb.rpc('ep_start_driver_search', { p_job_id: jobId });
     if (sErr) { console.warn('[Pollón] autoDispatch search:', sErr.message); }
-    else if (searchResult?.offered > 0) {
-      notifyDriversForJob(jobId).catch(() => {});
-    }
+    // Siempre avisar (PWA no tiene GPS; la API crea la oferta y manda Web Push)
+    const notifyRes = await notifyDriversForJob(jobId).catch(() => null);
 
     lastFetch = 0;
-    return { jobId, searchResult };
+    return { jobId, searchResult, notify: notifyRes };
   } catch (e) {
     console.warn('[Pollón] autoDispatch:', e.message);
     return null;
@@ -145,13 +145,19 @@ export async function manualSearchDrivers(orderId) {
     throw new Error(data.message || 'Despacho desactivado en esta sucursal');
   }
 
-  if (data?.offered > 0) {
-    // Siempre reenviar push (PWA bandeja + FCM nativa), también al reasignar
-    const notifyRes = await notifyDriversForJob(jobId).catch(() => null);
-    lastFetch = 0;
-    return { ...data, notify: notifyRes };
+  const notifyRes = await notifyDriversForJob(jobId).catch(() => null);
+  const web = Number(notifyRes?.webSent) || 0;
+  const fcm = Number(notifyRes?.fcmSent) || 0;
+  const offeredNow = Number(data?.offered) || 0;
+  const offersAfter = Number(notifyRes?.offers) || 0;
+  lastFetch = 0;
+  if (offeredNow > 0 || offersAfter > 0 || web > 0 || fcm > 0) {
+    return {
+      ...data,
+      offered: Math.max(offeredNow, offersAfter, web + fcm),
+      notify: notifyRes,
+    };
   }
-  // Si no hubo nuevas filas pero ya hay ofertas pending del job, reavisar igual
   const { data: pendingOffers } = await sb
     .from('ep_delivery_offers')
     .select('id')
@@ -159,8 +165,6 @@ export async function manualSearchDrivers(orderId) {
     .eq('status', 'pending')
     .limit(1);
   if (pendingOffers?.length) {
-    const notifyRes = await notifyDriversForJob(jobId).catch(() => null);
-    lastFetch = 0;
     return {
       ok: true,
       offered: pendingOffers.length,
@@ -172,9 +176,7 @@ export async function manualSearchDrivers(orderId) {
   if (data?.message) {
     throw new Error(data.message);
   }
-
-  lastFetch = 0;
-  return data;
+  return { ...data, notify: notifyRes };
 }
 
 /**

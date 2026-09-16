@@ -125,30 +125,28 @@ export async function startDriverSearch(jobId) {
   if (data?.reason === 'dispatch_disabled') {
     throw new Error(data.message || 'Despacho desactivado en esta sucursal');
   }
-  if (data?.offered > 0) {
-    await notifyDriversForJob(jobId).catch(() => {});
-  } else {
-    // Reavisar si ya hay ofertas pending (botón reasignar / buscar de nuevo)
-    try {
-      const { data: pending } = await sb
-        .from('ep_delivery_offers')
-        .select('id')
-        .eq('job_id', jobId)
-        .eq('status', 'pending')
-        .limit(1);
-      if (pending?.length) {
-        await notifyDriversForJob(jobId).catch(() => {});
-        return { ...data, offered: pending.length, renotified: true };
-      }
-    } catch {
-      /* ignore */
-    }
-    throw new Error(
-      data?.message
-      || 'Ningún repartidor con GPS en vivo. Deben estar Disponible y el GPS no puede decir “Buscando…”.',
-    );
+  const notifyRes = await notifyDriversForJob(jobId).catch(() => null);
+  const sent = Number(notifyRes?.webSent || 0) + Number(notifyRes?.fcmSent || 0);
+  if (data?.offered > 0 || sent > 0 || Number(notifyRes?.offers) > 0) {
+    return { ...data, offered: Math.max(data?.offered || 0, notifyRes?.offers || 0), notify: notifyRes };
   }
-  return data;
+  try {
+    const { data: pending } = await sb
+      .from('ep_delivery_offers')
+      .select('id')
+      .eq('job_id', jobId)
+      .eq('status', 'pending')
+      .limit(1);
+    if (pending?.length) {
+      return { ...data, offered: pending.length, renotified: true, notify: notifyRes };
+    }
+  } catch {
+    /* ignore */
+  }
+  throw new Error(
+    data?.message
+    || 'Ningún repartidor con avisos activos. Que abra el pollito y pulse Activar notificaciones.',
+  );
 }
 
 export async function acceptOffer(offerId) {

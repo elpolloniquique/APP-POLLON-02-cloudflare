@@ -17,6 +17,7 @@ import {
 } from './_lib/fcmSend.js';
 import { handleGpsPing, isGpsPingRequest } from './_lib/gpsPing.js';
 import { setWebPushVapid, sendWebPushNotification, cleanVapidKey } from './_lib/webPushSend.js';
+import { ensureNotifyEligibleOffers } from './_lib/ensureNotifyOffers.js';
 
 function moneyCLP(n) {
   try {
@@ -178,13 +179,21 @@ export default async function handler(req, res) {
 
   if (!jobId) return res.status(400).json({ error: 'jobId requerido' });
 
+  const { data: isStaff } = await userClient.rpc('ep_is_dispatch_staff');
   const { data: jobVisible, error: jobVisErr } = await userClient
     .from('ep_delivery_jobs')
     .select('id')
     .eq('id', jobId)
     .maybeSingle();
-  if (jobVisErr || !jobVisible) {
+  if (!isStaff && (jobVisErr || !jobVisible)) {
     return res.status(403).json({ error: 'Sin permiso para este pedido' });
+  }
+
+  let ensured = { added: 0 };
+  try {
+    ensured = await ensureNotifyEligibleOffers(admin, jobId);
+  } catch (err) {
+    ensured = { added: 0, reason: err?.message || 'ensure_failed' };
   }
 
   const { data: offers, error: offersErr } = await admin
@@ -195,7 +204,14 @@ export default async function handler(req, res) {
 
   if (offersErr) return res.status(500).json({ error: offersErr.message });
   if (!offers?.length) {
-    return res.status(200).json({ ok: true, sent: 0, fcmSent: 0, webSent: 0, reason: 'sin ofertas pendientes' });
+    return res.status(200).json({
+      ok: true,
+      sent: 0,
+      fcmSent: 0,
+      webSent: 0,
+      reason: ensured?.reason || 'sin ofertas pendientes',
+      ensured,
+    });
   }
 
   const driverIds = [...new Set(offers.map((o) => o.driver_id).filter(Boolean))];
@@ -258,7 +274,7 @@ export default async function handler(req, res) {
               jobId: String(jobId),
               deepLink: '/repartidor',
               url: '/repartidor',
-              tag: `pollon-job-${jobId}`,
+              tag: `pollon-job-${jobId}-${Date.now()}`,
               badgeCount: String(badgeCount),
               ticket,
               customerName: name,
@@ -310,7 +326,7 @@ export default async function handler(req, res) {
             url: '/repartidor',
             offerId: offer.id,
             jobId,
-            tag: `pollon-job-${jobId}`,
+            tag: `pollon-job-${jobId}-${Date.now()}`,
             badgeCount,
             type: 'driver_offer',
             renotify: true,
@@ -341,6 +357,7 @@ export default async function handler(req, res) {
     fcmSent,
     webSent,
     offers: offers.length,
+    ensured,
     fcmConfigured: hasFcm,
     fcmMode: fcmModeLabel(),
     webConfigured: Boolean(vapidPublic && vapidPrivate),

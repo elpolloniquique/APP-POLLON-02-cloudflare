@@ -5,6 +5,7 @@
  */
 import { env, sendFcm, isFcmConfigured } from './fcmSend.js';
 import { setWebPushVapid, sendWebPushNotification, cleanVapidKey } from './webPushSend.js';
+import { ensureNotifyEligibleOffers } from './ensureNotifyOffers.js';
 
 function ticketShort(code) {
   const s = String(code || '').replace(/^0+/, '');
@@ -70,6 +71,7 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
   const staleWeb = [];
 
   for (const jobId of jobIds) {
+    await ensureNotifyEligibleOffers(admin, jobId).catch(() => null);
     const { data: offers } = await admin
       .from('ep_delivery_offers')
       .select('id, driver_id, offered_fee, ep_delivery_jobs(ticket_code, customer_name, customer_address, delivery_fee)')

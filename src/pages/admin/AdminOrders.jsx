@@ -428,14 +428,14 @@ export function AdminOrders() {
       const n = Number(res?.offered) || 0;
       const web = Number(res?.notify?.webSent) || 0;
       const fcm = Number(res?.notify?.fcmSent) || 0;
-      if (n > 0 || res?.renotified) {
+      if (n > 0 || res?.renotified || web > 0 || fcm > 0) {
         alert(
           `Aviso enviado a repartidor(es)${n ? ` (${n})` : ''}.`
           + `\nPush web (pollito): ${web} · App nativa: ${fcm}.`
           + '\nDeben ver la notificación en la bandeja (deslizar desde arriba).',
         );
       } else {
-        alert(res?.message || 'Ningún repartidor disponible con GPS en vivo. El moto debe estar Disponible y GPS no puede decir “Buscando…”.');
+        alert(res?.message || 'Ningún repartidor con avisos activos. Que abra el pollito y pulse Activar notificaciones.');
       }
       setTimeout(refreshDelivery, 2000);
     } catch (e) {
