@@ -134,7 +134,6 @@ export function GpsMapPickerModal({
   const [suggestions, setSuggestions] = useState([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [searchExpanded, setSearchExpanded] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
 
   const searchTimerRef = useRef(null);
@@ -155,17 +154,10 @@ export function GpsMapPickerModal({
     setSearchQuery('');
     setSuggestions([]);
     setSearchOpen(false);
-    setSearchExpanded(false);
     setActiveIdx(-1);
     searchPinLockRef.current = false;
     lockedPinRef.current = null;
   }, [open, initialCenter?.lat, initialCenter?.lng]);
-
-  useEffect(() => {
-    if (!searchExpanded) return;
-    const t = window.setTimeout(() => searchInputRef.current?.focus(), 40);
-    return () => window.clearTimeout(t);
-  }, [searchExpanded]);
 
   useEffect(() => {
     if (!open || !center?.lat || !center?.lng) return undefined;
@@ -486,7 +478,7 @@ export function GpsMapPickerModal({
                 Selecciona tu ubicación exacta o busca manualmente desde este buscador
               </h3>
               <p className="mt-1.5 text-[11px] font-medium leading-[1.45] text-white/90">
-                Mueve el mapa hasta dejar la aguja en tu puerta. Si el GPS no detecta bien tu dirección, toca el icono de búsqueda.
+                Mueve el mapa hasta dejar la aguja en tu puerta. Si el GPS no detecta bien tu dirección, escribe calle y número en el buscador.
               </p>
             </div>
             <button
@@ -500,67 +492,41 @@ export function GpsMapPickerModal({
           </div>
 
           <div ref={searchBoxRef} className="relative mt-3">
-            {!searchExpanded ? (
-              <button
-                type="button"
-                onClick={() => setSearchExpanded(true)}
-                className="flex h-10 w-10 items-center justify-center rounded-[0.28rem] border border-white bg-white text-[#c00000] transition hover:bg-zinc-100"
-                aria-label="Buscar manualmente solo en caso no detectó su dirección"
-                title="Buscar manualmente solo en caso no detectó su dirección"
-              >
-                <Search className="h-[18px] w-[18px]" strokeWidth={2.5} />
-              </button>
-            ) : (
-              <div className="flex items-center gap-2 rounded-[0.28rem] border border-white bg-white px-2.5 py-2">
-                <Search className="h-4 w-4 flex-none text-[#c00000]" strokeWidth={2.4} />
-                <input
-                  ref={searchInputRef}
-                  type="search"
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  onKeyDown={handleSearchKeyDown}
-                  onFocus={() => suggestions.length && setSearchOpen(true)}
-                  placeholder="Escribe calle y número (ej: Zegers 789)"
-                  autoComplete="off"
-                  spellCheck={false}
-                  className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-black outline-none placeholder:font-normal placeholder:text-zinc-400"
-                  aria-label="Buscar dirección"
-                  aria-autocomplete="list"
-                  aria-expanded={searchOpen}
-                />
-                {searchLoading && <Loader2 className="h-4 w-4 flex-none animate-spin text-[#c00000]" />}
-                {searchQuery && !searchLoading && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchQuery('');
-                      setSuggestions([]);
-                      setSearchOpen(false);
-                    }}
-                    className="rounded p-0.5 text-zinc-500 hover:bg-zinc-100 hover:text-black"
-                    aria-label="Limpiar búsqueda"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-                {!searchQuery && !searchLoading && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchExpanded(false);
-                      setSuggestions([]);
-                      setSearchOpen(false);
-                    }}
-                    className="rounded p-0.5 text-zinc-500 hover:bg-zinc-100 hover:text-black"
-                    aria-label="Cerrar búsqueda manual"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            )}
+            <div className="flex items-center gap-2 rounded-[0.28rem] border border-white bg-white px-2.5 py-2">
+              <Search className="h-4 w-4 flex-none text-[#c00000]" strokeWidth={2.4} />
+              <input
+                ref={searchInputRef}
+                type="search"
+                value={searchQuery}
+                onChange={handleSearchChange}
+                onKeyDown={handleSearchKeyDown}
+                onFocus={() => suggestions.length && setSearchOpen(true)}
+                placeholder="Escribe calle y número (ej: Zegers 789)"
+                autoComplete="off"
+                spellCheck={false}
+                className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-black outline-none placeholder:font-normal placeholder:text-zinc-400"
+                aria-label="Buscar dirección"
+                aria-autocomplete="list"
+                aria-expanded={searchOpen}
+              />
+              {searchLoading && <Loader2 className="h-4 w-4 flex-none animate-spin text-[#c00000]" />}
+              {searchQuery && !searchLoading && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSuggestions([]);
+                    setSearchOpen(false);
+                  }}
+                  className="rounded p-0.5 text-zinc-500 hover:bg-zinc-100 hover:text-black"
+                  aria-label="Limpiar búsqueda"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
 
-            {searchExpanded && searchOpen && suggestions.length > 0 && (
+            {searchOpen && suggestions.length > 0 && (
               <ul
                 role="listbox"
                 className="absolute left-0 right-0 z-[900] mt-1.5 max-h-56 overflow-y-auto rounded-[0.28rem] border border-zinc-300 bg-white"
