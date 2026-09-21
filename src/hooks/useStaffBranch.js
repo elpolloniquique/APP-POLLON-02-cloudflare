@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { filterByStaffBranch, getProfileBranchId, isBranchScopedStaff, normalizeRole } from '../services/authService';
 import { adminListAllBranches } from '../services/branchService';
@@ -11,14 +11,36 @@ export function useStaffBranch() {
   const scoped = isBranchScopedStaff(role);
   const [branch, setBranch] = useState(null);
 
+  const reloadBranch = useCallback(async () => {
+    if (!branchId) {
+      setBranch(null);
+      return null;
+    }
+    try {
+      const list = await adminListAllBranches({ force: true });
+      const next = list.find((b) => b.id === branchId) || null;
+      setBranch(next);
+      return next;
+    } catch {
+      setBranch(null);
+      return null;
+    }
+  }, [branchId]);
+
   useEffect(() => {
     if (!branchId) {
       setBranch(null);
       return;
     }
+    let cancelled = false;
     adminListAllBranches()
-      .then((list) => setBranch(list.find((b) => b.id === branchId) || null))
-      .catch(() => setBranch(null));
+      .then((list) => {
+        if (!cancelled) setBranch(list.find((b) => b.id === branchId) || null);
+      })
+      .catch(() => {
+        if (!cancelled) setBranch(null);
+      });
+    return () => { cancelled = true; };
   }, [branchId]);
 
   const filterOrders = useMemo(
@@ -29,6 +51,7 @@ export function useStaffBranch() {
   return {
     branchId,
     branch,
+    reloadBranch,
     branchName: branch?.name || (scoped ? 'Tu sucursal' : 'Todas'),
     isBranchScoped: scoped,
     isSuperAdmin: normalizeRole(role) === 'super_admin',

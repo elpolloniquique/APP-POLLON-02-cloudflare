@@ -17,6 +17,50 @@ import { DEFAULT_BRANCH_PAYMENT_METHODS, normalizePaymentMethods } from '../../u
 import { PaymentMethodsEditor } from '../../components/admin/PaymentMethodsEditor';
 import { HeroBannerImageEditor } from '../../components/admin/HeroBannerImageEditor';
 import { emptySiteAlert, fetchSiteAlert, saveSiteAlert } from '../../services/siteAlertService';
+import { getSetting, setSetting } from '../../services/settingsService';
+
+const MENSAJE_CLIENTE_KEY = 'mensaje_cliente';
+const MENSAJE_CLIENTE_DEFAULT = '¡Gracias por tu pedido!';
+
+function readMensajeCliente(raw) {
+  if (typeof raw === 'string' && raw.trim()) return raw;
+  if (raw && typeof raw === 'object') {
+    const msg = String(raw.message || raw.mensaje_cliente || '').trim();
+    if (msg) return msg;
+  }
+  return '';
+}
+
+function cfgFromBranch(branch, mensajeCliente = '') {
+  return {
+    nombre_tienda: branch.name || '',
+    telefono: branch.phone || '',
+    whatsapp: branch.whatsapp || '',
+    direccion: branch.address || '',
+    horario: branch.schedule || '',
+    delivery_cost: branch.deliveryCost ?? '',
+    delivery_eta: branch.deliveryEta || '30-45 min',
+    delivery_activo: branch.deliveryEnabled !== false,
+    pickup_activo: branch.pickupEnabled !== false,
+    reservas_activas: branch.reservationsEnabled !== false,
+    pickup_min_order: branch.pickupMinOrder || 0,
+    reservation_min_order: branch.reservationMinOrder || 0,
+    reservation_schedule: normalizeReservationSchedule(branch.reservationSchedule),
+    mensaje_cliente: mensajeCliente || MENSAJE_CLIENTE_DEFAULT,
+    facebook_url: branch.facebookUrl || '',
+    instagram_url: branch.instagramUrl || '',
+    tiktok_url: branch.tiktokUrl || '',
+    thermal_network_print_enabled: branch.thermalNetworkPrintEnabled === true,
+    thermal_printer_ip: branch.thermalPrinterIp || '',
+    thermal_printer_port: branch.thermalPrinterPort || 9100,
+    thermal_print_bridge_url: branch.thermalPrintBridgeUrl || '',
+    payment_methods: normalizePaymentMethods(branch.paymentMethods),
+    ciudad: branch.city || '',
+    hero_image_url: branch.heroImageUrl || '',
+    logo_url: branch.logoUrl || '',
+    cover_branch_id: branch.id || '',
+  };
+}
 
 const INPUT = 'admin-config-input';
 const INPUT_MONO = 'admin-config-input admin-config-input--mono';
@@ -61,8 +105,9 @@ function ConfigToggle({ label, checked, onChange, children }) {
 
 export function AdminConfig() {
   const { profile, role } = useAuth();
-  const { branch, branchName, isBranchScoped, branchId } = useStaffBranch();
+  const { branch, branchName, isBranchScoped, branchId, reloadBranch } = useStaffBranch();
   const { refreshBranches } = useBranch();
+  const [cfgReady, setCfgReady] = useState(!isBranchScoped);
   const [cfg, setCfg] = useState({
     nombre_tienda: 'Pollería El Pollón',
     telefono: '',
@@ -101,43 +146,45 @@ export function AdminConfig() {
   const [printerTestMsg, setPrinterTestMsg] = useState('');
 
   useEffect(() => {
-    if (isBranchScoped && branch) {
-      setCfg({
-        nombre_tienda: branch.name || '',
-        telefono: branch.phone || '',
-        whatsapp: branch.whatsapp || '',
-        direccion: branch.address || '',
-        horario: branch.schedule || '',
-        delivery_cost: branch.deliveryCost ?? '',
-        delivery_eta: branch.deliveryEta || '30-45 min',
-        delivery_activo: branch.deliveryEnabled !== false,
-        pickup_activo: branch.pickupEnabled !== false,
-        reservas_activas: branch.reservationsEnabled !== false,
-        pickup_min_order: branch.pickupMinOrder || 0,
-        reservation_min_order: branch.reservationMinOrder || 0,
-        reservation_schedule: normalizeReservationSchedule(branch.reservationSchedule),
-        mensaje_cliente: '¡Gracias por tu pedido!',
-        facebook_url: branch.facebookUrl || '',
-        instagram_url: branch.instagramUrl || '',
-        tiktok_url: branch.tiktokUrl || '',
-        thermal_network_print_enabled: branch.thermalNetworkPrintEnabled === true,
-        thermal_printer_ip: branch.thermalPrinterIp || '',
-        thermal_printer_port: branch.thermalPrinterPort || 9100,
-        thermal_print_bridge_url: branch.thermalPrintBridgeUrl || '',
-        payment_methods: normalizePaymentMethods(branch.paymentMethods),
-        ciudad: branch.city || '',
-        hero_image_url: branch.heroImageUrl || '',
-        logo_url: branch.logoUrl || '',
-        cover_branch_id: branch.id || '',
-      });
-      return;
+    let cancelled = false;
+
+    if (isBranchScoped) {
+      if (!branch) {
+        setCfgReady(false);
+        return undefined;
+      }
+      setCfg(cfgFromBranch(branch));
+      getSetting(MENSAJE_CLIENTE_KEY, branch.id)
+        .then((raw) => {
+          if (cancelled) return;
+          const mensaje = readMensajeCliente(raw);
+          setCfg(cfgFromBranch(branch, mensaje));
+          setCfgReady(true);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setCfg(cfgFromBranch(branch));
+          setCfgReady(true);
+        });
+      return () => { cancelled = true; };
     }
 
     const sb = getSupabase();
-    if (!sb) return;
+    if (!sb) {
+      setCfgReady(true);
+      return undefined;
+    }
     sb.from('configuracion_tienda').select('*').eq('id', 1).maybeSingle().then(({ data }) => {
-      if (data) setCfg((c) => ({ ...c, ...data }));
+      if (cancelled || !data) {
+        if (!cancelled) setCfgReady(true);
+        return;
+      }
+      setCfg((c) => ({ ...c, ...data }));
+      setCfgReady(true);
+    }).catch(() => {
+      if (!cancelled) setCfgReady(true);
     });
+    return () => { cancelled = true; };
   }, [branch, isBranchScoped]);
 
   useEffect(() => {
@@ -183,9 +230,13 @@ export function AdminConfig() {
       const savedAlert = await saveSiteAlert(siteAlert, alertTargetId);
       setSiteAlert(savedAlert);
 
-      if (isBranchScoped && branchId && branch) {
-        await adminSaveBranch({
+      if (isBranchScoped) {
+        if (!branchId || !branch) {
+          throw new Error('No se pudo cargar tu sucursal. Recarga la página e intenta de nuevo.');
+        }
+        const savedBranch = await adminSaveBranch({
           ...branch,
+          id: branchId,
           name: cfg.nombre_tienda,
           phone: cfg.telefono,
           whatsapp: cfg.whatsapp,
@@ -212,13 +263,20 @@ export function AdminConfig() {
           heroImageUrl: cfg.hero_image_url,
           logoUrl: cfg.logo_url,
         }, { id: profile?.id, email: profile?.email });
+        try {
+          await setSetting(MENSAJE_CLIENTE_KEY, cfg.mensaje_cliente || '', branchId);
+        } catch {
+          /* la tabla settings puede no existir; el resto del local sí quedó */
+        }
         saveBranchPrinterConfigLocal(branchId, {
           enabled: cfg.thermal_network_print_enabled,
           ip: cfg.thermal_printer_ip,
           port: Number(cfg.thermal_printer_port) || 9100,
           bridgeUrl: cfg.thermal_print_bridge_url,
         });
+        setCfg(cfgFromBranch(savedBranch, cfg.mensaje_cliente));
         await refreshBranches();
+        await reloadBranch();
         alert('Configuración de tu local guardada');
         return;
       }
@@ -298,6 +356,15 @@ export function AdminConfig() {
       <div className="admin-page rounded-xl bg-amber-50 p-6 text-amber-900">
         <h2 className="text-xl font-bold">Configuración</h2>
         <p className="mt-2 text-sm">Tu usuario no tiene sucursal asignada. El super admin debe vincular tu cuenta a un local en Supabase.</p>
+      </div>
+    );
+  }
+
+  if (isBranchScoped && !cfgReady) {
+    return (
+      <div className="admin-page space-y-4">
+        <AdminPageHeader title="Configuración del local" branchLabel={branchName} />
+        <p className="rounded-xl bg-stone-50 p-4 text-sm text-stone-600">Cargando los datos guardados de tu sucursal…</p>
       </div>
     );
   }
