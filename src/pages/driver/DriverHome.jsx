@@ -330,18 +330,14 @@ export function DriverHome() {
     return res;
   }, []);
 
-  // Arranque GPS al estar disponible / con pedidos. No apagar al desmontar Pedidos.
+  // GPS desactivado: no publicar ubicación a Supabase.
   useEffect(() => {
     if (!summary) return undefined;
-    if (!driverShouldShareGps(summary)) {
-      if (gpsModeRef.current) void clearGps();
-      return undefined;
-    }
-    if (gpsModeRef.current !== 'active') {
-      void startGps(true);
+    if (!driverShouldShareGps(summary) && gpsModeRef.current) {
+      void clearGps();
     }
     return undefined;
-  }, [summary, startGps, clearGps]);
+  }, [summary, clearGps]);
 
   // ~5 min de la sucursal → estado "En cocina" (preparando)
   useEffect(() => {
@@ -384,56 +380,18 @@ export function DriverHome() {
       await unlockDriverAudio();
       if (next === 'available') {
         if (!permsReady) {
-          throw new Error('Completa la configuración de ubicación en vivo (pantalla anterior).');
+          throw new Error('Activa las notificaciones para ponerte Disponible.');
         }
         const ready = await evaluateDriverLiveTrackingReady(userId);
         if (!ready.ready) {
-          throw new Error(
-            isNativeDriverApp()
-              ? 'Debes autorizar ubicación “Siempre” y notificaciones para trabajar.'
-              : 'Activa notificaciones y ubicación para ponerte Disponible.'
-          );
-        }
-        if (isNativeDriverApp() && !ready.alwaysOk) {
-          throw new Error('En Ajustes elige ubicación “Permitir todo el tiempo”.');
+          throw new Error('Activa las notificaciones para ponerte Disponible.');
         }
         await ensureDriverPushSubscription().catch(() => {});
         kickoffNativePushRegistration();
-        if (isNativeDriverApp()) {
-          const gps = await requestAlwaysLocationPermission();
-          if (!gps.ok) {
-            throw new Error(gps.error || 'GPS obligatorio para ubicación en vivo.');
-          }
-          if (!gps.alwaysOk && !ready.alwaysOk) {
-            throw new Error('GPS “Siempre” obligatorio para que el local te vea en vivo.');
-          }
-          const started = await startGps(true);
-          if (!started?.ok) {
-            throw new Error(started?.error || 'No se pudo activar el GPS en vivo.');
-          }
-          let fix = started.position || gpsPos;
-          if (!fix) fix = await getAndPublishCurrentFix({ timeoutMs: 8000 });
-          // Segundo ping inmediato: evita “en línea pero GPS no llega al servidor”
-          if (fix) {
-            const again = await getAndPublishCurrentFix({ timeoutMs: 5000 });
-            if (again) fix = again;
-          }
-          if (!fix) {
-            throw new Error('Sin señal GPS. Sal al aire libre, espera unos segundos e inténtalo de nuevo. Sin GPS no te llegan pedidos.');
-          }
-          setGpsPos(fix);
-        } else {
-          const gps = await requestGpsFix();
-          if (!gps.ok) throw new Error(gps.error || 'GPS obligatorio');
-          await startGps(true);
-        }
       }
 
       await setMyOperationalStatus(next);
-      if (next === 'available') {
-        if (!isNativeDriverApp()) await startGps(true);
-      } else if (!(summary?.activeAssignments || []).length) {
-        // Con pedidos activos el GPS sigue hasta entregar el último
+      if (next !== 'available' && !(summary?.activeAssignments || []).length) {
         await clearGps();
       }
       await load();

@@ -49,24 +49,8 @@ async function loadDriverCards(driverIds) {
   );
 }
 
-export async function upsertMyLocation({ lat, lng, heading, speed, accuracy }) {
-  if (!isSupabaseConfigured()) return { ok: true };
-  const sb = getSupabase();
-  const { data, error } = await sb.rpc('ep_upsert_driver_location', {
-    p_lat: lat,
-    p_lng: lng,
-    p_heading: heading ?? null,
-    p_speed: speed ?? null,
-    p_accuracy: accuracy ?? null,
-  });
-  if (error) {
-    const msg = error.message || '';
-    if (msg.includes('telefono')) {
-      throw new Error('Ejecuta fix-delivery-production-ready.sql en Supabase');
-    }
-    throw new Error(msg || 'No se pudo publicar GPS');
-  }
-  return data;
+export async function upsertMyLocation() {
+  return { ok: true, skipped: true };
 }
 
 export async function listLiveLocations() {

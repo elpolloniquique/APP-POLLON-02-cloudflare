@@ -249,31 +249,17 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
 
   if (state.ready) return null;
 
-  const native = isNativeDriverApp();
   const steps = [
     {
       id: 'notif',
       ok: state.notifOk,
       icon: Bell,
       title: 'Notificaciones',
-      body: native
-        ? 'Permiso del sistema para avisos de pedido nuevo (bandeja, con pantalla apagada).'
-        : 'Avisos en la bandeja tipo WhatsApp, con detalle del pedido y número en el ícono. Aquí no se aceptan pedidos.',
+      body: 'Avisos en la bandeja tipo WhatsApp, con detalle del pedido y número en el ícono.',
       action: runNotif,
       actionLabel: 'Activar notificaciones',
     },
   ];
-  if (native) {
-    steps.push({
-      id: 'gps',
-      ok: state.gpsOk,
-      icon: MapPin,
-      title: 'Ubicación · Permitir todo el tiempo',
-      body: 'Obligatorio “Siempre”. Acepta también “Sin restricciones de batería” para no perder el GPS al apagar la pantalla o abrir otra app.',
-      action: runGps,
-      actionLabel: 'Autorizar ubicación',
-    });
-  }
 
   return (
     <div className="driver-native-gate driver-native-gate--onboard">
@@ -287,9 +273,7 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
           {native ? 'Listo para salir a ruta' : 'Activa notificaciones'}
         </h1>
         <p className="driver-native-gate__lead">
-          {native
-            ? `App nativa · v${state.versionName || DRIVER_APP_VERSION_NAME}`
-            : 'App de clientes · solo bandeja (tipo WhatsApp)'}
+          Activa las notificaciones para recibir y aceptar pedidos. El GPS nativo se desactivó.
           {state.evaluateTimedOut ? ' · (reintento de permisos disponible)' : ''}
         </p>
 
@@ -304,9 +288,7 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
         <div className="driver-native-gate__hint">
           <Radio className="h-4 w-4 shrink-0" />
           <p>
-            {native
-              ? 'Al conectar Disponible, el local verá tu GPS en vivo. Completa notificaciones y ubicación “Siempre”.'
-              : 'Con la sesión de repartidor, cada pedido nuevo llega a la bandeja. Para aceptar usa la app nativa.'}
+            Cada pedido nuevo llega a la bandeja. Puedes aceptar aquí mismo, sin la app nativa.
           </p>
         </div>
 

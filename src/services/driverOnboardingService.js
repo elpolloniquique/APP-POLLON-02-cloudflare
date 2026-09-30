@@ -169,13 +169,8 @@ export async function evaluateDriverLiveTrackingReady(userId) {
         /* ignore */
       }
 
-      const gpsOk = native
-        ? Boolean(location.locationOk && (location.alwaysOk || userConfirmedAlways))
-        : true;
-      // PWA: listo SOLO con permiso granted + suscripción Web Push real (sin bypass deferred)
-      const ready = native
-        ? Boolean(notifOk && gpsOk)
-        : Boolean(notifState === 'granted' && hasPushSub);
+      const gpsOk = true;
+      const ready = Boolean(notifState === 'granted' && (native ? notifOk : hasPushSub));
 
       return {
         ...base,
@@ -249,52 +244,21 @@ export async function completeDriverLiveTrackingSetup(userId) {
     };
   }
 
-  // PWA de clientes: listo solo con notificaciones + suscripción
-  if (!native) {
-    const subRes = await ensureDriverPushSubscription().catch((err) => ({ ok: false, error: err?.message }));
-    if (!subRes?.ok && !subRes?.deferred && !subRes?.endpoint) {
-      return {
-        ok: false,
-        error: subRes?.error || 'No se pudo activar el aviso en bandeja. Revisa el permiso de notificaciones.',
-        needsNotif: true,
-      };
-    }
-    markDriverOnboardingComplete(userId, {
-      alwaysOk: false,
-      mode: 'web_notify',
-      pushOk: true,
-      subscribed: Boolean(subRes?.endpoint || subRes?.deferred),
-    });
-    return { ok: true, mode: 'web_notify', push: subRes };
-  }
-
-  const gps = await requestAlwaysLocationPermission();
-  if (!gps.ok) {
-    return { ok: false, error: gps.error || 'GPS denegado', canOpenSettings: true };
-  }
-
-  let userConfirmedAlways = false;
-  try {
-    userConfirmedAlways = localStorage.getItem(`pollon_driver_always_confirmed_${userId}`) === '1';
-  } catch {
-    /* ignore */
-  }
-
-  if (!gps.alwaysOk && !userConfirmedAlways) {
+  const subRes = await ensureDriverPushSubscription().catch((err) => ({ ok: false, error: err?.message }));
+  if (!native && !subRes?.ok && !subRes?.deferred && !subRes?.endpoint) {
     return {
       ok: false,
-      error: 'En Ajustes elige ubicación “Permitir todo el tiempo” / “Siempre”.',
-      needsSettings: true,
-      canOpenSettings: true,
+      error: subRes?.error || 'No se pudo activar el aviso en bandeja. Revisa el permiso de notificaciones.',
+      needsNotif: true,
     };
   }
-
   markDriverOnboardingComplete(userId, {
-    alwaysOk: gps.alwaysOk !== false || userConfirmedAlways,
-    mode: gps.mode,
+    alwaysOk: false,
+    mode: native ? 'native_notify' : 'web_notify',
+    pushOk: true,
+    subscribed: Boolean(subRes?.endpoint || subRes?.deferred),
   });
-
-  return { ok: true, gps };
+  return { ok: true, mode: native ? 'native_notify' : 'web_notify', push: subRes };
 }
 
 /** La APK nativa es para GPS 100%; el panel también funciona en la PWA de clientes. */

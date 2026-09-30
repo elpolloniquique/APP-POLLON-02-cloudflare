@@ -340,6 +340,8 @@ export async function getAndPublishCurrentFix({ timeoutMs = 12000, force = true 
  * No reinicia el servicio si ya corre (evita caídas cada 2–5 min).
  */
 export async function startDriverBackgroundGps({ forceRestart = false } = {}) {
+  await stopDriverBackgroundGps();
+  return { ok: true, mode: 'disabled', skipped: true };
 
   if (!isNativeDriverApp()) {
     if (webStop && !forceRestart) {

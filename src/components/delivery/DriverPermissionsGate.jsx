@@ -109,9 +109,8 @@ export function DriverPermissionsGate({ onReadyChange }) {
     status?.notificationsGranted
     && (status?.hasPushSubscription || !status?.pushConfigured || native)
   );
-  const installOk = installed || (!ios && !android) || native;
-  const mustInstall = !native && (ios || android) && !installed;
-  const allReady = Boolean(notifOk && gpsOk && !mustInstall);
+  const installOk = true;
+  const allReady = Boolean(notifOk);
 
   useEffect(() => {
     onReadyChange?.(allReady);
@@ -125,8 +124,8 @@ export function DriverPermissionsGate({ onReadyChange }) {
           <p className="font-bold">Listo para trabajar</p>
           <p className="text-xs opacity-90">
             {native
-              ? 'Notificaciones y GPS listos. Al aceptar un pedido se activa el rastreo en segundo plano.'
-              : 'Notificaciones y GPS activos. Ya puedes pulsar Disponible.'}
+              ? 'Desinstala esta APK. Usa Chrome: elpollon.cl/repartidor'
+              : 'Notificaciones listas. Ya puedes pulsar Disponible.'}
           </p>
         </div>
       </div>

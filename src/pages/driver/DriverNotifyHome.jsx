@@ -383,35 +383,9 @@ export function DriverNotifyHome() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-gray-200 px-3 py-3">
-            <div className="flex items-start gap-2.5">
-              <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-pollon-red" />
-              <div>
-                <p className="text-sm font-bold text-gray-900">4. Aceptar solo en app nativa</p>
-                <p className="mt-0.5 text-xs leading-relaxed text-gray-600">
-                  Alarma + Aceptar/Rechazar + GPS vivo: APK repartidor v{DRIVER_APP_VERSION_NAME}.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => openNativeDriverApp()}
-                  className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-black px-3.5 py-2.5 text-sm font-bold text-white"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Abrir app nativa
-                </button>
-                <a
-                  href={getDriverApkDownloadUrl()}
-                  className="mt-2 block text-xs font-semibold text-pollon-red underline"
-                >
-                  Descargar APK si no la tienes
-                </a>
-              </div>
-            </div>
-          </div>
-
           <div className="rounded-xl border border-dashed border-gray-300 px-3 py-3 text-[11px] leading-relaxed text-gray-500">
-            <p className="font-bold text-gray-700">Guía rápida (5 pasos)</p>
-            <p className="mt-1">1) Instalar PWA · 2) Entrar con correo repartidor · 3) Activar avisos · 4) Batería sin límite · 5) Aceptar pedidos en la APK nativa.</p>
+            <p className="font-bold text-gray-700">Guía rápida</p>
+            <p className="mt-1">1) Entra en Chrome a elpollon.cl/repartidor · 2) Activa avisos · 3) Ponte Disponible · 4) Acepta el pedido aquí. No uses la APK nativa.</p>
           </div>
 
           {msg && (
