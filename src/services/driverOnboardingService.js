@@ -170,7 +170,11 @@ export async function evaluateDriverLiveTrackingReady(userId) {
       }
 
       const gpsOk = true;
-      const ready = Boolean(notifState === 'granted' && (native ? notifOk : hasPushSub));
+      const ready = Boolean(
+        notifState === 'granted'
+        || notifOk
+        || pushDeferred
+      );
 
       return {
         ...base,
@@ -213,42 +217,24 @@ export async function evaluateDriverLiveTrackingReady(userId) {
 
 export async function completeDriverLiveTrackingSetup(userId) {
   const native = isNativeDriverApp();
-
-  await ensureDriverPushSubscription().catch(() => {});
+  const subRes = await ensureDriverPushSubscription({ force: false, userId }).catch((err) => ({
+    ok: false,
+    error: err?.message,
+  }));
 
   let notifGranted = getNotificationPermission() === 'granted';
   if (!notifGranted) {
     try {
-      const nativeNotif = await getNativeNotificationPermissionState();
-      notifGranted = nativeNotif === 'granted' || localStorage.getItem('pollon_native_notif_ok') === '1';
-    } catch {
-      try {
-        notifGranted = localStorage.getItem('pollon_native_notif_ok') === '1';
-      } catch {
-        notifGranted = false;
-      }
-    }
-  }
-  if (!notifGranted) {
-    try {
-      notifGranted = localStorage.getItem(`pollon_driver_notif_confirmed_${userId}`) === '1';
+      notifGranted = localStorage.getItem('pollon_native_notif_ok') === '1'
+        || localStorage.getItem(`pollon_driver_notif_confirmed_${userId}`) === '1';
     } catch {
       /* ignore */
     }
   }
-  if (!notifGranted) {
+  if (!notifGranted && !subRes?.ok && !subRes?.deferred && !native) {
     return {
       ok: false,
       error: 'Activa las notificaciones para recibir pedidos (aviso tipo WhatsApp).',
-      needsNotif: true,
-    };
-  }
-
-  const subRes = await ensureDriverPushSubscription().catch((err) => ({ ok: false, error: err?.message }));
-  if (!native && !subRes?.ok && !subRes?.deferred && !subRes?.endpoint) {
-    return {
-      ok: false,
-      error: subRes?.error || 'No se pudo activar el aviso en bandeja. Revisa el permiso de notificaciones.',
       needsNotif: true,
     };
   }
@@ -256,7 +242,7 @@ export async function completeDriverLiveTrackingSetup(userId) {
     alwaysOk: false,
     mode: native ? 'native_notify' : 'web_notify',
     pushOk: true,
-    subscribed: Boolean(subRes?.endpoint || subRes?.deferred),
+    subscribed: Boolean(subRes?.endpoint || subRes?.deferred || subRes?.ok),
   });
   return { ok: true, mode: native ? 'native_notify' : 'web_notify', push: subRes };
 }

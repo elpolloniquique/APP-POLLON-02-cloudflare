@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { unlockDriverAudio } from '../../utils/orderAlertSound';
 import { APP_BUILD_ID } from '../../utils/buildStamp';
 import { DriverLiveTrackingOnboarding } from './DriverLiveTrackingOnboarding';
-import { getMyDriverSummary, ensureMyDriverProfile } from '../../services/driverService';
+import { getMyDriverSummary, ensureMyDriverProfile, setMyOperationalStatus } from '../../services/driverService';
 import { subscribeDispatch } from '../../services/dispatchService';
 import {
   setDriverAppBadge,
@@ -113,6 +113,7 @@ export function DriverLayout() {
     if (!trackingReady) return undefined;
     refreshBadge();
     ensureDriverPushSubscription().catch(() => {});
+    setMyOperationalStatus('available').catch(() => {});
     const unsub = subscribeDispatch(() => refreshBadge());
     const t = setInterval(refreshBadge, 8000);
     const onMsg = (event) => {
@@ -149,15 +150,21 @@ export function DriverLayout() {
     navigate('/', { replace: true });
   };
 
+  if (!trackingReady) {
+    return (
+      <div className="driver-shell min-h-[100dvh] bg-black" data-build={APP_BUILD_ID}>
+        {native && (
+          <div className="relative z-[91] bg-amber-100 px-3 py-2 text-center text-[12px] font-semibold text-amber-950">
+            Usa Chrome en elpollon.cl/repartidor. Esta APK ya no se usa.
+          </div>
+        )}
+        <DriverLiveTrackingOnboarding onReadyChange={onReadyChange} />
+      </div>
+    );
+  }
+
   return (
     <div className="driver-shell flex min-h-[100dvh] flex-col bg-[#f3f3f3] text-gray-900" data-build={APP_BUILD_ID}>
-      {native && (
-        <div className="z-50 bg-amber-100 px-3 py-2 text-center text-[12px] font-semibold text-amber-950">
-          Esta app nativa se desactivó porque el GPS gastaba Supabase. Desinstálala y entra en Chrome a elpollon.cl/repartidor.
-        </div>
-      )}
-      <DriverLiveTrackingOnboarding onReadyChange={onReadyChange} />
-
       <header className="sticky top-0 z-40 flex items-center justify-between border-b border-black/10 bg-black px-4 py-3 text-white shadow-sm">
         <div className="flex items-center gap-2.5">
           <img src="/img/logo pollon.png" alt="" className="h-10 w-10 rounded-full border border-white/20 bg-white object-contain" />
@@ -184,44 +191,36 @@ export function DriverLayout() {
         </div>
       </header>
 
-      <main className={`relative flex-1 overflow-y-auto ${trackingReady ? 'pb-24' : ''}`}>
-        {trackingReady ? (
-          <Outlet context={outletContext} />
-        ) : (
-          <div className="flex min-h-[50dvh] items-center justify-center px-6">
-            <p className="text-sm text-gray-500">Activa las notificaciones para continuar…</p>
-          </div>
-        )}
+      <main className="relative flex-1 overflow-y-auto pb-24">
+        <Outlet context={outletContext} />
       </main>
 
-      {trackingReady && (
-        <nav className="driver-tabbar fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,.08)]">
-          <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-1.5">
-            {TABS.map(({ to, end, icon: Icon, label, badgeKey }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={end}
-                className={({ isActive }) =>
-                  `relative flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-bold ${
-                    isActive ? 'is-active text-[#c00000]' : 'text-gray-500'
-                  }`
-                }
-              >
-                <span className="relative inline-flex">
-                  <Icon className="h-5 w-5" strokeWidth={2} />
-                  {badgeKey === 'offers' && pendingOffers > 0 && (
-                    <span className="absolute -right-2.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#c00000] px-1 text-[10px] font-bold leading-none text-white shadow ring-2 ring-white">
-                      {pendingOffers > 9 ? '9+' : pendingOffers}
-                    </span>
-                  )}
-                </span>
-                {label}
-              </NavLink>
-            ))}
-          </div>
-        </nav>
-      )}
+      <nav className="driver-tabbar fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,.08)]">
+        <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-1.5">
+          {TABS.map(({ to, end, icon: Icon, label, badgeKey }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              className={({ isActive }) =>
+                `relative flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-bold ${
+                  isActive ? 'is-active text-[#c00000]' : 'text-gray-500'
+                }`
+              }
+            >
+              <span className="relative inline-flex">
+                <Icon className="h-5 w-5" strokeWidth={2} />
+                {badgeKey === 'offers' && pendingOffers > 0 && (
+                  <span className="absolute -right-2.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#c00000] px-1 text-[10px] font-bold leading-none text-white shadow ring-2 ring-white">
+                    {pendingOffers > 9 ? '9+' : pendingOffers}
+                  </span>
+                )}
+              </span>
+              {label}
+            </NavLink>
+          ))}
+        </div>
+      </nav>
     </div>
   );
 }

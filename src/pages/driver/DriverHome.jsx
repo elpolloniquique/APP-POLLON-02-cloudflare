@@ -57,7 +57,7 @@ export function DriverHome() {
   const [gpsPos, setGpsPos] = useState(null);
   const [error, setError] = useState('');
   const [branch, setBranch] = useState(null);
-  const [permsReady, setPermsReady] = useState(false);
+  const [permsReady, setPermsReady] = useState(true);
 
   const publishRef = useRef(false);
   const alarmedKeysRef = useRef(new Set());
@@ -538,12 +538,11 @@ export function DriverHome() {
   return (
     <div className="mx-auto max-w-lg space-y-3 p-3 sm:p-4">
       <div className="flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-900">
-        <span className="mt-0.5 text-base">📍</span>
+        <span className="mt-0.5 text-base">🔔</span>
         <div>
-          <p className="font-bold">Ubicación en vivo al conectarte</p>
+          <p className="font-bold">Avisos de pedido nuevo</p>
           <p className="text-xs opacity-90">
-            Misma app El Pollón que los clientes. En Disponible, caja/admin/despacho te ven en el mapa.
-            No cierres la app por completo ni quites el permiso de ubicación.
+            Llegan a la bandeja como WhatsApp. Ponte Disponible para ver y aceptar pedidos nuevos.
           </p>
         </div>
       </div>
@@ -552,14 +551,8 @@ export function DriverHome() {
         <div className="min-w-0">
           <p className="text-xs text-gray-500">Estado</p>
           <p className="text-lg font-bold text-gray-900">{isOnline ? 'En línea' : 'Desconectado'}</p>
-          <p className={`text-sm font-semibold ${gpsOn ? 'text-emerald-600' : 'text-gray-400'}`}>
-            GPS: {!gpsOn
-              ? 'Apagado'
-              : !gpsPos
-                ? 'Buscando…'
-                : (isOnline && isNativeDriverApp()
-                  ? 'En vivo · segundo plano'
-                  : 'Encendido')}
+          <p className="text-sm font-semibold text-emerald-600">
+            Avisos de bandeja activos
           </p>
           <p className="mt-0.5 text-sm font-semibold text-pollon-orange">
             Pedidos activos: {actives.length}/{maxOrders}
@@ -627,9 +620,7 @@ export function DriverHome() {
         <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-4 py-10 text-center text-sm text-gray-500">
           {isOnline
             ? `Esperando pedidos… Puedes llevar hasta ${maxOrders} a la vez antes del recojo. Al marcar pedido recogido no llegan más ofertas hasta entregar todos.`
-            : permsReady
-              ? 'Pulsa Conectarme para recibir pedidos. Tu ubicación se compartirá en vivo.'
-              : 'Completa la configuración de ubicación en vivo para continuar.'}
+            : 'Pulsa Conectarme para recibir pedidos nuevos.'}
         </div>
       )}
     </div>
