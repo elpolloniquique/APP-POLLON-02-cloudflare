@@ -13,6 +13,6 @@
         mipmap/ic_launcher
     </string>
     <string name="capacitor_background_geolocation_notification_color">
-        #C62828
+        #FF6A00
     </string>
 </resources>

@@ -6,7 +6,6 @@
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
-import { GPS_PUBLISH_INTERVAL_MS, upsertMyLocation, startGpsWatch } from './trackingService';
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 import { getDriverGpsPingUrl } from '../utils/driverNativeConstants';
 
@@ -20,19 +19,11 @@ let lastPublishAt = 0;
 let heartbeatTimer = null;
 const gpsListeners = new Set();
 
-export const DRIVER_GPS_TRACK_STATUSES = [
-  'available',
-  'heading_to_branch',
-  'delivering',
-  'carrying_orders',
-  'offered',
-];
+export const NATIVE_GPS_INTERVAL_MS = 25_000;
+export const NATIVE_GPS_DISTANCE_M = 40;
 
 export function driverShouldShareGps(summary) {
-  if (!summary) return false;
-  const st = summary?.driver?.operational_status;
-  const actives = (summary?.activeAssignments || []).length > 0;
-  return actives || DRIVER_GPS_TRACK_STATUSES.includes(st);
+  return (summary?.activeAssignments || []).length > 0;
 }
 
 export function subscribeDriverGpsUpdates(fn) {
@@ -94,7 +85,7 @@ function startHeartbeat() {
     getAndPublishCurrentFix({ timeoutMs: 3500, force: false }).then((fix) => {
       if (fix) notifyGps(fix, null);
     }).catch(() => {});
-  }, GPS_PUBLISH_INTERVAL_MS);
+  }, NATIVE_GPS_INTERVAL_MS);
 }
 
 export function isNativeDriverApp() {
@@ -287,20 +278,34 @@ async function publishNativeFix(location, { force = false } = {}) {
   const lng = Number(location.longitude ?? location.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   const now = Date.now();
-  if (!force && lastPublishAt && now - lastPublishAt < GPS_PUBLISH_INTERVAL_MS) return null;
+  if (!force && lastPublishAt && now - lastPublishAt < NATIVE_GPS_INTERVAL_MS) {
+    return { lat, lng, accuracy: location.accuracy ?? null };
+  }
   lastPublishAt = now;
   try {
-    await upsertMyLocation({
-      lat,
-      lng,
-      heading: location.bearing ?? location.heading ?? null,
-      speed: location.speed ?? null,
-      accuracy: location.accuracy ?? null,
-    });
+    const sb = getSupabase();
+    const { data } = sb ? await sb.auth.getSession() : { data: null };
+    const jwt = data?.session?.access_token;
+    if (jwt) {
+      await fetch('/api/driver-live', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          lat,
+          lng,
+          heading: location.bearing ?? location.heading ?? null,
+          speed: location.speed ?? null,
+          accuracy: location.accuracy ?? null,
+        }),
+      });
+    }
     return { lat, lng, accuracy: location.accuracy ?? null };
   } catch (err) {
     console.warn('[Pollón] GPS background publish:', err?.message || err);
-    return null;
+    return { lat, lng, accuracy: location.accuracy ?? null };
   }
 }
 
@@ -335,27 +340,12 @@ export async function getAndPublishCurrentFix({ timeoutMs = 12000, force = true 
 }
 
 /**
- * Inicia seguimiento continuo en vivo (publica a Supabase).
- * Nativo: FGS + notificación persistente → pantalla apagada / otra app.
- * No reinicia el servicio si ya corre (evita caídas cada 2–5 min).
+ * GPS nativo en segundo plano → Cloudflare KV (no Supabase).
+ * El POST a /api/driver-gps-ping sigue con pantalla apagada / otra app.
  */
 export async function startDriverBackgroundGps({ forceRestart = false } = {}) {
-  await stopDriverBackgroundGps();
-  return { ok: true, mode: 'disabled', skipped: true };
-
   if (!isNativeDriverApp()) {
-    if (webStop && !forceRestart) {
-      return { ok: true, mode: 'web', alreadyRunning: true };
-    }
-    await stopDriverBackgroundGps();
-    const publishRef = { current: true };
-    webStop = startGpsWatch(
-      (pos, err) => {
-        notifyGps(pos, err);
-      },
-      { intervalMs: GPS_PUBLISH_INTERVAL_MS, publishRef }
-    );
-    return { ok: true, mode: 'web' };
+    return { ok: true, mode: 'web', skipped: true };
   }
 
   const perm = await requestAlwaysLocationPermission();
@@ -396,14 +386,12 @@ export async function startDriverBackgroundGps({ forceRestart = false } = {}) {
     if (first) notifyGps(first, null);
 
     const startOpts = {
-      backgroundMessage: 'GPS siempre activo. No detengas esta notificación aunque apagues la pantalla.',
-      backgroundTitle: 'El Pollón · GPS en vivo',
+      backgroundMessage: 'Entrega en curso. No detengas esta notificación aunque apagues la pantalla.',
+      backgroundTitle: 'El Pollón · En ruta',
       requestPermissions: false,
       stale: true,
-      // 0 = actualizar aunque el moto esté parado (si no, el mapa “pierde” el pin)
-      distanceFilter: 0,
+      distanceFilter: NATIVE_GPS_DISTANCE_M,
     };
-    // POST nativo: no usa el WebView. Sigue con pantalla apagada / otra app / swipe.
     if (pingUrl) startOpts.url = pingUrl;
 
     await BackgroundGeolocation.start(startOpts, (location, error) => {

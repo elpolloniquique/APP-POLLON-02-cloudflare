@@ -385,7 +385,7 @@ export function DriverNotifyHome() {
 
           <div className="rounded-xl border border-dashed border-gray-300 px-3 py-3 text-[11px] leading-relaxed text-gray-500">
             <p className="font-bold text-gray-700">Guía rápida</p>
-            <p className="mt-1">1) Entra en Chrome a elpollon.cl/repartidor · 2) Activa avisos · 3) Ponte Disponible · 4) Acepta el pedido aquí. No uses la APK nativa.</p>
+            <p className="mt-1">1) Abre la app nativa El Pollón · 2) Activa avisos · 3) Ponte Disponible · 4) Acepta el pedido. El GPS sigue con pantalla apagada.</p>
           </div>
 
           {msg && (

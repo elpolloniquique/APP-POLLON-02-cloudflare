@@ -17,6 +17,7 @@ import { ensureNativePushRegistration, registerNativePushHandlers } from '../../
 import {
   isNativeDriverApp,
   stopDriverBackgroundGps,
+  startDriverBackgroundGps,
 } from '../../services/backgroundGpsService';
 import { syncDriverLiveShareFromSummary, stopDriverLiveShare } from '../../services/driverLiveShareService';
 import '../../styles/driver-native.css';
@@ -48,7 +49,13 @@ export function DriverLayout() {
       setPendingOffers((prev) => (prev === n ? prev : n));
       if (n > 0) await setDriverAppBadge(n);
       else await clearDriverAppBadge();
-      await syncDriverLiveShareFromSummary(s).catch(() => {});
+      const actives = (s?.activeAssignments || []).length > 0;
+      if (isNativeDriverApp()) {
+        if (actives) await startDriverBackgroundGps().catch(() => {});
+        else await stopDriverBackgroundGps().catch(() => {});
+      } else {
+        await syncDriverLiveShareFromSummary(s).catch(() => {});
+      }
     } catch {
       /* ignore */
     }
@@ -84,7 +91,6 @@ export function DriverLayout() {
   useEffect(() => {
     retryDriverPushInBackground().catch(() => {});
     ensureDriverPushSubscription().catch(() => {});
-    void stopDriverBackgroundGps();
     if (native) {
       registerNativePushHandlers({
         onOffer: () => {
@@ -140,11 +146,6 @@ export function DriverLayout() {
     };
   }, [trackingReady, refreshBadge]);
 
-  // GPS nativo desactivado: no publicar ubicación ni consultar cada segundo.
-  useEffect(() => {
-    void stopDriverBackgroundGps();
-  }, []);
-
   const handleLogout = async () => {
     await stopDriverLiveShare().catch(() => {});
     await stopDriverBackgroundGps();
@@ -156,11 +157,6 @@ export function DriverLayout() {
   if (!trackingReady) {
     return (
       <div className="driver-shell min-h-[100dvh] bg-black" data-build={APP_BUILD_ID}>
-        {native && (
-          <div className="relative z-[91] bg-amber-100 px-3 py-2 text-center text-[12px] font-semibold text-amber-950">
-            Usa Chrome en elpollon.cl/repartidor. Esta APK ya no se usa.
-          </div>
-        )}
         <DriverLiveTrackingOnboarding onReadyChange={onReadyChange} />
       </div>
     );

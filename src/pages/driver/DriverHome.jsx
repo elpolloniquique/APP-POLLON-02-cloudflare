@@ -23,6 +23,10 @@ import {
 import {
   isNativeDriverApp,
   openNativeLocationSettings,
+  startDriverBackgroundGps,
+  stopDriverBackgroundGps,
+  isDriverBackgroundGpsRunning,
+  subscribeDriverGpsUpdates,
 } from '../../services/backgroundGpsService';
 import {
   startDriverLiveShare,
@@ -211,14 +215,28 @@ export function DriverHome() {
     };
   }, [scheduleLoad]);
 
-  useEffect(() => subscribeDriverLiveShare((pos, err) => {
-    if (pos) {
-      setGpsPos(pos);
-      setGpsOn(true);
-    }
-    if (err) setGpsError(err.message || 'Error GPS');
-    else setGpsError('');
-  }), []);
+  useEffect(() => {
+    const unsubLive = subscribeDriverLiveShare((pos, err) => {
+      if (pos) {
+        setGpsPos(pos);
+        setGpsOn(true);
+      }
+      if (err) setGpsError(err.message || 'Error GPS');
+      else setGpsError('');
+    });
+    const unsubNative = subscribeDriverGpsUpdates((pos, err) => {
+      if (pos) {
+        setGpsPos(pos);
+        setGpsOn(true);
+      }
+      if (err) setGpsError(err.message || 'Error GPS');
+      else setGpsError('');
+    });
+    return () => {
+      unsubLive();
+      unsubNative();
+    };
+  }, []);
 
   useEffect(() => () => {
     // No apagar el FGS nativo al salir de Pedidos (Mapa/Perfil). Lo mantiene DriverLayout.
@@ -274,6 +292,7 @@ export function DriverHome() {
     stopGpsFnRef.current?.();
     stopGpsFnRef.current = null;
     await stopDriverLiveShare().catch(() => {});
+    await stopDriverBackgroundGps().catch(() => {});
     setGpsOn(false);
     setGpsPos(null);
     publishRef.current = false;
@@ -300,7 +319,9 @@ export function DriverHome() {
       return { ok: true };
     }
 
-    const res = await startDriverLiveShare();
+    const res = isNativeDriverApp()
+      ? await startDriverBackgroundGps()
+      : await startDriverLiveShare();
     if (!res.ok) {
       setGpsError(res.error || 'No se pudo compartir la ubicación.');
       setGpsOn(false);
@@ -318,7 +339,10 @@ export function DriverHome() {
   useEffect(() => {
     if (!summary) return undefined;
     const hasActive = (summary.activeAssignments || []).length > 0;
-    if (hasActive && !isDriverLiveShareRunning()) {
+    const sharing = isNativeDriverApp()
+      ? isDriverBackgroundGpsRunning()
+      : isDriverLiveShareRunning();
+    if (hasActive && !sharing) {
       void startGps(true);
     }
     if (!hasActive && gpsModeRef.current) {
@@ -547,7 +571,7 @@ export function DriverHome() {
             <p className="font-bold">{gpsOn ? 'Ubicación en vivo' : 'Activa la ubicación'}</p>
             <p className="text-xs opacity-90">
               {gpsOn
-                ? 'Admin y cajeras siguen tu ruta hasta que marques Entregado. Deja El Pollón abierto en el celular.'
+                ? 'Admin y cajeras siguen tu ruta hasta Entregado. En la app nativa sigue con pantalla apagada; no detengas la notificación de “En ruta”.'
                 : (gpsError || 'Al aceptar se comparte tu GPS. Permite la ubicación de este sitio.')}
             </p>
             {!gpsOn && (

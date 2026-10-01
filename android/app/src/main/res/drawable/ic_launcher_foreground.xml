@@ -4,7 +4,6 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Moto delivery blanca, centrada (zona segura adaptive icon) -->
     <path
         android:fillColor="#FFFFFF"
         android:pathData="M28,70 a10,10 0 1,0 20,0 a10,10 0 1,0 -20,0"/>

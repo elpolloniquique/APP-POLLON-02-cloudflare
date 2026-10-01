@@ -58,6 +58,17 @@ export function adminClient(url, service) {
   });
 }
 
+export async function findDriverByPingToken(admin, token) {
+  const tok = String(token || '').trim();
+  if (!tok) return null;
+  const { data } = await admin
+    .from('ep_driver_profiles')
+    .select('id, profile_id, preferred_branch_id')
+    .eq('gps_ping_token', tok)
+    .maybeSingle();
+  return data || null;
+}
+
 export async function findDriverIdForAuthUser(admin, authUserId) {
   if (!admin || !authUserId) return null;
   const { data: byAuth } = await admin

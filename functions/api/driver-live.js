@@ -7,21 +7,15 @@
  * GET  /api/driver-live?orderId=
  */
 import { applyCloudflareEnv } from '../_lib/vercelAdapter.js';
+import { ingestDriverLivePoint, clearDriverLive } from '../_lib/ingestDriverLive.js';
 import {
   getKv,
   drvKey,
   followKey,
   kvGetJson,
-  kvPutJson,
-  kvDel,
-  readActiveIndex,
-  writeActiveIndex,
-  shouldWritePoint,
-  appendTrail,
-  publicSiteUrl,
-  newFollowToken,
   toStaffLocation,
   toPublicFollow,
+  readActiveIndex,
 } from '../_lib/driverLiveStore.js';
 import {
   supabaseClients,
@@ -32,7 +26,6 @@ import {
   loadCallerProfile,
   canViewLiveMap,
   staffBranchFilter,
-  loadActiveJobForDriver,
   findLiveDriverForOrder,
   customerOwnsOrder,
 } from '../_lib/driverLiveAuth.js';
@@ -51,11 +44,6 @@ function json(data, status = 200) {
     status,
     headers: { 'Content-Type': 'application/json; charset=utf-8', ...corsHeaders() },
   });
-}
-
-function num(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
 }
 
 async function parseJson(request) {
@@ -88,87 +76,23 @@ async function handlePing(request, env) {
   const done = body?.done === true || body?.stop === true;
 
   if (done) {
-    const prev = await kvGetJson(kv, drvKey(driverId));
-    if (prev?.follow_token) await kvDel(kv, followKey(prev.follow_token));
-    await kvDel(kv, drvKey(driverId));
-    const ids = (await readActiveIndex(kv)).filter((id) => id !== driverId);
-    await writeActiveIndex(kv, ids);
+    const kv = getKv(env);
+    if (kv) await clearDriverLive(kv, driverId);
     return json({ ok: true, stopped: true });
   }
 
-  const lat = num(body?.lat);
-  const lng = num(body?.lng);
-  if (lat == null || lng == null || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-    return json({ error: 'Coordenadas inválidas' }, 400);
-  }
-
-  const job = await loadActiveJobForDriver(admin, driverId);
-  if (!job) {
-    return json({ ok: true, pending: true, reason: 'no_active_job' });
-  }
-
-  const prev = await kvGetJson(kv, drvKey(driverId));
-  const nowIso = new Date().toISOString();
-  const nextPoint = { lat, lng, updated_at: nowIso };
-  const gate = shouldWritePoint(prev, nextPoint);
-  const site = publicSiteUrl(env);
-  const followToken = prev?.follow_token || newFollowToken();
-
-  const { data: profile } = driverRow.profile_id
-    ? await admin.from('profiles').select('full_name').eq('id', driverRow.profile_id).maybeSingle()
-    : { data: driverRow.profile || null };
-  const driverName = profile?.full_name || driverRow.profile?.full_name || null;
-
-  const record = {
-    driver_id: driverId,
-    lat,
-    lng,
-    heading: num(body?.heading),
-    speed: num(body?.speed),
-    accuracy: num(body?.accuracy),
-    updated_at: nowIso,
-    phase: job.phase,
-    ticket_code: job.ticket_code,
-    job_id: job.job_id,
-    order_id: job.order_id,
-    branch_id: job.branch_id || driverRow.preferred_branch_id || null,
-    assignment_id: job.assignment_id,
-    follow_token: followToken,
-    driver_name: driverName,
-    customer: job.customer,
-    store: job.store,
-    jobs: job.jobs,
-    trail: appendTrail(prev?.trail, nextPoint),
-  };
-
-  if (!gate.write && prev) {
-    return json({
-      ok: true,
-      skipped: gate.reason,
-      follow_url: `${site}/seguir/${followToken}`,
-      follow_token: followToken,
-      phase: job.phase,
-    });
-  }
-
-  await kvPutJson(kv, drvKey(driverId), record);
-  await kvPutJson(kv, followKey(followToken), { driver_id: driverId, job_id: job.job_id });
-
-  if (!prev) {
-    const ids = await readActiveIndex(kv);
-    if (!ids.includes(driverId)) {
-      ids.push(driverId);
-      await writeActiveIndex(kv, ids);
-    }
-  }
-
-  return json({
-    ok: true,
-    follow_url: `${site}/seguir/${followToken}`,
-    follow_token: followToken,
-    phase: job.phase,
-    ticket_code: job.ticket_code,
+  const result = await ingestDriverLivePoint({
+    env,
+    admin,
+    driverRow,
+    lat: body?.lat ?? body?.latitude,
+    lng: body?.lng ?? body?.longitude,
+    heading: body?.heading ?? body?.bearing,
+    speed: body?.speed,
+    accuracy: body?.accuracy,
   });
+  if (result.status) return json(result, result.status);
+  return json(result);
 }
 
 async function handleStaffList(request, env) {

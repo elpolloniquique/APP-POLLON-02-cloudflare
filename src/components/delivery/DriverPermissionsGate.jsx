@@ -124,7 +124,7 @@ export function DriverPermissionsGate({ onReadyChange }) {
           <p className="font-bold">Listo para trabajar</p>
           <p className="text-xs opacity-90">
             {native
-              ? 'Desinstala esta APK. Usa Chrome: elpollon.cl/repartidor'
+              ? 'App nativa lista. Al aceptar un pedido el GPS sigue con pantalla apagada.'
               : 'Notificaciones listas. Ya puedes pulsar Disponible.'}
           </p>
         </div>
