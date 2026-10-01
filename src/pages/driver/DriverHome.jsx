@@ -19,19 +19,17 @@ import {
 } from '../../services/orderStatusSyncService';
 import {
   ensureDriverPushSubscription,
-  requestGpsFix,
 } from '../../services/pushService';
 import {
-  startDriverBackgroundGps,
-  stopDriverBackgroundGps,
   isNativeDriverApp,
-  requestAlwaysLocationPermission,
   openNativeLocationSettings,
-  getAndPublishCurrentFix,
-  isDriverBackgroundGpsRunning,
-  subscribeDriverGpsUpdates,
-  driverShouldShareGps,
 } from '../../services/backgroundGpsService';
+import {
+  startDriverLiveShare,
+  stopDriverLiveShare,
+  subscribeDriverLiveShare,
+  isDriverLiveShareRunning,
+} from '../../services/driverLiveShareService';
 import { evaluateDriverLiveTrackingReady } from '../../services/driverOnboardingService';
 import { playDriverOrderAlarm, unlockDriverAudio } from '../../utils/orderAlertSound';
 import { kickoffNativePushRegistration } from '../../services/fcmService';
@@ -55,6 +53,7 @@ export function DriverHome() {
   const optimisticAssignRef = useRef(null);
   const [gpsOn, setGpsOn] = useState(false);
   const [gpsPos, setGpsPos] = useState(null);
+  const [gpsError, setGpsError] = useState('');
   const [error, setError] = useState('');
   const [branch, setBranch] = useState(null);
   const [permsReady, setPermsReady] = useState(true);
@@ -212,9 +211,13 @@ export function DriverHome() {
     };
   }, [scheduleLoad]);
 
-  useEffect(() => subscribeDriverGpsUpdates((pos, err) => {
-    if (pos) setGpsPos(pos);
-    if (err) setError(err.message || 'Error GPS');
+  useEffect(() => subscribeDriverLiveShare((pos, err) => {
+    if (pos) {
+      setGpsPos(pos);
+      setGpsOn(true);
+    }
+    if (err) setGpsError(err.message || 'Error GPS');
+    else setGpsError('');
   }), []);
 
   useEffect(() => () => {
@@ -270,7 +273,7 @@ export function DriverHome() {
   const clearGps = useCallback(async () => {
     stopGpsFnRef.current?.();
     stopGpsFnRef.current = null;
-    await stopDriverBackgroundGps();
+    await stopDriverLiveShare().catch(() => {});
     setGpsOn(false);
     setGpsPos(null);
     publishRef.current = false;
@@ -297,47 +300,32 @@ export function DriverHome() {
       return { ok: true };
     }
 
-    if (isDriverBackgroundGpsRunning() && gpsModeRef.current === 'active') {
-      const fix = await getAndPublishCurrentFix({ timeoutMs: 8000 });
-      if (fix) setGpsPos(fix);
-      setGpsOn(true);
-      return { ok: true, mode: isNativeDriverApp() ? 'native' : 'web', alreadyRunning: true, position: fix };
-    }
-
-    stopGpsFnRef.current?.();
-    stopGpsFnRef.current = null;
-    const res = await startDriverBackgroundGps();
+    const res = await startDriverLiveShare();
     if (!res.ok) {
-      setError(
-        `${res.error || 'No se pudo activar GPS en segundo plano'}${
-          res.canOpenSettings
-            ? ' Abre ajustes y elige “Permitir todo el tiempo”.'
-            : ''
-        }`
-      );
+      setGpsError(res.error || 'No se pudo compartir la ubicación.');
       setGpsOn(false);
       gpsModeRef.current = null;
       return res;
     }
-    if (res.needsSettings) {
-      setError(
-        'GPS activo. Para no perderte con pantalla apagada: Ajustes → Ubicación → Permitir todo el tiempo.'
-      );
-    }
     if (res.position) setGpsPos(res.position);
     setGpsOn(true);
+    setGpsError('');
     gpsModeRef.current = 'active';
     return res;
   }, []);
 
-  // GPS desactivado: no publicar ubicación a Supabase.
+  // GPS en Cloudflare solo con pedido activo (se apaga al entregar todos).
   useEffect(() => {
     if (!summary) return undefined;
-    if (!driverShouldShareGps(summary) && gpsModeRef.current) {
+    const hasActive = (summary.activeAssignments || []).length > 0;
+    if (hasActive && !isDriverLiveShareRunning()) {
+      void startGps(true);
+    }
+    if (!hasActive && gpsModeRef.current) {
       void clearGps();
     }
     return undefined;
-  }, [summary, clearGps]);
+  }, [summary, clearGps, startGps]);
 
   // ~5 min de la sucursal → estado "En cocina" (preparando)
   useEffect(() => {
@@ -435,6 +423,7 @@ export function DriverHome() {
     };
     optimisticAssignRef.current = optimistic;
     publishRef.current = true;
+    void startGps(true);
     setSummary((prev) => {
       if (!prev) return prev;
       return {
@@ -447,7 +436,6 @@ export function DriverHome() {
       };
     });
     setOfferBusyId(null);
-    void startGps(true);
 
     const orderId = job.source_order_id || offer.source_order_id || null;
     void acceptOffer(offer.id)
@@ -546,6 +534,34 @@ export function DriverHome() {
           </p>
         </div>
       </div>
+
+      {actives.length > 0 && (
+        <div className={`flex items-start gap-2 rounded-2xl border px-3.5 py-3 text-sm ${
+          gpsOn
+            ? 'border-sky-200 bg-sky-50 text-sky-950'
+            : 'border-amber-200 bg-amber-50 text-amber-950'
+        }`}
+        >
+          <span className="mt-0.5 text-base">📍</span>
+          <div>
+            <p className="font-bold">{gpsOn ? 'Ubicación en vivo' : 'Activa la ubicación'}</p>
+            <p className="text-xs opacity-90">
+              {gpsOn
+                ? 'Admin y cajeras siguen tu ruta hasta que marques Entregado. Deja El Pollón abierto en el celular.'
+                : (gpsError || 'Al aceptar se comparte tu GPS. Permite la ubicación de este sitio.')}
+            </p>
+            {!gpsOn && (
+              <button
+                type="button"
+                onClick={() => { void startGps(true); }}
+                className="mt-1 text-xs font-bold underline"
+              >
+                Permitir ubicación ahora
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
         <div className="min-w-0">

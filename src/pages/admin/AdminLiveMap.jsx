@@ -163,7 +163,7 @@ export function AdminLiveMap() {
     };
     safeLoad();
     const unsub = subscribeDispatch(() => debouncedLoad());
-    const t = setInterval(safeLoad, 8000);
+    const t = setInterval(safeLoad, 12000);
     return () => {
       cancelled = true;
       unsub();
@@ -222,6 +222,7 @@ export function AdminLiveMap() {
       const name =
         g.driver?.profiles?.full_name
         || loc?.driver?.profiles?.full_name
+        || loc?.driver_name
         || 'Repartidor';
       const acceptedAt = g.assignments
         .map((a) => a.accepted_at)
@@ -237,6 +238,8 @@ export function AdminLiveMap() {
         hasGps: isValidLatLng(loc?.lat, loc?.lng),
         updatedAt: loc?.updated_at || acceptedAt,
         acceptedAt,
+        followUrl: loc?.follow_url || null,
+        trail: Array.isArray(loc?.trail) ? loc.trail : [],
       };
     });
   }, [assignments, locations]);
@@ -356,6 +359,7 @@ export function AdminLiveMap() {
     etaLabel: etas[d.driverId] != null ? `${etas[d.driverId]} min estimado` : null,
     gpsOk: d.hasGps,
     routeOk: d.hasGps,
+    followUrl: d.followUrl || null,
   }));
 
   const sidebarDelivery = deliveryDrivers.map((d) => ({
@@ -367,6 +371,7 @@ export function AdminLiveMap() {
     etaLabel: etas[d.driverId] != null ? `${etas[d.driverId]} min estimado` : null,
     gpsOk: d.hasGps,
     routeOk: d.hasGps && Boolean(destByDriver[d.driverId]),
+    followUrl: d.followUrl || null,
   }));
 
   const markers = useMemo(() => {
@@ -399,27 +404,36 @@ export function AdminLiveMap() {
   }, [driverGroups, destByDriver]);
 
   const routes = useMemo(() => {
-    return driverGroups
-      .filter((d) => d.hasGps)
-      .map((d) => {
-        if (isPickupPhase(d.phase)) {
-          return {
-            id: `r-${d.driverId}`,
-            from: { lat: d.lat, lng: d.lng },
-            to: { lat: store.lat, lng: store.lng },
-            color: d.color,
-          };
-        }
-        const dest = destByDriver[d.driverId];
-        if (!dest || !isValidLatLng(dest.lat, dest.lng)) return null;
-        return {
+    const list = [];
+    for (const d of driverGroups) {
+      if (Array.isArray(d.trail) && d.trail.length >= 2) {
+        list.push({
+          id: `t-${d.driverId}`,
+          positions: d.trail.map((p) => [Number(p.lat), Number(p.lng)]),
+          color: d.color,
+          dashed: true,
+        });
+      }
+      if (!d.hasGps) continue;
+      if (isPickupPhase(d.phase)) {
+        list.push({
           id: `r-${d.driverId}`,
           from: { lat: d.lat, lng: d.lng },
-          to: { lat: dest.lat, lng: dest.lng },
+          to: { lat: store.lat, lng: store.lng },
           color: d.color,
-        };
-      })
-      .filter(Boolean);
+        });
+        continue;
+      }
+      const dest = destByDriver[d.driverId];
+      if (!dest || !isValidLatLng(dest.lat, dest.lng)) continue;
+      list.push({
+        id: `r-${d.driverId}`,
+        from: { lat: d.lat, lng: d.lng },
+        to: { lat: dest.lat, lng: dest.lng },
+        color: d.color,
+      });
+    }
+    return list;
   }, [driverGroups, store, destByDriver]);
 
   const center = useMemo(() => {
@@ -515,7 +529,7 @@ export function AdminLiveMap() {
       {!mapExpanded && (
         <AdminPageHeader
           title="En vivo"
-          subtitle="GPS repartidores · seguimiento hacia sucursal y hacia cliente"
+          subtitle="Ruta en vivo · sucursal, retiro y entrega (sin GPS en Supabase)"
           actions={(
             <div className="flex flex-wrap items-center gap-2">
               <LiveVoiceAlertToggle enabled={voiceAlertOn} onChange={setVoiceEnabled} />

@@ -45,6 +45,7 @@ const AccountProfile = lazy(() => import('../pages/account/AccountProfile').then
 const AccountOrders = lazy(() => import('../pages/account/AccountOrders').then((m) => ({ default: m.AccountOrders })));
 const AccountAddresses = lazy(() => import('../pages/account/AccountAddresses').then((m) => ({ default: m.AccountAddresses })));
 const OrderTracking = lazy(() => import('../pages/account/OrderTracking').then((m) => ({ default: m.OrderTracking })));
+const FollowDriver = lazy(() => import('../pages/FollowDriver').then((m) => ({ default: m.FollowDriver })));
 
 function LazyPage({ children }) {
   return (
@@ -64,6 +65,7 @@ export function AppRoutes() {
       <Route path="/libro-reclamaciones" element={<ComplaintsBook />} />
       <Route path="/checkout" element={<Checkout />} />
       <Route path="/pedido/:id" element={<OrderSuccess />} />
+      <Route path="/seguir/:token" element={<LazyPage><FollowDriver /></LazyPage>} />
 
       <Route
         path="/cuenta"

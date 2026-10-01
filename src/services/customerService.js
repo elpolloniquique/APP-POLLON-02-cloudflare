@@ -127,7 +127,32 @@ export async function getCustomerOrderLiveTracking(orderId) {
     console.warn('[Pollón] live tracking:', msg);
     throw new Error(msg || 'No se pudo cargar el seguimiento en vivo');
   }
-  return data;
+
+  try {
+    const { getAccessToken } = await import('./driverLiveShareService');
+    const token = await getAccessToken();
+    if (!token) return data;
+    const res = await fetch(`/api/driver-live?orderId=${encodeURIComponent(String(orderId))}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const live = await res.json().catch(() => null);
+    if (!res.ok || !live?.active || live.lat == null || live.lng == null) return data;
+    return {
+      ...(data || {}),
+      has_driver: true,
+      gps_live: true,
+      phase: live.phase || data?.phase,
+      driver: {
+        ...(data?.driver || {}),
+        lat: Number(live.lat),
+        lng: Number(live.lng),
+        heading: live.heading ?? data?.driver?.heading ?? null,
+        updated_at: live.updated_at || data?.driver?.updated_at,
+      },
+    };
+  } catch {
+    return data;
+  }
 }
 
 export async function getCustomerOrders(customerId) {

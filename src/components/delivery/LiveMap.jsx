@@ -170,7 +170,11 @@ export function LiveMap({
     : '&copy; OpenStreetMap contributors';
 
   const routeKey = useMemo(
-    () => routes.map((r) => `${r.id}:${r.from?.lat},${r.from?.lng}->${r.to?.lat},${r.to?.lng}`).join('|'),
+    () => routes.map((r) => (
+      Array.isArray(r.positions)
+        ? `${r.id}:p:${r.positions.length}:${r.positions[r.positions.length - 1]}`
+        : `${r.id}:${r.from?.lat},${r.from?.lng}->${r.to?.lat},${r.to?.lng}`
+    )).join('|'),
     [routes]
   );
 
@@ -178,8 +182,17 @@ export function LiveMap({
     let cancelled = false;
     (async () => {
       const next = [];
-      for (const route of routes) {
-        if (!route?.from || !route?.to) continue;
+    for (const route of routes) {
+      if (Array.isArray(route.positions) && route.positions.length >= 2) {
+        next.push({
+          id: route.id,
+          color: route.color || '#c00000',
+          positions: route.positions,
+          dashed: Boolean(route.dashed),
+        });
+        continue;
+      }
+      if (!route?.from || !route?.to) continue;
         const result = await resolveRoutePolyline(route.from, route.to);
         if (cancelled) return;
         if (result?.positions?.length) {

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Eye, X } from 'lucide-react';
+import { Eye, X, Link2 } from 'lucide-react';
 import { money } from '../../utils/format';
 import { confirmPickup } from '../../services/dispatchService';
 
@@ -148,10 +148,23 @@ function DriverRow({
             {item.etaLabel ? ` · ${item.etaLabel}` : ''}
           </p>
           {item.gpsOk === false && (
-            <p className="text-[10px] font-semibold text-amber-600">Sin GPS en vivo — el repartidor debe tener la app abierta</p>
+            <p className="text-[10px] font-semibold text-amber-600">Sin GPS — el repartidor debe tener El Pollón abierto</p>
           )}
           {item.gpsOk && item.routeOk === false && (
             <p className="text-[10px] font-semibold text-amber-600">Sin coords del cliente — geocodificando…</p>
+          )}
+          {item.gpsOk && item.followUrl && (
+            <button
+              type="button"
+              className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold text-sky-700 hover:underline"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.clipboard?.writeText(item.followUrl).catch(() => {});
+              }}
+            >
+              <Link2 className="h-3 w-3" />
+              Copiar enlace de ruta
+            </button>
           )}
         </div>
         <button

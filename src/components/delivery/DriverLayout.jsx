@@ -18,6 +18,7 @@ import {
   isNativeDriverApp,
   stopDriverBackgroundGps,
 } from '../../services/backgroundGpsService';
+import { syncDriverLiveShareFromSummary, stopDriverLiveShare } from '../../services/driverLiveShareService';
 import '../../styles/driver-native.css';
 
 const TABS = [
@@ -47,6 +48,7 @@ export function DriverLayout() {
       setPendingOffers((prev) => (prev === n ? prev : n));
       if (n > 0) await setDriverAppBadge(n);
       else await clearDriverAppBadge();
+      await syncDriverLiveShareFromSummary(s).catch(() => {});
     } catch {
       /* ignore */
     }
@@ -144,6 +146,7 @@ export function DriverLayout() {
   }, []);
 
   const handleLogout = async () => {
+    await stopDriverLiveShare().catch(() => {});
     await stopDriverBackgroundGps();
     await clearDriverAppBadge();
     await signOut();

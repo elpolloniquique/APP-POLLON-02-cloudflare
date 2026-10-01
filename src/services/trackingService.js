@@ -1,4 +1,5 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
+import { getAccessToken } from './driverLiveShareService';
 
 /** Mínimo entre publicaciones GPS. El mapa ya refresca cada 8–10 s. */
 export const GPS_PUBLISH_INTERVAL_MS = 8000;
@@ -55,16 +56,17 @@ export async function upsertMyLocation() {
 
 export async function listLiveLocations() {
   if (!isSupabaseConfigured()) return DEMO_LOCATIONS;
-  const sb = getSupabase();
-  const { data, error } = await sb
-    .from('ep_driver_location_latest')
-    .select('*')
-    .order('updated_at', { ascending: false })
-    .limit(80);
-  if (error) throw new Error(error.message || 'Error GPS en vivo');
+  const token = await getAccessToken();
+  if (!token) return [];
+  const res = await fetch('/api/driver-live?view=staff', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(payload.error || 'Error GPS en vivo');
 
-  const byDriver = await loadDriverCards((data || []).map((r) => r.driver_id));
-  return (data || []).map((row) => ({
+  const data = payload.locations || [];
+  const byDriver = await loadDriverCards(data.map((r) => r.driver_id));
+  return data.map((row) => ({
     ...row,
     ep_driver_profiles: byDriver[row.driver_id] || null,
     driver: byDriver[row.driver_id] || null,

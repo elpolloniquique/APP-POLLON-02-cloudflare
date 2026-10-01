@@ -141,7 +141,7 @@ export function OrderTracking() {
       await refreshLive();
     });
 
-    const poll = setInterval(() => { void refreshLive(); }, 3000);
+    const poll = setInterval(() => { void refreshLive(); }, 12000);
     return () => {
       unsub();
       clearInterval(poll);
