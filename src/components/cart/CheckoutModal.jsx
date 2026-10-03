@@ -69,6 +69,7 @@ export function CheckoutModal() {
   const [step, setStep] = useState('form');
   const [confirmedOrder, setConfirmedOrder] = useState(null);
   const submitLock = useRef(false);
+  const addressJumpTimer = useRef(0);
 
   const isDelivery = form.orderType === 'delivery';
   const availableOrderTypes = getAvailableOrderTypes(branch);
@@ -182,6 +183,48 @@ export function CheckoutModal() {
 
   const scrollToField = (e) => {
     e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const focusCheckoutField = (id) => {
+    window.setTimeout(() => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (typeof el.focus === 'function') {
+        try { el.focus({ preventScroll: true }); } catch { el.focus(); }
+      }
+    }, 60);
+  };
+
+  const jumpAfterAddress = () => {
+    window.clearTimeout(addressJumpTimer.current);
+    const punto = document.getElementById('checkout-punto-seleccionado');
+    punto?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    addressJumpTimer.current = window.setTimeout(() => {
+      focusCheckoutField('checkout-referencia');
+    }, 520);
+  };
+
+  const goNextFromName = (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (form.name.trim()) focusCheckoutField('checkout-phone');
+  };
+
+  const goNextFromPhone = (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const digits = String(form.phone || '').replace(/\D/g, '');
+    if (!normalizeChilePhone(form.phone) && digits.length < 8) return;
+    if (isDelivery && !form.addressLat) focusCheckoutField('checkout-address-search');
+    else if (isDelivery) focusCheckoutField('checkout-referencia');
+    else focusCheckoutField('checkout-comments');
+  };
+
+  const goNextFromReferencia = (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (form.referencia.trim()) focusCheckoutField('checkout-comments');
   };
 
   const validate = () => {
@@ -428,6 +471,7 @@ export function CheckoutModal() {
                     value={form.name}
                     onChange={(e) => update('name', e.target.value)}
                     onFocus={scrollToField}
+                    onKeyDown={goNextFromName}
                     className="checkout-input"
                   />
                 </div>
@@ -440,6 +484,7 @@ export function CheckoutModal() {
                     value={form.phone}
                     onChange={(e) => update('phone', e.target.value)}
                     onFocus={scrollToField}
+                    onKeyDown={goNextFromPhone}
                     className="checkout-input"
                     inputMode="tel"
                   />
@@ -478,6 +523,7 @@ export function CheckoutModal() {
                           addressLat: snapped.lat,
                           addressLng: snapped.lng,
                         }));
+                        jumpAfterAddress();
                       }
                     }}
                   />
@@ -497,6 +543,7 @@ export function CheckoutModal() {
                     value={form.referencia}
                     onChange={(e) => update('referencia', e.target.value)}
                     onFocus={scrollToField}
+                    onKeyDown={goNextFromReferencia}
                     className="checkout-input"
                     autoComplete="off"
                   />

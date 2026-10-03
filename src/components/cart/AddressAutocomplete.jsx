@@ -73,7 +73,7 @@ export function AddressAutocomplete({
   const search = useCallback((q) => {
     clearTimeout(timerRef.current);
     const trimmed = q.trim();
-    if (trimmed.length < 2) {
+    if (trimmed.length < 1) {
       setSuggestions([]);
       setOpen(false);
       setLoading(false);
@@ -86,7 +86,7 @@ export function AddressAutocomplete({
       lng: biasLng,
       branchHouseNumber,
       branchAddress,
-      limit: 8,
+      limit: 10,
     };
 
     const localNow = previewLocalAddresses(q, opts);
@@ -299,7 +299,7 @@ export function AddressAutocomplete({
 
   const highlightMatch = (text) => {
     const needle = (parsed.street || query).trim();
-    if (!needle || needle.length < 2) return text;
+    if (!needle || needle.length < 1) return text;
     const idx = text.toLowerCase().indexOf(needle.toLowerCase());
     if (idx < 0) return text;
     return (

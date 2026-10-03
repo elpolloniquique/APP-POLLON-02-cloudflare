@@ -77,6 +77,9 @@ export const CITY_STREETS = {
     { name: 'Los Alamos', lat: -20.2388, lng: -70.1286 },
     { name: 'Los Pinos', lat: -20.2412, lng: -70.1304 },
     { name: 'Santa María', lat: -20.2326, lng: -70.1372 },
+    { name: 'Santa Coloma de Farnes', lat: -20.23714, lng: -70.14859 },
+    { name: 'Santa Coloma de Farnés', lat: -20.23714, lng: -70.14859 },
+    { name: 'Calle Santa Coloma de Farnes', lat: -20.23714, lng: -70.14859 },
     { name: 'Colón', lat: -20.2156, lng: -70.1472 },
     { name: 'Cochrane', lat: -20.2124, lng: -70.1478 },
     { name: 'Washington', lat: -20.2108, lng: -70.1466 },
@@ -169,9 +172,31 @@ function editDistance(a, b) {
   return d[s.length][t.length];
 }
 
+const STREET_STOP = new Set([
+  'de', 'del', 'la', 'el', 'los', 'las', 'y', 'e',
+  'san', 'santa', 'santo',
+  'calle', 'avenida', 'av', 'pasaje', 'psje',
+]);
+
+function isStopToken(w) {
+  return STREET_STOP.has(w) || /^\d+$/.test(w);
+}
+
+export function distinctiveWords(words) {
+  return (words || []).filter((w) => w.length >= 3 && !isStopToken(w));
+}
+
+function tokenMatches(queryToken, streetToken) {
+  if (!queryToken || !streetToken) return false;
+  if (tokenScore(queryToken, streetToken) >= 70) return true;
+  if (streetToken.startsWith(queryToken) && queryToken.length >= 3) return true;
+  if (queryToken.length >= 4 && streetToken.length >= 4 && editDistance(queryToken, streetToken) <= 1) return true;
+  return false;
+}
+
 function tokenScore(queryToken, streetToken) {
   if (!queryToken || !streetToken) return 0;
-  if (streetToken === queryToken) return 100;
+  if (streetToken === queryToken) return queryToken.length <= 1 ? 40 : 100;
   const qLoose = foldLoose(queryToken);
   const sLoose = foldLoose(streetToken);
   if (qLoose && sLoose && qLoose === sLoose) return 98;
@@ -254,8 +279,8 @@ export function preferredLocalRoadName(road, city = 'Iquique') {
  */
 export function matchLocalStreets(query, { city = 'Iquique', houseNumber = null, limit = 6 } = {}) {
   const q = fold(query);
-  if (q.length < 2) return [];
-  const qWords = q.split(' ').filter((w) => w.length >= 2);
+  if (q.length < 1) return [];
+  const qWords = q.split(' ').filter((w) => w.length >= 1);
   const list = streetsForCity(city);
   const scored = [];
 
@@ -266,18 +291,29 @@ export function matchLocalStreets(query, { city = 'Iquique', houseNumber = null,
     const lastWord = words[words.length - 1] || '';
     let score = 0;
 
-    if (n === q) score = 100;
+    const nCompact = n.replace(/\s+/g, '');
+    const qCompact = q.replace(/\s+/g, '');
+
+    const otherExactStreet = list.some((s2) => {
+      const n2 = fold(s2.name);
+      return n2 === q && n2 !== n;
+    });
+    if (otherExactStreet && (n.startsWith(q) || nCompact.startsWith(qCompact))) {
+      continue;
+    }
+
+    if (n === q || (qCompact.length >= 2 && nCompact === qCompact)) score = 100;
     else if (n.startsWith(`${q} `) || n === q) score = 96;
-    else if (words.some((w) => w === q)) score = 94;
-    else if (q.length <= 5 && words.some((w) => w.startsWith(q))) score = 88;
-    // NO usar n.includes(q): "libertad" ⊂ "libertador…"
+    else if (qCompact.length >= 2 && nCompact.startsWith(qCompact)) score = qCompact.length <= 2 ? 84 : 93;
+    else if (q.length >= 2 && words.some((w) => w === q)) score = 94;
+    else if (words.some((w) => w.length > 1 && w.startsWith(q))) score = q.length <= 2 ? 82 : 90;
 
     // Cada token del usuario vs cada palabra de la calle
     for (const qw of qWords) {
       for (const sw of words) {
         score = Math.max(score, tokenScore(qw, sw));
       }
-      if (lastWord) {
+      if (lastWord && qw.length >= 2) {
         const lastHit = tokenScore(qw, lastWord);
         if (lastHit >= 70) score = Math.max(score, lastHit + 8);
       }
@@ -287,13 +323,24 @@ export function matchLocalStreets(query, { city = 'Iquique', houseNumber = null,
     if (qWords.length > 1) {
       let hits = 0;
       for (const qw of qWords) {
+        if (isStopToken(qw)) continue;
         if (words.some((sw) => tokenScore(qw, sw) >= 70) || tokenScore(qw, n) >= 70) hits += 1;
       }
       if (hits >= 2) score = Math.max(score, 98);
       else if (hits === 1 && score >= 70) score += 6;
     }
 
-    if (score < 48) continue;
+    const qDist = distinctiveWords(qWords);
+    if (qDist.length >= 1) {
+      const allDistinct = qDist.every((qt) => (
+        words.some((sw) => tokenMatches(qt, sw))
+        || nCompact.includes(qt)
+        || (qCompact.length >= 3 && nCompact.startsWith(qCompact))
+      ));
+      if (!allDistinct) continue;
+    }
+
+    if (score < (q.length <= 2 ? 70 : 40)) continue;
     scored.push({ ...s, score });
   }
 

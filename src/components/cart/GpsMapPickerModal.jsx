@@ -19,17 +19,20 @@ import { DEFAULT_MAP_CENTER } from '../../utils/geo';
 const DEFAULT_ZOOM = 16;
 const MAX_ZOOM = 21;
 
-function MapSync({ center, recenterToken, extraMeasure = false }) {
+function MapSync({ center, recenterToken, extraMeasure = false, focusZoom = null }) {
   const map = useMap();
 
   useEffect(() => {
     if (!center?.lat || !center?.lng) return;
-    map.setView([center.lat, center.lng], map.getZoom(), { animate: false });
-  }, [map, center?.lat, center?.lng]);
+    const z = Number.isFinite(focusZoom) ? Math.max(map.getZoom(), focusZoom) : map.getZoom();
+    map.setView([center.lat, center.lng], z, { animate: false });
+  }, [map, center?.lat, center?.lng, focusZoom]);
 
   useEffect(() => {
     if (!recenterToken || !center?.lat || !center?.lng) return;
-    const targetZoom = Math.max(map.getZoom(), DEFAULT_ZOOM);
+    const targetZoom = Number.isFinite(focusZoom)
+      ? Math.max(focusZoom, DEFAULT_ZOOM)
+      : Math.max(map.getZoom(), DEFAULT_ZOOM);
     map.setView([center.lat, center.lng], targetZoom, { animate: false });
     map.flyTo([center.lat, center.lng], targetZoom, { duration: 0.55 });
     const t = window.setTimeout(() => {
@@ -41,7 +44,7 @@ function MapSync({ center, recenterToken, extraMeasure = false }) {
       }
     }, 80);
     return () => window.clearTimeout(t);
-  }, [map, center?.lat, center?.lng, recenterToken]);
+  }, [map, center?.lat, center?.lng, recenterToken, focusZoom]);
 
   useEffect(() => {
     const run = () => {
@@ -90,17 +93,16 @@ function MapMoveWatcher({ onCenterChange, suppressMoveRef, onUserDrag }) {
 function FixedPin() {
   return (
     <div className="pointer-events-none absolute inset-0 z-[700] flex items-center justify-center">
-      {/* La punta inferior debe coincidir con el centro geográfico del mapa */}
-      <div className="relative flex translate-y-[-100%] flex-col items-center">
-        <div className="absolute left-1/2 top-[100%] h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/18 blur-[3px]" />
-        <div className="relative flex flex-col items-center">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-pollon-red text-white shadow-[0_6px_14px_rgba(0,0,0,0.22)]">
-            <MapPin className="h-3.5 w-3.5" strokeWidth={2.2} />
-          </div>
-          <div className="-mt-0.5 h-0 w-0 border-l-[4px] border-r-[4px] border-t-[8px] border-l-transparent border-r-transparent border-t-pollon-red" />
-          <div className="-mt-px h-2.5 w-[2px] rounded-full bg-pollon-red" />
-          <div className="h-[7px] w-[7px] rounded-full border border-white bg-pollon-red shadow-[0_0_0_1px_rgba(255,255,255,0.35)]" />
-        </div>
+      {/* La punta del pin coincide con el centro geográfico (calle + número). */}
+      <div className="relative translate-y-[-100%]">
+        <div className="absolute left-1/2 top-[96%] h-2 w-2 -translate-x-1/2 rounded-full bg-black/25 blur-[2px]" />
+        <svg width="36" height="48" viewBox="0 0 36 48" aria-hidden="true" className="drop-shadow-[0_4px_8px_rgba(0,0,0,0.35)]">
+          <path
+            d="M18 0C8.06 0 0 8.06 0 18c0 13.5 18 30 18 30s18-16.5 18-30C36 8.06 27.94 0 18 0z"
+            fill="#EA4335"
+          />
+          <circle cx="18" cy="16.5" r="6.5" fill="#fff" />
+        </svg>
       </div>
     </div>
   );
@@ -145,6 +147,7 @@ export function GpsMapPickerModal({
   const isInline = variant === 'inline';
   const [center, setCenter] = useState(initialCenter);
   const [recenterToken, setRecenterToken] = useState(0);
+  const [focusZoom, setFocusZoom] = useState(null);
   const [draft, setDraft] = useState(null);
   const [loadingAddress, setLoadingAddress] = useState(false);
   const [loadingGps, setLoadingGps] = useState(false);
@@ -247,7 +250,7 @@ export function GpsMapPickerModal({
   const runSearch = useCallback((q) => {
     clearTimeout(searchTimerRef.current);
     const trimmed = q.trim();
-    if (trimmed.length < 2) {
+    if (trimmed.length < 1) {
       setSuggestions([]);
       setSearchOpen(false);
       setSearchLoading(false);
@@ -260,7 +263,7 @@ export function GpsMapPickerModal({
       lng: biasLng,
       branchHouseNumber,
       branchAddress,
-      limit: 8,
+      limit: 10,
     };
 
     const localNow = previewLocalAddresses(q, opts);
@@ -324,7 +327,7 @@ export function GpsMapPickerModal({
   const handleSearchChange = (e) => {
     const q = e.target.value;
     setSearchQuery(q);
-    if (q.trim().length >= 2) setSearchLoading(true);
+    if (q.trim().length >= 1) setSearchLoading(true);
     runSearch(q);
   };
 
@@ -336,8 +339,12 @@ export function GpsMapPickerModal({
       address: branchAddress || '',
       city: cityBias,
     };
-    // snap solo afecta misma calle de la tienda
-    const snapped = snapAddressCoordsForBranch(finalHit, branchRef);
+    const snapped = (
+      finalHit.source === 'arcgis'
+      && (finalHit.addrType === 'PointAddress' || finalHit.addrType === 'StreetAddress')
+    )
+      ? finalHit
+      : snapAddressCoordsForBranch(finalHit, branchRef);
     const lat = Number(snapped.lat);
     const lng = Number(snapped.lng);
     const labelText = snapped.shortLabel || finalHit.shortLabel || finalHit.label || '';
@@ -372,6 +379,7 @@ export function GpsMapPickerModal({
     }
     setDraft(nextDraft);
     setCenter({ lat, lng });
+    setFocusZoom(hasHouse ? 18 : 17);
     setRecenterToken((v) => v + 1);
     if (isInline && Number.isFinite(lat) && Number.isFinite(lng)) {
       onConfirm?.({ ...nextDraft, lat, lng, source: 'search' });
@@ -395,7 +403,13 @@ export function GpsMapPickerModal({
     ) && !(
       /hospicio/i.test(cityBias || '') && Number(item.lng) < -70.12
     );
-    if (hasItemCoords && itemInCity) {
+    const canPreviewPin = hasItemCoords && itemInCity && (
+      item.source === 'arcgis'
+      || item.addrType === 'PointAddress'
+      || item.addrType === 'StreetAddress'
+      || (item.precision === 'exact' && item.source !== 'local')
+    );
+    if (canPreviewPin) {
       applySelectionToMap({
         ...item,
         precision: item.precision || (item.houseNumber ? 'interpolated' : 'street'),
@@ -508,12 +522,13 @@ export function GpsMapPickerModal({
         <Search className="h-4 w-4 flex-none text-[#c00000]" strokeWidth={2.4} />
         <input
           ref={searchInputRef}
+          id="checkout-address-search"
           type="search"
           value={searchQuery}
           onChange={handleSearchChange}
           onKeyDown={handleSearchKeyDown}
           onFocus={() => suggestions.length && setSearchOpen(true)}
-          placeholder="Escribe calle y número (ej: Zegers 789)"
+          placeholder="Busca calle, número o un nombre (ej: ohig, zegers 789)"
           autoComplete="off"
           spellCheck={false}
           className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-black outline-none placeholder:font-normal placeholder:text-zinc-400"
@@ -542,7 +557,7 @@ export function GpsMapPickerModal({
         <ul
           role="listbox"
           className={`absolute left-0 right-0 z-[900] mt-1.5 overflow-y-auto rounded-[0.28rem] border border-zinc-300 bg-white ${
-            isInline ? 'max-h-40' : 'max-h-56'
+            isInline ? 'max-h-52' : 'max-h-64'
           }`}
         >
           {suggestions.map((s, idx) => {
@@ -577,7 +592,10 @@ export function GpsMapPickerModal({
                       {secondaryLine(text)}
                     </span>
                   )}
-                  {(parsedSearch.houseNumber && String(s.houseNumber || '') === String(parsedSearch.houseNumber)) && (
+                  {(parsedSearch.houseNumber
+                    && String(s.houseNumber || '') === String(parsedSearch.houseNumber)
+                    && (s.source === 'arcgis' || s.addrType === 'PointAddress' || s.addrType === 'StreetAddress' || s.precision === 'exact')
+                    && s.source !== 'local') && (
                     <span className="mt-1 inline-flex rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
                       Coincidencia exacta
                     </span>
@@ -631,7 +649,7 @@ export function GpsMapPickerModal({
               attribution="&copy; OpenStreetMap contributors"
               maxZoom={MAX_ZOOM}
             />
-            <MapSync center={center} recenterToken={recenterToken} extraMeasure={isInline} />
+            <MapSync center={center} recenterToken={recenterToken} extraMeasure={isInline} focusZoom={focusZoom} />
             <MapMoveWatcher
               onCenterChange={setCenter}
               suppressMoveRef={suppressMoveRef}
@@ -660,7 +678,10 @@ export function GpsMapPickerModal({
       </div>
 
       <div className={`border-t border-zinc-300 bg-white ${isInline ? 'px-3 py-2.5' : 'px-4 py-3.5'}`}>
-        <div className="rounded-[0.28rem] border border-black bg-[rgba(34,197,94,0.22)] px-3.5 py-3 backdrop-blur-[2px]">
+        <div
+          id="checkout-punto-seleccionado"
+          className="rounded-[0.28rem] border border-black bg-[rgba(34,197,94,0.22)] px-3.5 py-3 backdrop-blur-[2px]"
+        >
           <div className="flex items-start gap-2.5">
             <div className="mt-0.5 rounded-[0.22rem] bg-[#166534] p-1.5 text-white">
               <LocateFixed className="h-3.5 w-3.5" strokeWidth={2.5} />
