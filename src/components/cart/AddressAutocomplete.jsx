@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { MapPin, Loader2, X, Crosshair, LocateFixed, ChevronRight } from 'lucide-react';
+import { MapPin, Loader2, X, Crosshair, LocateFixed } from 'lucide-react';
 import {
   searchAddressesProgressive,
   parseAddressQuery,
@@ -14,10 +14,11 @@ import {
   ADDRESS_LIST_HINT,
 } from '../../utils/gpsLocation';
 import { GpsMapPickerModal } from './GpsMapPickerModal';
+import { DEFAULT_MAP_CENTER } from '../../utils/geo';
 
 /**
  * Dirección de entrega.
- * - mode="map": botón que abre mapa GPS (checkout cliente).
+ * - mode="map": buscador + mapa compacto en el checkout (sin pedir GPS).
  * - mode="search": autocompletado por texto (admin / ubicación sucursal).
  */
 export function AddressAutocomplete({
@@ -47,6 +48,7 @@ export function AddressAutocomplete({
   const [askGps, setAskGps] = useState(false);
   const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const [mapPickerCenter, setMapPickerCenter] = useState(null);
+  const [mapPickerKey, setMapPickerKey] = useState(0);
   const [activeIdx, setActiveIdx] = useState(-1);
   const timerRef = useRef(null);
   const inputRef = useRef(null);
@@ -176,6 +178,7 @@ export function AddressAutocomplete({
     setGpsError('');
     onChange?.('', null);
     onSelect?.(null);
+    if (mode === 'map') setMapPickerKey((k) => k + 1);
     if (mode === 'search') inputRef.current?.focus();
   };
 
@@ -354,9 +357,13 @@ export function AddressAutocomplete({
   );
 
   if (mode === 'map') {
+    const branchCenter = {
+      lat: Number.isFinite(Number(biasLat)) ? Number(biasLat) : DEFAULT_MAP_CENTER.lat,
+      lng: Number.isFinite(Number(biasLng)) ? Number(biasLng) : DEFAULT_MAP_CENTER.lng,
+    };
+
     return (
       <div ref={containerRef} className="relative">
-        {/* Campo oculto para validación HTML required */}
         <input
           type="text"
           required={required}
@@ -367,87 +374,12 @@ export function AddressAutocomplete({
           className="pointer-events-none absolute h-0 w-0 opacity-0"
         />
 
-        <button
-          type="button"
-          onClick={handleUseGps}
-          disabled={disabled || gpsLoading}
-          className={`flex w-full min-h-[2.55rem] items-center gap-2.5 rounded-[0.32rem] border bg-white px-2.5 py-[0.45rem] text-left transition disabled:opacity-50 ${borderColor} ${
-            selected ? 'hover:border-emerald-700' : 'hover:border-pollon-red/50'
-          }`}
-          aria-label={selected ? 'Cambiar dirección en el mapa' : 'Seleccionar dirección en el mapa'}
-        >
-          <span
-            className={`flex h-8 w-8 flex-none items-center justify-center rounded-[0.28rem] ${
-              selected ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-pollon-red'
-            }`}
-          >
-            {gpsLoading
-              ? <Loader2 className="h-4 w-4 animate-spin" />
-              : <MapPin className="h-4 w-4" strokeWidth={2.3} />}
-          </span>
-          <span className="min-w-0 flex-1">
-            {selected && query ? (
-              <>
-                <span className="block truncate text-sm font-semibold text-[#3b82f6]">{query}</span>
-                <span className="mt-0.5 block text-[11px] text-emerald-700">Toca para ajustar en el mapa</span>
-              </>
-            ) : (
-              <>
-                <span className="block text-sm font-semibold text-gray-700">Seleccionar en el mapa</span>
-                <span className="mt-0.5 block text-[11px] text-gray-500">GPS preciso · calle y número exactos</span>
-              </>
-            )}
-          </span>
-          {selected && query && !gpsLoading && (
-            <span
-              role="button"
-              tabIndex={0}
-              onClick={handleClear}
-              onKeyDown={(ev) => {
-                if (ev.key === 'Enter' || ev.key === ' ') handleClear(ev);
-              }}
-              className="flex-none rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-              aria-label="Limpiar dirección"
-            >
-              <X className="h-4 w-4" />
-            </span>
-          )}
-          {!gpsLoading && (
-            <ChevronRight className={`h-4 w-4 flex-none ${selected ? 'text-emerald-600' : 'text-pollon-red'}`} />
-          )}
-        </button>
-
-        {gpsLoading && (
-          <p className="checkout-label__hint mt-1 px-0.5">
-            {gpsPhase === 'permission' && 'Permite la ubicación precisa en el aviso del teléfono…'}
-            {gpsPhase === 'reading' && (
-              gpsAccuracy != null
-                ? `Afinando GPS… precisión ${Math.round(gpsAccuracy)} m${gpsAccuracy <= 20 ? ' ✓' : ' (espera)'}`
-                : 'GPS activado — afinando ubicación…'
-            )}
-            {!gpsPhase && 'Abriendo mapa…'}
-          </p>
-        )}
-        {!gpsLoading && (
-          <p
-            className={`checkout-label__hint mt-1 flex items-start gap-1.5 px-0.5 ${
-              gpsError ? 'text-red-600' : selected ? 'text-emerald-700' : ''
-            }`}
-          >
-            {selected && <Crosshair className="mt-0.5 h-3 w-3 shrink-0" />}
-            <span>
-              {gpsError
-                || (selected
-                  ? 'Ubicación confirmada en el mapa'
-                  : 'Toca el campo para abrir el mapa y marcar tu punto exacto.')}
-            </span>
-          </p>
-        )}
-
         <GpsMapPickerModal
-          open={mapPickerOpen}
-          initialCenter={mapPickerCenter}
-          onClose={() => setMapPickerOpen(false)}
+          key={mapPickerKey}
+          variant="inline"
+          open
+          initialCenter={mapPickerCenter || branchCenter}
+          onClose={handleClear}
           onConfirm={handleMapConfirm}
           cityBias={cityBias}
           biasLat={biasLat}
@@ -455,7 +387,20 @@ export function AddressAutocomplete({
           branchAddress={branchAddress}
           branchHouseNumber={branchHouseNumber}
         />
-        {permissionDialog}
+
+        <p
+          className={`checkout-label__hint mt-1 flex items-start gap-1.5 px-0.5 ${
+            gpsError ? 'text-red-600' : selected ? 'text-emerald-700' : ''
+          }`}
+        >
+          {selected && <Crosshair className="mt-0.5 h-3 w-3 shrink-0" />}
+          <span>
+            {gpsError
+              || (selected
+                ? 'Ubicación confirmada. Puedes buscar de nuevo o mover la aguja para ajustar.'
+                : 'Escribe calle y número y elige un resultado de la lista.')}
+          </span>
+        </p>
       </div>
     );
   }

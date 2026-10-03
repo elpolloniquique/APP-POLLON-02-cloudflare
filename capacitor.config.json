@@ -15,6 +15,11 @@
       "iconColor": "#E11D48",
       "sound": "default"
     },
+    "StatusBar": {
+      "overlaysWebView": true,
+      "style": "LIGHT",
+      "backgroundColor": "#000000"
+    },
     "PushNotifications": {
       "presentationOptions": ["badge", "sound", "alert"]
     }

@@ -189,7 +189,7 @@ export function CheckoutModal() {
     if (!normalizeChilePhone(form.phone)) return 'Ingresa un teléfono válido (ej. 9 2558 6256)';
     if (form.orderType === 'delivery') {
       if (!form.address.trim()) return 'Selecciona tu dirección en el mapa';
-      if (!form.addressLat || !form.addressLng) return 'Confirma tu punto exacto en el mapa (botón Listo) para calcular el delivery';
+      if (!form.addressLat || !form.addressLng) return 'Elige tu dirección en la lista para calcular el delivery';
       if (!form.referencia.trim()) return 'Ingresa una referencia para ubicar tu dirección';
       if (branch?.lat == null || branch?.lng == null) return 'La sucursal no tiene ubicación GPS configurada';
       if (deliveryQuote?.loading) return 'Calculando costo de delivery…';
@@ -583,7 +583,7 @@ export function CheckoutModal() {
                     </div>
                     {!form.addressLat && (
                       <p className="checkout-delivery-notice__body">
-                        Marca tu punto en el mapa (Listo) para calcular el delivery.
+                        Busca tu dirección y elígela en la lista para calcular el delivery.
                       </p>
                     )}
                     {form.addressLat && deliveryQuote?.loading && (

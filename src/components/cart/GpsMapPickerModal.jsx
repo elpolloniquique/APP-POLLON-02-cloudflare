@@ -14,11 +14,12 @@ import {
   resolveExactMapPin,
 } from '../../utils/addressGeocode';
 import { locateWithPrecisePermission, gpsErrorMessage } from '../../utils/gpsLocation';
+import { DEFAULT_MAP_CENTER } from '../../utils/geo';
 
-const DEFAULT_ZOOM = 19;
+const DEFAULT_ZOOM = 16;
 const MAX_ZOOM = 21;
 
-function MapSync({ center, recenterToken }) {
+function MapSync({ center, recenterToken, extraMeasure = false }) {
   const map = useMap();
 
   useEffect(() => {
@@ -51,25 +52,30 @@ function MapSync({ center, recenterToken }) {
       }
     };
     run();
-    const t1 = setTimeout(run, 80);
-    const t2 = setTimeout(run, 260);
+    const delays = extraMeasure ? [80, 260, 500, 900] : [80, 260];
+    const timers = delays.map((d) => setTimeout(run, d));
     window.addEventListener('resize', run);
     return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
+      timers.forEach(clearTimeout);
       window.removeEventListener('resize', run);
     };
-  }, [map]);
+  }, [map, extraMeasure]);
 
   return null;
 }
 
-function MapMoveWatcher({ onCenterChange, suppressMoveRef }) {
+function MapMoveWatcher({ onCenterChange, suppressMoveRef, onUserDrag }) {
+  const skipFirstMove = useRef(true);
   const map = useMapEvents({
     moveend: () => {
       if (suppressMoveRef?.current) return;
       const c = map.getCenter();
       onCenterChange({ lat: c.lat, lng: c.lng });
+      if (skipFirstMove.current) {
+        skipFirstMove.current = false;
+        return;
+      }
+      onUserDrag?.();
     },
   });
 
@@ -84,20 +90,33 @@ function MapMoveWatcher({ onCenterChange, suppressMoveRef }) {
 function FixedPin() {
   return (
     <div className="pointer-events-none absolute inset-0 z-[700] flex items-center justify-center">
-      {/* La punta roja inferior debe coincidir con el centro geográfico del mapa */}
+      {/* La punta inferior debe coincidir con el centro geográfico del mapa */}
       <div className="relative flex translate-y-[-100%] flex-col items-center">
-        <div className="absolute left-1/2 top-[100%] h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/20 blur-md" />
+        <div className="absolute left-1/2 top-[100%] h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/18 blur-[3px]" />
         <div className="relative flex flex-col items-center">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border-[3px] border-white bg-pollon-red text-white shadow-[0_10px_24px_rgba(0,0,0,0.28)]">
-            <MapPin className="h-4 w-4" strokeWidth={2.5} />
+          <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-pollon-red text-white shadow-[0_6px_14px_rgba(0,0,0,0.22)]">
+            <MapPin className="h-3.5 w-3.5" strokeWidth={2.2} />
           </div>
-          <div className="-mt-1 h-0 w-0 border-l-[5px] border-r-[5px] border-t-[16px] border-l-transparent border-r-transparent border-t-pollon-red drop-shadow-[0_6px_10px_rgba(0,0,0,0.25)]" />
-          <div className="-mt-[1px] h-5 w-[2px] rounded-full bg-white/95" />
-          <div className="-mt-[1px] h-3.5 w-[2px] rounded-full bg-pollon-red" />
-          <div className="mt-[1px] h-2 w-2 rounded-full border border-white bg-pollon-red shadow-[0_0_0_2px_rgba(255,255,255,0.34)]" />
+          <div className="-mt-0.5 h-0 w-0 border-l-[4px] border-r-[4px] border-t-[8px] border-l-transparent border-r-transparent border-t-pollon-red" />
+          <div className="-mt-px h-2.5 w-[2px] rounded-full bg-pollon-red" />
+          <div className="h-[7px] w-[7px] rounded-full border border-white bg-pollon-red shadow-[0_0_0_1px_rgba(255,255,255,0.35)]" />
         </div>
       </div>
     </div>
+  );
+}
+
+function LoadingSpin({ size = 'md' }) {
+  const box = size === 'lg' ? 'h-9 w-9' : 'h-8 w-8';
+  const icon = size === 'lg' ? 'h-5 w-5' : 'h-[18px] w-[18px]';
+  return (
+    <span
+      className={`inline-flex ${box} flex-none items-center justify-center rounded-full bg-white shadow-sm ring-2 ring-[#c00000]`}
+      role="status"
+      aria-label="Cargando"
+    >
+      <Loader2 className={`${icon} animate-spin text-[#c00000]`} strokeWidth={2.8} />
+    </span>
   );
 }
 
@@ -113,6 +132,7 @@ function secondaryLine(label) {
 
 export function GpsMapPickerModal({
   open,
+  variant = 'modal',
   initialCenter,
   onClose,
   onConfirm,
@@ -122,6 +142,7 @@ export function GpsMapPickerModal({
   branchAddress = '',
   branchHouseNumber = null,
 }) {
+  const isInline = variant === 'inline';
   const [center, setCenter] = useState(initialCenter);
   const [recenterToken, setRecenterToken] = useState(0);
   const [draft, setDraft] = useState(null);
@@ -144,10 +165,15 @@ export function GpsMapPickerModal({
   const lockedPinRef = useRef(null);
   const searchBoxRef = useRef(null);
   const searchInputRef = useRef(null);
+  const userDraggedRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
-    setCenter(initialCenter || null);
+    const fallback = {
+      lat: Number.isFinite(Number(biasLat)) ? Number(biasLat) : DEFAULT_MAP_CENTER.lat,
+      lng: Number.isFinite(Number(biasLng)) ? Number(biasLng) : DEFAULT_MAP_CENTER.lng,
+    };
+    setCenter(initialCenter?.lat && initialCenter?.lng ? initialCenter : fallback);
     setDraft(null);
     setError('');
     setGpsAccuracy(null);
@@ -157,7 +183,14 @@ export function GpsMapPickerModal({
     setActiveIdx(-1);
     searchPinLockRef.current = false;
     lockedPinRef.current = null;
-  }, [open, initialCenter?.lat, initialCenter?.lng]);
+    userDraggedRef.current = false;
+  }, [open, initialCenter?.lat, initialCenter?.lng, biasLat, biasLng]);
+
+  useEffect(() => {
+    if (!open || !isInline) return undefined;
+    const t = window.setTimeout(() => searchInputRef.current?.focus(), 120);
+    return () => window.clearTimeout(t);
+  }, [open, isInline]);
 
   useEffect(() => {
     if (!open || !center?.lat || !center?.lng) return undefined;
@@ -190,7 +223,11 @@ export function GpsMapPickerModal({
           accuracy: Number.isFinite(gpsAccuracy) ? gpsAccuracy : 18,
         });
         if (!cancelled && !searchPinLockRef.current) {
-          setDraft(geo ? { ...geo, lat: center.lat, lng: center.lng, source: 'gps' } : null);
+          const next = geo ? { ...geo, lat: center.lat, lng: center.lng, source: 'gps' } : null;
+          setDraft(next);
+          if (isInline && next?.road && next?.houseNumber && userDraggedRef.current) {
+            onConfirm?.(next);
+          }
         }
       } catch (err) {
         if (!cancelled && !searchPinLockRef.current) {
@@ -287,6 +324,7 @@ export function GpsMapPickerModal({
   const handleSearchChange = (e) => {
     const q = e.target.value;
     setSearchQuery(q);
+    if (q.trim().length >= 2) setSearchLoading(true);
     runSearch(q);
   };
 
@@ -335,6 +373,9 @@ export function GpsMapPickerModal({
     setDraft(nextDraft);
     setCenter({ lat, lng });
     setRecenterToken((v) => v + 1);
+    if (isInline && Number.isFinite(lat) && Number.isFinite(lng)) {
+      onConfirm?.({ ...nextDraft, lat, lng, source: 'search' });
+    }
     window.setTimeout(() => {
       suppressMoveRef.current = false;
     }, 2200);
@@ -459,19 +500,101 @@ export function GpsMapPickerModal({
 
   const parsedSearch = parseAddressQuery(searchQuery);
 
-  const body = open ? (
-    <div
-      className="fixed inset-0 z-[130] flex items-end justify-center bg-black/55 p-2 sm:p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="gps-map-picker-title"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-md overflow-hidden rounded-[0.4rem] bg-white shadow-[0_28px_80px_rgba(0,0,0,0.35)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="bg-[#c00000] px-4 pb-3.5 pt-3.5 text-white">
+  if (!open) return null;
+
+  const searchBox = (
+    <div ref={searchBoxRef} className={isInline ? 'relative' : 'relative mt-3'}>
+      <div className="flex items-center gap-2 rounded-[0.28rem] border border-white bg-white px-2.5 py-2">
+        <Search className="h-4 w-4 flex-none text-[#c00000]" strokeWidth={2.4} />
+        <input
+          ref={searchInputRef}
+          type="search"
+          value={searchQuery}
+          onChange={handleSearchChange}
+          onKeyDown={handleSearchKeyDown}
+          onFocus={() => suggestions.length && setSearchOpen(true)}
+          placeholder="Escribe calle y número (ej: Zegers 789)"
+          autoComplete="off"
+          spellCheck={false}
+          className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-black outline-none placeholder:font-normal placeholder:text-zinc-400"
+          aria-label="Buscar dirección"
+          aria-autocomplete="list"
+          aria-expanded={searchOpen}
+        />
+        {searchLoading && <LoadingSpin />}
+        {searchQuery && !searchLoading && (
+          <button
+            type="button"
+            onClick={() => {
+              setSearchQuery('');
+              setSuggestions([]);
+              setSearchOpen(false);
+            }}
+            className="rounded p-0.5 text-zinc-500 hover:bg-zinc-100 hover:text-black"
+            aria-label="Limpiar búsqueda"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
+      {searchOpen && suggestions.length > 0 && (
+        <ul
+          role="listbox"
+          className={`absolute left-0 right-0 z-[900] mt-1.5 overflow-y-auto rounded-[0.28rem] border border-zinc-300 bg-white ${
+            isInline ? 'max-h-40' : 'max-h-56'
+          }`}
+        >
+          {suggestions.map((s, idx) => {
+            const text = s.shortLabel || s.label || '';
+            return (
+              <li
+                key={s.id || `${text}-${idx}`}
+                role="option"
+                aria-selected={activeIdx === idx}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleSelectSuggestion(s);
+                }}
+                onMouseEnter={() => setActiveIdx(idx)}
+                className={`flex cursor-pointer items-start gap-2.5 border-b border-zinc-100 px-3 py-2.5 text-left last:border-0 ${
+                  activeIdx === idx ? 'bg-red-50' : 'hover:bg-zinc-50'
+                }`}
+              >
+                <MapPin
+                  className={`mt-0.5 h-4 w-4 flex-none ${
+                    s.precision === 'exact' || s.precision === 'interpolated'
+                      ? 'text-pollon-red'
+                      : 'text-zinc-400'
+                  }`}
+                />
+                <span className="min-w-0 flex-1 leading-snug">
+                  <span className="block text-[13px] font-semibold text-black">
+                    {primaryLine(text)}
+                  </span>
+                  {secondaryLine(text) && (
+                    <span className="mt-0.5 block text-[11px] font-normal text-zinc-500">
+                      {secondaryLine(text)}
+                    </span>
+                  )}
+                  {(parsedSearch.houseNumber && String(s.houseNumber || '') === String(parsedSearch.houseNumber)) && (
+                    <span className="mt-1 inline-flex rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                      Coincidencia exacta
+                    </span>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+
+  const card = (
+    <div className={isInline ? 'overflow-visible rounded-[0.4rem] border border-[#d4d4d4] bg-white' : 'w-full max-w-md overflow-hidden rounded-[0.4rem] bg-white shadow-[0_28px_80px_rgba(0,0,0,0.35)]'}>
+      <div className={`bg-[#c00000] text-white ${isInline ? 'px-3 py-2.5' : 'px-4 pb-3.5 pt-3.5'}`}>
+        {!isInline && (
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 pr-1">
               <h3 id="gps-map-picker-title" className="text-[13.5px] font-bold leading-[1.35] tracking-[-0.01em] sm:text-[14px]">
@@ -490,159 +613,90 @@ export function GpsMapPickerModal({
               <X className="h-5 w-5" />
             </button>
           </div>
+        )}
+        {searchBox}
+      </div>
 
-          <div ref={searchBoxRef} className="relative mt-3">
-            <div className="flex items-center gap-2 rounded-[0.28rem] border border-white bg-white px-2.5 py-2">
-              <Search className="h-4 w-4 flex-none text-[#c00000]" strokeWidth={2.4} />
-              <input
-                ref={searchInputRef}
-                type="search"
-                value={searchQuery}
-                onChange={handleSearchChange}
-                onKeyDown={handleSearchKeyDown}
-                onFocus={() => suggestions.length && setSearchOpen(true)}
-                placeholder="Escribe calle y número (ej: Zegers 789)"
-                autoComplete="off"
-                spellCheck={false}
-                className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-black outline-none placeholder:font-normal placeholder:text-zinc-400"
-                aria-label="Buscar dirección"
-                aria-autocomplete="list"
-                aria-expanded={searchOpen}
-              />
-              {searchLoading && <Loader2 className="h-4 w-4 flex-none animate-spin text-[#c00000]" />}
-              {searchQuery && !searchLoading && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery('');
-                    setSuggestions([]);
-                    setSearchOpen(false);
-                  }}
-                  className="rounded p-0.5 text-zinc-500 hover:bg-zinc-100 hover:text-black"
-                  aria-label="Limpiar búsqueda"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-
-            {searchOpen && suggestions.length > 0 && (
-              <ul
-                role="listbox"
-                className="absolute left-0 right-0 z-[900] mt-1.5 max-h-56 overflow-y-auto rounded-[0.28rem] border border-zinc-300 bg-white"
-              >
-                {suggestions.map((s, idx) => {
-                  const text = s.shortLabel || s.label || '';
-                  return (
-                    <li
-                      key={s.id || `${text}-${idx}`}
-                      role="option"
-                      aria-selected={activeIdx === idx}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleSelectSuggestion(s);
-                      }}
-                      onMouseEnter={() => setActiveIdx(idx)}
-                      className={`flex cursor-pointer items-start gap-2.5 border-b border-zinc-100 px-3 py-2.5 text-left last:border-0 ${
-                        activeIdx === idx ? 'bg-red-50' : 'hover:bg-zinc-50'
-                      }`}
-                    >
-                      <MapPin
-                        className={`mt-0.5 h-4 w-4 flex-none ${
-                          s.precision === 'exact' || s.precision === 'interpolated'
-                            ? 'text-pollon-red'
-                            : 'text-zinc-400'
-                        }`}
-                      />
-                      <span className="min-w-0 flex-1 leading-snug">
-                        <span className="block text-[13px] font-semibold text-black">
-                          {primaryLine(text)}
-                        </span>
-                        {secondaryLine(text) && (
-                          <span className="mt-0.5 block text-[11px] font-normal text-zinc-500">
-                            {secondaryLine(text)}
-                          </span>
-                        )}
-                        {(parsedSearch.houseNumber && String(s.houseNumber || '') === String(parsedSearch.houseNumber)) && (
-                          <span className="mt-1 inline-flex rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-                            Coincidencia exacta
-                          </span>
-                        )}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        </div>
-
-        <div className="relative h-[52vh] min-h-[320px] bg-zinc-200">
-          {center?.lat && center?.lng ? (
-            <MapContainer
-              center={[center.lat, center.lng]}
-              zoom={DEFAULT_ZOOM}
-              maxZoom={MAX_ZOOM}
-              scrollWheelZoom
-              className="h-full w-full"
-            >
-              <TileLayer
-                url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution="&copy; OpenStreetMap contributors"
-                maxZoom={MAX_ZOOM}
-              />
-              <MapSync center={center} recenterToken={recenterToken} />
-              <MapMoveWatcher onCenterChange={setCenter} suppressMoveRef={suppressMoveRef} />
-            </MapContainer>
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-zinc-600">
-              Cargando mapa...
-            </div>
-          )}
-
-          <FixedPin />
-
-          <button
-            type="button"
-            onClick={handleRecenter}
-            className="absolute bottom-4 right-4 z-[800] flex h-12 w-12 items-center justify-center rounded-full border-2 border-black bg-white text-black transition hover:bg-zinc-100"
-            aria-label="Volver a mi ubicación GPS"
-            title="Volver a mi ubicación GPS"
+      <div className={`relative bg-zinc-200 ${isInline ? 'h-[200px]' : 'h-[52vh] min-h-[320px]'}`}>
+        {center?.lat && center?.lng ? (
+          <MapContainer
+            center={[center.lat, center.lng]}
+            zoom={DEFAULT_ZOOM}
+            maxZoom={MAX_ZOOM}
+            scrollWheelZoom
+            className="h-full w-full"
           >
-            {loadingGps ? <Loader2 className="h-5 w-5 animate-spin" /> : <Navigation className="h-5 w-5" />}
-          </button>
-        </div>
+            <TileLayer
+              url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution="&copy; OpenStreetMap contributors"
+              maxZoom={MAX_ZOOM}
+            />
+            <MapSync center={center} recenterToken={recenterToken} extraMeasure={isInline} />
+            <MapMoveWatcher
+              onCenterChange={setCenter}
+              suppressMoveRef={suppressMoveRef}
+              onUserDrag={() => { userDraggedRef.current = true; }}
+            />
+          </MapContainer>
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-zinc-600">
+            Cargando mapa...
+          </div>
+        )}
 
-        <div className="border-t border-zinc-300 bg-white px-4 py-3.5">
-          <div className="rounded-[0.28rem] border border-black bg-[rgba(34,197,94,0.22)] px-3.5 py-3 backdrop-blur-[2px]">
-            <div className="flex items-start gap-2.5">
-              <div className="mt-0.5 rounded-[0.22rem] bg-[#166534] p-1.5 text-white">
-                <LocateFixed className="h-3.5 w-3.5" strokeWidth={2.5} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#14532d]">
-                  Punto seleccionado
-                </p>
-                <p className="mt-1 text-[13.5px] font-semibold leading-[1.35] text-[#1d4ed8] sm:text-[14px]">
+        <FixedPin />
+
+        <button
+          type="button"
+          onClick={handleRecenter}
+          className={`absolute z-[800] flex items-center justify-center rounded-full border-2 border-black bg-white text-black transition hover:bg-zinc-100 ${
+            isInline ? 'bottom-2.5 right-2.5 h-10 w-10' : 'bottom-4 right-4 h-12 w-12'
+          }`}
+          aria-label="Volver a mi ubicación GPS"
+          title="Volver a mi ubicación GPS"
+        >
+          {loadingGps ? <Loader2 className="h-5 w-5 animate-spin" /> : <Navigation className="h-5 w-5" />}
+        </button>
+      </div>
+
+      <div className={`border-t border-zinc-300 bg-white ${isInline ? 'px-3 py-2.5' : 'px-4 py-3.5'}`}>
+        <div className="rounded-[0.28rem] border border-black bg-[rgba(34,197,94,0.22)] px-3.5 py-3 backdrop-blur-[2px]">
+          <div className="flex items-start gap-2.5">
+            <div className="mt-0.5 rounded-[0.22rem] bg-[#166534] p-1.5 text-white">
+              <LocateFixed className="h-3.5 w-3.5" strokeWidth={2.5} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#14532d]">
+                Punto seleccionado
+              </p>
+              <p className="mt-1 flex items-center gap-2.5 text-[13.5px] font-semibold leading-[1.35] text-[#1d4ed8] sm:text-[14px]">
+                <span className="min-w-0 flex-1">
                   {loadingAddress ? 'Leyendo calle y número...' : (label || 'Mueve el mapa o busca manualmente tu dirección')}
-                </p>
-                <p className="mt-1 text-[11px] font-medium leading-[1.4] text-zinc-600">
-                  {error
-                    || (draft?.precision
-                      ? precisionHint(draft.precision)
-                      : 'Confirma solo cuando aparezca calle y número completos.')}
-                  {gpsAccuracy != null ? ` Precisión GPS: ${Math.round(gpsAccuracy)} m.` : ''}
-                </p>
-              </div>
+                </span>
+                {loadingAddress && <LoadingSpin size="lg" />}
+              </p>
+              <p className="mt-1 text-[11px] font-medium leading-[1.4] text-zinc-600">
+                {error
+                  || (draft?.precision
+                    ? precisionHint(draft.precision)
+                    : (isInline
+                      ? 'Escribe calle y número y elige un resultado de la lista.'
+                      : 'Confirma solo cuando aparezca calle y número completos.'))}
+                {gpsAccuracy != null ? ` Precisión GPS: ${Math.round(gpsAccuracy)} m.` : ''}
+              </p>
             </div>
           </div>
+        </div>
 
-          {!canConfirm && !loadingAddress && (
-            <p className="mt-2 text-[11px] font-medium leading-[1.4] text-[#c00000]">
-              Aún no hay número de casa confirmado. Acerca la aguja a tu puerta o busca manualmente “calle número”.
-            </p>
-          )}
+        {!canConfirm && !loadingAddress && (
+          <p className="mt-2 text-[11px] font-medium leading-[1.4] text-[#c00000]">
+            {isInline
+              ? 'Aún no hay número de casa. Escribe calle y número y elige un resultado de la lista.'
+              : 'Aún no hay número de casa confirmado. Acerca la aguja a tu puerta o busca manualmente “calle número”.'}
+          </p>
+        )}
 
+        {!isInline && (
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -660,11 +714,25 @@ export function GpsMapPickerModal({
               Listo
             </button>
           </div>
-        </div>
+        )}
       </div>
     </div>
-  ) : null;
+  );
 
-  if (!body || typeof document === 'undefined') return null;
-  return createPortal(body, document.body);
+  if (isInline) return card;
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[130] flex items-end justify-center bg-black/55 p-2 sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="gps-map-picker-title"
+      onClick={onClose}
+    >
+      <div onClick={(e) => e.stopPropagation()}>
+        {card}
+      </div>
+    </div>,
+    document.body,
+  );
 }

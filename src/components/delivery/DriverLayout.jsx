@@ -20,6 +20,7 @@ import {
   startDriverBackgroundGps,
 } from '../../services/backgroundGpsService';
 import { syncDriverLiveShareFromSummary, stopDriverLiveShare } from '../../services/driverLiveShareService';
+import { bootNativeSafeArea } from '../../utils/nativeSafeArea';
 import '../../styles/driver-native.css';
 
 const TABS = [
@@ -105,12 +106,7 @@ export function DriverLayout() {
         },
       }).catch(() => {});
       ensureNativePushRegistration().catch(() => {});
-      import('@capacitor/status-bar')
-        .then(({ StatusBar, Style }) => {
-          StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
-          StatusBar.setBackgroundColor({ color: '#000000' }).catch(() => {});
-        })
-        .catch(() => {});
+      bootNativeSafeArea().catch(() => {});
       import('@capacitor/splash-screen')
         .then(({ SplashScreen }) => SplashScreen.hide().catch(() => {}))
         .catch(() => {});
@@ -156,15 +152,15 @@ export function DriverLayout() {
 
   if (!trackingReady) {
     return (
-      <div className="driver-shell min-h-[100dvh] bg-black" data-build={APP_BUILD_ID}>
+      <div className={`driver-shell min-h-[100dvh] bg-black ${native ? 'is-native' : ''}`} data-build={APP_BUILD_ID}>
         <DriverLiveTrackingOnboarding onReadyChange={onReadyChange} />
       </div>
     );
   }
 
   return (
-    <div className="driver-shell flex min-h-[100dvh] flex-col bg-[#f3f3f3] text-gray-900" data-build={APP_BUILD_ID}>
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-black/10 bg-black px-4 py-3 text-white shadow-sm">
+    <div className={`driver-shell flex min-h-[100dvh] flex-col bg-[#f3f3f3] text-gray-900 ${native ? 'is-native' : ''}`} data-build={APP_BUILD_ID}>
+      <header className="driver-topbar sticky top-0 z-40 flex items-center justify-between border-b border-black/10 bg-black px-4 py-3 text-white shadow-sm">
         <div className="flex items-center gap-2.5">
           <img src="/img/logo pollon.png" alt="" className="h-10 w-10 rounded-full border border-white/20 bg-white object-contain" />
           <div>
@@ -194,7 +190,7 @@ export function DriverLayout() {
         <Outlet context={outletContext} />
       </main>
 
-      <nav className="driver-tabbar fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,.08)]">
+      <nav className="driver-tabbar fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white shadow-[0_-4px_20px_rgba(0,0,0,.08)]">
         <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-1.5">
           {TABS.map(({ to, end, icon: Icon, label, badgeKey }) => (
             <NavLink

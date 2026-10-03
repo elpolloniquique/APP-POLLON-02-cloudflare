@@ -5,7 +5,6 @@ import { BranchMenuProvider } from './context/BranchMenuContext';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { SeoManager } from './components/seo/SeoManager';
-import { InstallAppPrompt } from './components/pwa/InstallAppPrompt';
 import { SiteAlertOverlay } from './components/layout/SiteAlertOverlay';
 import { AppRoutes } from './routes/AppRoutes';
 import { ensurePwaInstallListeners } from './utils/pwaInstallBridge';
@@ -45,7 +44,6 @@ export default function App() {
                 <AppRoutes />
               </NativeDriverEntryRedirect>
               <SiteAlertOverlay />
-              <InstallAppPrompt />
             </BranchMenuProvider>
           </CartProvider>
         </AuthProvider>

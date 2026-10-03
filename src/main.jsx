@@ -49,6 +49,10 @@ if (import.meta.env.PROD && !isViteDev && !isNativeCapacitor && !isLocalHost) {
 }
 
 if (isNativeCapacitor) {
+  document.documentElement.classList.add('is-native-app');
+  import('./utils/nativeSafeArea.js')
+    .then((m) => m.bootNativeSafeArea())
+    .catch(() => {});
   // No ocultar splash aquí: esperar a que DriverRoute pinte UI estable.
   // Si se oculta al cargar el bundle, el WebView blanco se ve al reabrir la APK.
   unregisterServiceWorkers();

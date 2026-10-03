@@ -1,5 +1,18 @@
 /* ── App nativa repartidor · gate + shell ── */
 
+html {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+html.is-native-app,
+html.is-native-app body,
+html.is-native-app #root {
+  background: #000;
+}
+
 .driver-native-gate {
   position: fixed;
   inset: 0;
@@ -8,7 +21,7 @@
   align-items: stretch;
   justify-content: center;
   overflow-y: auto;
-  padding: max(1rem, env(safe-area-inset-top)) 1rem max(1.25rem, env(safe-area-inset-bottom));
+  padding: max(1rem, var(--sat, 0px)) max(1rem, var(--sar, 0px)) max(1.25rem, var(--sab, 0px)) max(1rem, var(--sal, 0px));
   background:
     radial-gradient(ellipse 90% 55% at 50% -15%, rgba(192, 0, 0, 0.45), transparent 55%),
     radial-gradient(ellipse 50% 40% at 100% 100%, rgba(40, 40, 40, 0.9), transparent 50%),
@@ -322,10 +335,40 @@
   --driver-card: #141414;
 }
 
+.driver-shell .driver-topbar {
+  padding-top: max(0.75rem, var(--sat, 0px));
+  padding-left: max(1rem, var(--sal, 0px));
+  padding-right: max(1rem, var(--sar, 0px));
+}
+
+/* App nativa: hora/batería van sobre el negro; logo y Salir quedan debajo */
+html.is-native-app .driver-topbar,
+.driver-shell.is-native .driver-topbar {
+  padding-top: calc(0.55rem + max(40px, var(--sat, 0px)));
+  padding-bottom: 0.75rem;
+  padding-left: max(1rem, var(--sal, 0px));
+  padding-right: max(1rem, var(--sar, 0px));
+}
+
+html.is-native-app .driver-native-gate,
+.driver-shell.is-native .driver-native-gate {
+  padding-top: calc(1rem + max(40px, var(--sat, 0px)));
+  padding-bottom: calc(1.25rem + max(12px, var(--sab, 0px)));
+  padding-left: max(1rem, var(--sal, 0px));
+  padding-right: max(1rem, var(--sar, 0px));
+}
+
 .driver-shell .driver-tabbar {
   border-top: 1px solid rgb(255 255 255 / 0.08);
   background: #0b0b0b;
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: var(--sab, 0px);
+}
+
+html.is-native-app .driver-tabbar,
+.driver-shell.is-native .driver-tabbar {
+  padding-bottom: max(0.45rem, var(--sab, 0px));
+  padding-left: var(--sal, 0px);
+  padding-right: var(--sar, 0px);
 }
 
 .driver-shell .driver-tabbar a.is-active {
