@@ -22,10 +22,18 @@ import { AdminScrollPanel } from '../components/admin/AdminScrollPanel';
 
 const TRUST_BAR_ITEMS = [
   { icon: Bike, label: 'Delivery rápido' },
-  { icon: Shield, label: 'Pago al recibir' },
+  { icon: Shield, label: 'Pago al recibir', desktopOnly: true },
   { icon: ChefHat, label: 'Pollo fresco del día' },
-  { icon: MapPin, label: 'Atención multi-sucursal' },
+  { icon: MapPin, label: 'Atención multi-sucursal', desktopOnly: true },
 ];
+
+function RunningChick() {
+  return (
+    <span className="home-trust-chick" aria-hidden="true">
+        <img src="/img/pollito-delivery.gif?v=17" alt="" className="home-trust-chick__gif" />
+    </span>
+  );
+}
 
 const WHY_US = [
   { icon: ChefHat, title: 'Pollo fresco del día', desc: 'Marinado y cocinado al carbón cada día con receta peruana auténtica.' },
@@ -246,11 +254,22 @@ export function Home() {
 
       {/* Barra de confianza bajo hero */}
       <div className="home-trust-bar border-b border-gray-200 bg-white py-3 shadow-sm md:py-4">
-        <div className="home-trust-bar__fade home-trust-bar__fade--left" aria-hidden />
-        <div className="home-trust-bar__fade home-trust-bar__fade--right" aria-hidden />
-        <div className="home-trust-bar__track scrollbar-hide">
-          {TRUST_BAR_ITEMS.map(({ icon: Icon, label }) => (
-            <span key={label} className="home-trust-bar__item">
+        <div className="home-trust-bar__track">
+          {TRUST_BAR_ITEMS.slice(0, 2).map(({ icon: Icon, label, desktopOnly }) => (
+            <span
+              key={label}
+              className={`home-trust-bar__item${desktopOnly ? ' home-trust-bar__item--desktop' : ''}`}
+            >
+              <Icon className="home-trust-bar__icon" strokeWidth={2} aria-hidden />
+              {label}
+            </span>
+          ))}
+          <RunningChick />
+          {TRUST_BAR_ITEMS.slice(2).map(({ icon: Icon, label, desktopOnly }) => (
+            <span
+              key={label}
+              className={`home-trust-bar__item${desktopOnly ? ' home-trust-bar__item--desktop' : ''}`}
+            >
               <Icon className="home-trust-bar__icon" strokeWidth={2} aria-hidden />
               {label}
             </span>

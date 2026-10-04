@@ -4060,7 +4060,7 @@
     }
   }
 
-  /* ── Home: barra de confianza (scroll horizontal en móvil) ── */
+  /* ── Home: barra de confianza + pollito corriendo ── */
   .home-trust-bar {
     position: relative;
     overflow: hidden;
@@ -4069,21 +4069,15 @@
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 0.65rem;
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scroll-snap-type: x proximity;
-    scroll-padding-inline: 1rem;
-    padding: 0.15rem 1rem;
+    justify-content: center;
+    gap: 0.45rem;
+    overflow: hidden;
+    padding: 0.2rem 0.65rem;
   }
   @media (min-width: 768px) {
     .home-trust-bar__track {
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 2rem;
+      gap: 1.5rem;
       overflow: visible;
-      scroll-snap-type: none;
       max-width: 87.5rem;
       margin-inline: auto;
       padding: 0 1rem;
@@ -4091,23 +4085,26 @@
   }
   @media (min-width: 1024px) {
     .home-trust-bar__track {
-      gap: 3rem;
+      gap: 2.25rem;
     }
   }
   .home-trust-bar__item {
     display: inline-flex;
-    flex-shrink: 0;
+    flex-shrink: 1;
+    min-width: 0;
     align-items: center;
-    gap: 0.45rem;
-    scroll-snap-align: start;
+    gap: 0.35rem;
     border-radius: 9999px;
     background: rgb(249 250 251 / 0.95);
-    padding: 0.45rem 0.85rem;
-    font-size: 0.75rem;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.68rem;
     font-weight: 600;
     color: #374151;
     white-space: nowrap;
     box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.05);
+  }
+  .home-trust-bar__item--desktop {
+    display: none;
   }
   @media (min-width: 768px) {
     .home-trust-bar__item {
@@ -4116,12 +4113,15 @@
       font-size: 0.875rem;
       font-weight: 500;
       box-shadow: none;
-      scroll-snap-align: unset;
+      flex-shrink: 0;
+    }
+    .home-trust-bar__item--desktop {
+      display: inline-flex;
     }
   }
   .home-trust-bar__icon {
-    height: 1.125rem;
-    width: 1.125rem;
+    height: 1rem;
+    width: 1rem;
     flex-shrink: 0;
     color: #c00000;
   }
@@ -4131,26 +4131,34 @@
       width: 1.25rem;
     }
   }
-  .home-trust-bar__fade {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    z-index: 1;
-    width: 1.75rem;
-    pointer-events: none;
+  .home-trust-chick {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 5.1rem;
+    height: 4.5rem;
   }
   @media (min-width: 768px) {
-    .home-trust-bar__fade {
-      display: none;
+    .home-trust-chick {
+      width: 6.6rem;
+      height: 5.8rem;
     }
   }
-  .home-trust-bar__fade--left {
-    left: 0;
-    background: linear-gradient(90deg, #fff 15%, transparent);
+  .home-trust-chick__gif {
+    display: block;
+    width: 5rem;
+    height: 4.4rem;
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+    background: transparent;
   }
-  .home-trust-bar__fade--right {
-    right: 0;
-    background: linear-gradient(270deg, #fff 15%, transparent);
+  @media (min-width: 768px) {
+    .home-trust-chick__gif {
+      width: 6.5rem;
+      height: 5.7rem;
+    }
   }
 
   /* ── Home: promociones destacadas ── */
