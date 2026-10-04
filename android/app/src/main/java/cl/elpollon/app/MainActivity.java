@@ -156,8 +156,9 @@ public class MainActivity extends BridgeActivity {
             }
         }
         if (path == null || !path.startsWith("/")) return;
-        mainHandler.postDelayed(() -> injectDeepLink(path), 400);
-        mainHandler.postDelayed(() -> injectDeepLink(path), 1600);
+        final String resolved = path;
+        mainHandler.postDelayed(() -> injectDeepLink(resolved), 400);
+        mainHandler.postDelayed(() -> injectDeepLink(resolved), 1600);
     }
 
     private void injectDeepLink(String path) {
