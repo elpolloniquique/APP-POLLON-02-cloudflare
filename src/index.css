@@ -4072,7 +4072,7 @@
     justify-content: center;
     gap: 0.45rem;
     overflow: hidden;
-    padding: 0.2rem 0.65rem;
+    padding: 0 0.65rem;
   }
   @media (min-width: 768px) {
     .home-trust-bar__track {
@@ -4136,28 +4136,29 @@
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    width: 5.1rem;
-    height: 4.5rem;
+    width: 4.85rem;
+    height: 3.7rem;
   }
   @media (min-width: 768px) {
     .home-trust-chick {
-      width: 6.6rem;
-      height: 5.8rem;
+      width: 5.85rem;
+      height: 4.45rem;
     }
   }
   .home-trust-chick__gif {
     display: block;
-    width: 5rem;
-    height: 4.4rem;
+    width: 4.75rem;
+    height: 3.6rem;
     object-fit: contain;
+    object-position: center;
     pointer-events: none;
     user-select: none;
     background: transparent;
   }
   @media (min-width: 768px) {
     .home-trust-chick__gif {
-      width: 6.5rem;
-      height: 5.7rem;
+      width: 5.75rem;
+      height: 4.35rem;
     }
   }
 

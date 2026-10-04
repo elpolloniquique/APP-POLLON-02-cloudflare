@@ -253,7 +253,7 @@ export function Home() {
       </section>
 
       {/* Barra de confianza bajo hero */}
-      <div className="home-trust-bar border-b border-gray-200 bg-white py-3 shadow-sm md:py-4">
+      <div className="home-trust-bar border-b border-gray-200 bg-white py-1.5 shadow-sm md:py-2">
         <div className="home-trust-bar__track">
           {TRUST_BAR_ITEMS.slice(0, 2).map(({ icon: Icon, label, desktopOnly }) => (
             <span
