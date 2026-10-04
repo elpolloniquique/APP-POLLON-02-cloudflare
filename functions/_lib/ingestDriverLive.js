@@ -15,6 +15,9 @@ import {
   appendTrail,
   publicSiteUrl,
   newFollowToken,
+  IDLE_MIN_WRITE_MS,
+  IDLE_FORCE_WRITE_MS,
+  IDLE_MIN_MOVE_M,
 } from './driverLiveStore.js';
 import { loadActiveJobForDriver } from './driverLiveAuth.js';
 
@@ -55,16 +58,15 @@ export async function ingestDriverLivePoint({
   }
 
   const job = await loadActiveJobForDriver(admin, driverId);
-  if (!job) {
-    return { ok: true, pending: true, reason: 'no_active_job' };
-  }
-
   const prev = await kvGetJson(kv, drvKey(driverId));
   const nowIso = new Date().toISOString();
   const nextPoint = { lat: latN, lng: lngN, updated_at: nowIso };
-  const gate = shouldWritePoint(prev, nextPoint);
+  const idle = !job;
+  const gate = shouldWritePoint(prev, nextPoint, Date.now(), idle
+    ? { minWriteMs: IDLE_MIN_WRITE_MS, forceWriteMs: IDLE_FORCE_WRITE_MS, minMoveM: IDLE_MIN_MOVE_M }
+    : {});
   const site = publicSiteUrl(env);
-  const followToken = prev?.follow_token || newFollowToken();
+  const followToken = idle ? null : (prev?.follow_token || newFollowToken());
 
   let driverName = driverRow.profile?.full_name || null;
   if (!driverName && driverRow.profile_id) {
@@ -84,32 +86,39 @@ export async function ingestDriverLivePoint({
     speed: num(speed),
     accuracy: num(accuracy),
     updated_at: nowIso,
-    phase: job.phase,
-    ticket_code: job.ticket_code,
-    job_id: job.job_id,
-    order_id: job.order_id,
-    branch_id: job.branch_id || driverRow.preferred_branch_id || null,
-    assignment_id: job.assignment_id,
+    phase: idle ? 'available' : job.phase,
+    ticket_code: idle ? null : job.ticket_code,
+    job_id: idle ? null : job.job_id,
+    order_id: idle ? null : job.order_id,
+    branch_id: idle ? (driverRow.preferred_branch_id || prev?.branch_id || null) : (job.branch_id || driverRow.preferred_branch_id || null),
+    assignment_id: idle ? null : job.assignment_id,
     follow_token: followToken,
     driver_name: driverName,
-    customer: job.customer,
-    store: job.store,
-    jobs: job.jobs,
-    trail: appendTrail(prev?.trail, nextPoint),
+    customer: idle ? null : job.customer,
+    store: idle ? null : job.store,
+    jobs: idle ? [] : job.jobs,
+    trail: idle ? [] : appendTrail(prev?.trail, nextPoint),
+    idle,
   };
 
   if (!gate.write && prev) {
     return {
       ok: true,
       skipped: gate.reason,
-      follow_url: `${site}/seguir/${followToken}`,
+      pending: idle,
+      follow_url: followToken ? `${site}/seguir/${followToken}` : null,
       follow_token: followToken,
-      phase: job.phase,
+      phase: idle ? 'available' : job.phase,
     };
   }
 
   await kvPutJson(kv, drvKey(driverId), record);
-  await kvPutJson(kv, followKey(followToken), { driver_id: driverId, job_id: job.job_id });
+  if (idle && prev?.follow_token) {
+    await kvDel(kv, followKey(prev.follow_token));
+  }
+  if (followToken && !idle) {
+    await kvPutJson(kv, followKey(followToken), { driver_id: driverId, job_id: job.job_id });
+  }
 
   if (!prev) {
     const ids = await readActiveIndex(kv);
@@ -121,9 +130,10 @@ export async function ingestDriverLivePoint({
 
   return {
     ok: true,
-    follow_url: `${site}/seguir/${followToken}`,
+    pending: idle,
+    follow_url: followToken ? `${site}/seguir/${followToken}` : null,
     follow_token: followToken,
-    phase: job.phase,
-    ticket_code: job.ticket_code,
+    phase: idle ? 'available' : job.phase,
+    ticket_code: idle ? null : job.ticket_code,
   };
 }

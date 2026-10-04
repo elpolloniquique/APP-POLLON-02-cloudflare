@@ -21,6 +21,7 @@ export function DriverOfferCard({
   driverName = 'repartidor',
   branchCity = 'Iquique',
   canAccept = true,
+  focused = false,
 }) {
   const job = offer?.ep_delivery_jobs || offer?.job || {};
   const fee = offer?.offered_fee || job.delivery_fee || 0;
@@ -52,7 +53,9 @@ export function DriverOfferCard({
 
   return (
     <>
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${
+        focused ? 'border-pollon-red ring-2 ring-pollon-red/40' : 'border-gray-200'
+      }`}>
         <div className="flex items-center justify-between gap-2 px-3.5 pt-3.5">
           <span className="rounded-full bg-pollon-red px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
             Nuevo pedido

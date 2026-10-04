@@ -237,8 +237,8 @@ export async function stopDriverLiveShare({ silent = false } = {}) {
 }
 
 export async function syncDriverLiveShareFromSummary(summary) {
-  const actives = summary?.activeAssignments || [];
-  if (actives.length > 0) {
+  const { driverShouldShareGps } = await import('./backgroundGpsService');
+  if (driverShouldShareGps(summary)) {
     return startDriverLiveShare();
   }
   if (running) {

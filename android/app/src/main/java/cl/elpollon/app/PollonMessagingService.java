@@ -17,12 +17,13 @@ import com.google.firebase.messaging.RemoteMessage;
 import java.util.Map;
 
 /**
- * FCM nativo: con el GPS en primer plano Android no pinta la bandeja sola.
- * Aquí siempre se muestra la notificación, se enciende pantalla y suena alarma.
+ * FCM data-only: heads-up tipo WhatsApp (HIGH, lock screen) en los 4 estados.
+ * El tap abre la oferta. Aceptar/rechazar cancela alarma y bandeja.
  */
 public class PollonMessagingService extends FirebaseMessagingService {
-    public static final String CHANNEL_ID = "pollon_driver_alarm_v3";
+    public static final String CHANNEL_ID = "pollon_driver_offer_v4";
     public static final int NOTIF_ID = 72001;
+    public static final int NOTIF_ID_SPAN = 8000;
 
     @Override
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
@@ -46,22 +47,24 @@ public class PollonMessagingService extends FirebaseMessagingService {
 
     private void showOfferNotification(RemoteMessage msg) {
         Map<String, String> data = msg.getData();
-        String type = data != null ? data.get("type") : null;
         RemoteMessage.Notification n = msg.getNotification();
-        boolean isOffer = "driver_offer".equals(type)
-            || (data != null && data.get("offerId") != null)
-            || (n != null);
 
         String title = n != null && n.getTitle() != null ? n.getTitle() : str(data, "title", "El Pollón · Pedido nuevo");
         String body = n != null && n.getBody() != null ? n.getBody() : str(data, "body", "Tienes un pedido nuevo. Ábrelo para aceptar.");
         String offerId = str(data, "offerId", "offer");
+        String deepLink = str(data, "deepLink", "");
+        if (deepLink.isEmpty() || !deepLink.startsWith("/")) {
+            deepLink = "/repartidor/oferta/" + offerId;
+        }
 
         ensureChannel(this);
 
         Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
         if (launch == null) launch = new Intent(this, MainActivity.class);
         launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        launch.putExtra("deepLink", "/repartidor");
+        launch.putExtra("deepLink", deepLink);
+        launch.putExtra("offerId", offerId);
+        launch.setData(Uri.parse("elpollon://repartidor/oferta/" + Uri.encode(offerId)));
 
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -84,33 +87,47 @@ public class PollonMessagingService extends FirebaseMessagingService {
             .setContentText(body)
             .setStyle(new Notification.BigTextStyle().bigText(body))
             .setContentIntent(content)
-            .setAutoCancel(false)
-            .setOngoing(true)
+            .setAutoCancel(true)
+            .setOngoing(false)
             .setOnlyAlertOnce(false)
-            .setCategory(Notification.CATEGORY_ALARM)
+            .setCategory(Notification.CATEGORY_MESSAGE)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setDefaults(Notification.DEFAULT_LIGHTS | Notification.DEFAULT_VIBRATE);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             builder.setColor(0xFFE11D48);
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             builder.setFullScreenIntent(content, true);
         }
 
         Notification notif = builder.build();
-        notif.flags |= Notification.FLAG_INSISTENT
-            | Notification.FLAG_NO_CLEAR
-            | Notification.FLAG_ONGOING_EVENT;
 
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        int notifId = 72001 + (Math.abs(offerId.hashCode()) % 8000);
+        int notifId = NOTIF_ID + (Math.abs(offerId.hashCode()) % NOTIF_ID_SPAN);
         if (nm != null) {
             nm.notify(notifId, notif);
         }
 
         try {
             BadgeHelper.apply(this, 1);
+        } catch (Exception ignored) {}
+    }
+
+    static void cancelOfferNotifications(Context context) {
+        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm == null) return;
+        try {
+            nm.cancel(NOTIF_ID);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                android.service.notification.StatusBarNotification[] notes = nm.getActiveNotifications();
+                if (notes != null) {
+                    for (android.service.notification.StatusBarNotification note : notes) {
+                        int id = note.getId();
+                        if (id >= NOTIF_ID && id < NOTIF_ID + NOTIF_ID_SPAN) {
+                            nm.cancel(id);
+                        }
+                    }
+                }
+            }
         } catch (Exception ignored) {}
     }
 
@@ -122,21 +139,21 @@ public class PollonMessagingService extends FirebaseMessagingService {
 
         NotificationChannel ch = new NotificationChannel(
             CHANNEL_ID,
-            "Pedidos nuevos · alarma",
+            "Pedidos nuevos",
             NotificationManager.IMPORTANCE_HIGH
         );
-        ch.setDescription("Suena aunque la pantalla esté apagada o estés en otra app");
+        ch.setDescription("Aviso de pedido nuevo, igual que WhatsApp, con pantalla apagada o app cerrada");
         ch.enableVibration(true);
-        ch.setVibrationPattern(new long[] { 0, 400, 200, 400, 200, 600 });
+        ch.setVibrationPattern(new long[] { 0, 400, 200, 400 });
         ch.enableLights(true);
         ch.setLightColor(0xFFE11D48);
         ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
         ch.setBypassDnd(true);
         ch.setShowBadge(true);
-        Uri sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-        if (sound == null) sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+        Uri sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
+        if (sound == null) sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
         AudioAttributes attrs = new AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build();
         ch.setSound(sound, attrs);

@@ -8,6 +8,9 @@ export const LIVE_TTL_SEC = 8 * 3600;
 export const MIN_WRITE_MS = 15_000;
 export const FORCE_WRITE_MS = 45_000;
 export const MIN_MOVE_M = 30;
+export const IDLE_MIN_WRITE_MS = 75_000;
+export const IDLE_FORCE_WRITE_MS = 90_000;
+export const IDLE_MIN_MOVE_M = 80;
 export const TRAIL_MAX = 14;
 export const IDX_KEY = 'idx:active';
 
@@ -79,14 +82,17 @@ export async function writeActiveIndex(kv, ids) {
   await kvPutJson(kv, IDX_KEY, { ids: unique, updated_at: new Date().toISOString() });
 }
 
-export function shouldWritePoint(prev, next, now = Date.now()) {
+export function shouldWritePoint(prev, next, now = Date.now(), opts = {}) {
   if (!prev?.lat || !prev?.lng) return { write: true, reason: 'first' };
   const lastAt = Date.parse(prev.updated_at || '') || 0;
   const elapsed = now - lastAt;
-  if (elapsed < MIN_WRITE_MS) return { write: false, reason: 'throttle' };
+  const minWrite = opts.minWriteMs ?? MIN_WRITE_MS;
+  const forceWrite = opts.forceWriteMs ?? FORCE_WRITE_MS;
+  const minMove = opts.minMoveM ?? MIN_MOVE_M;
+  if (elapsed < minWrite) return { write: false, reason: 'throttle' };
   const moved = haversineMeters(prev, next);
-  if (moved != null && moved >= MIN_MOVE_M) return { write: true, reason: 'moved' };
-  if (elapsed >= FORCE_WRITE_MS) return { write: true, reason: 'heartbeat' };
+  if (moved != null && moved >= minMove) return { write: true, reason: 'moved' };
+  if (elapsed >= forceWrite) return { write: true, reason: 'heartbeat' };
   return { write: false, reason: 'still' };
 }
 

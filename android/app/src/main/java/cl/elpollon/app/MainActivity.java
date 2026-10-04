@@ -28,9 +28,21 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(DriverBadgePlugin.class);
         super.onCreate(savedInstanceState);
         PollonMessagingService.ensureChannel(this);
+        PollonOnlineService.ensureChannel(this);
         requestIgnoreBatteryOptimizations();
         listenSystemInsets();
         scheduleSafeAreaInjects();
+        if (PollonPrefs.wantOnline(this)) {
+            PollonOnlineWorker.schedule(this);
+        }
+        applyDeepLink(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        applyDeepLink(intent);
     }
 
     @Override
@@ -130,5 +142,33 @@ public class MainActivity extends BridgeActivity {
         } catch (Exception ignored) {
             /* algunos OEM no exponen este intent */
         }
+    }
+
+    private void applyDeepLink(Intent intent) {
+        if (intent == null) return;
+        String path = intent.getStringExtra("deepLink");
+        Uri data = intent.getData();
+        if (data != null && "elpollon".equalsIgnoreCase(data.getScheme())) {
+            String host = data.getHost();
+            String p = data.getPath();
+            if (host != null && !host.isEmpty()) {
+                path = "/" + host + (p != null ? p : "");
+            }
+        }
+        if (path == null || !path.startsWith("/")) return;
+        mainHandler.postDelayed(() -> injectDeepLink(path), 400);
+        mainHandler.postDelayed(() -> injectDeepLink(path), 1600);
+    }
+
+    private void injectDeepLink(String path) {
+        if (getBridge() == null || getBridge().getWebView() == null) return;
+        String escaped = path.replace("\\", "\\\\").replace("'", "\\'");
+        String js = "(function(){try{var p='" + escaped + "';"
+            + "if((location.pathname+location.search)!==p){"
+            + "history.pushState({},'',p);window.dispatchEvent(new PopStateEvent('popstate'));"
+            + "}}catch(e){}})();";
+        try {
+            getBridge().getWebView().evaluateJavascript(js, null);
+        } catch (Exception ignored) {}
     }
 }

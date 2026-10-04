@@ -12,6 +12,7 @@ import {
   DRIVER_APP_VERSION_NAME,
   DRIVER_APP_VERSION_CODE,
 } from '../../utils/driverNativeConstants';
+import { stopDriverLiveShare } from '../../services/driverLiveShareService';
 
 export function DriverProfile() {
   const { profile } = useAuth();
@@ -48,7 +49,10 @@ export function DriverProfile() {
     try {
       await setMyOperationalStatus('offline');
       const s = await getMyDriverSummary().catch(() => null);
-      if (!driverShouldShareGps(s)) await stopDriverBackgroundGps();
+      if (!driverShouldShareGps(s)) {
+        await stopDriverBackgroundGps();
+        await stopDriverLiveShare().catch(() => {});
+      }
       setMsg('Ahora estás offline');
     } catch (err) {
       setError(err.message);

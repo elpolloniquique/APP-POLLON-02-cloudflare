@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bike, Map, History, Wallet, User, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -18,6 +18,7 @@ import {
   isNativeDriverApp,
   stopDriverBackgroundGps,
   startDriverBackgroundGps,
+  driverShouldShareGps,
 } from '../../services/backgroundGpsService';
 import { syncDriverLiveShareFromSummary, stopDriverLiveShare } from '../../services/driverLiveShareService';
 import { bootNativeSafeArea } from '../../utils/nativeSafeArea';
@@ -34,6 +35,7 @@ const TABS = [
 export function DriverLayout() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const native = isNativeDriverApp();
   const [trackingReady, setTrackingReady] = useState(false);
   const [pendingOffers, setPendingOffers] = useState(0);
@@ -50,9 +52,10 @@ export function DriverLayout() {
       setPendingOffers((prev) => (prev === n ? prev : n));
       if (n > 0) await setDriverAppBadge(n);
       else await clearDriverAppBadge();
-      const actives = (s?.activeAssignments || []).length > 0;
+      const shouldShare = driverShouldShareGps(s);
+      const idle = shouldShare && (s?.activeAssignments || []).length === 0;
       if (isNativeDriverApp()) {
-        if (actives) await startDriverBackgroundGps().catch(() => {});
+        if (shouldShare) await startDriverBackgroundGps({ idle }).catch(() => {});
         else await stopDriverBackgroundGps().catch(() => {});
       } else {
         await syncDriverLiveShareFromSummary(s).catch(() => {});
@@ -197,11 +200,13 @@ export function DriverLayout() {
               key={to}
               to={to}
               end={end}
-              className={({ isActive }) =>
-                `relative flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-bold ${
-                  isActive ? 'is-active text-[#c00000]' : 'text-gray-500'
-                }`
-              }
+              className={({ isActive }) => {
+                const offerTab = to === '/repartidor' && location.pathname.startsWith('/repartidor/oferta');
+                const on = isActive || offerTab;
+                return `relative flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-bold ${
+                  on ? 'is-active text-[#c00000]' : 'text-gray-500'
+                }`;
+              }}
             >
               <span className="relative inline-flex">
                 <Icon className="h-5 w-5" strokeWidth={2} />

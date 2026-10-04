@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Bell, CheckCircle2, Radio, ShieldCheck } from 'lucide-react';
+import { Bell, CheckCircle2, MapPin, Radio, Settings, ShieldCheck, Smartphone } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { unlockDriverAudio } from '../../utils/orderAlertSound';
 import {
@@ -11,7 +11,11 @@ import {
   ensureDriverPushSubscription,
   hasVapidPublicKey,
 } from '../../services/pushService';
-import { isNativeDriverApp } from '../../services/backgroundGpsService';
+import {
+  isNativeDriverApp,
+  openNativeLocationSettings,
+  requestAlwaysLocationPermission,
+} from '../../services/backgroundGpsService';
 import { isDriverRole } from '../../services/authService';
 import '../../styles/driver-native.css';
 
@@ -78,6 +82,17 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
         setMsg('Falta configurar avisos en el servidor. Avisa al administrador.');
         return;
       }
+      if (native) {
+        const gps = await requestAlwaysLocationPermission();
+        if (!gps?.ok && !gps?.locationOk) {
+          setMsg(gps?.error || 'Permite la ubicación. Elige Siempre / Permitir todo el tiempo.');
+          await refresh();
+          return;
+        }
+        if (gps?.needsSettings) {
+          setMsg('Falta “Siempre / Permitir todo el tiempo”. Ábrelo en Ajustes y vuelve.');
+        }
+      }
       const res = await ensureDriverPushSubscription({ force: false, userId });
       const done = await completeDriverLiveTrackingSetup(userId);
       const granted = typeof Notification === 'undefined' || Notification.permission === 'granted' || done.ok;
@@ -121,11 +136,12 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
         <p className="driver-native-gate__brand">EL POLLÓN</p>
         <p className="driver-native-gate__badge">Repartidor</p>
         <h1 id="driver-notify-title" className="driver-native-gate__title">
-          Activa avisos de pedidos nuevos
+          {native ? 'Avisos y GPS en segundo plano' : 'Activa avisos de pedidos nuevos'}
         </h1>
         <p className="driver-native-gate__lead">
-          Primera vez en este celular o PC: permite las notificaciones, igual que WhatsApp.
-          Luego entras al panel y ves los pedidos nuevos.
+          {native
+            ? 'Primera vez: permite notificaciones (igual que WhatsApp) y ubicación Siempre. Así llegan pedidos y el GPS sigue con pantalla apagada o la app cerrada.'
+            : 'Primera vez en este celular o PC: permite las notificaciones, igual que WhatsApp. Luego entras al panel y ves los pedidos nuevos.'}
         </p>
 
         <div className="driver-native-gate__hint">
@@ -143,10 +159,36 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
             <div className="min-w-0 flex-1">
               <p className="driver-native-step__title">1. Notificaciones del sistema</p>
               <p className="driver-native-step__body">
-                Toca el botón y elige <strong>Permitir</strong> en el recuadro del navegador.
+                Toca el botón y elige <strong>Permitir</strong>.
               </p>
             </div>
           </div>
+          {native && (
+            <div className="driver-native-step">
+              <span className="driver-native-step__icon">
+                {state.alwaysOk || state.locationOk ? <CheckCircle2 className="h-5 w-5" /> : <MapPin className="h-5 w-5" />}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="driver-native-step__title">2. Ubicación · Siempre</p>
+                <p className="driver-native-step__body">
+                  Elige <strong>Siempre</strong> o <strong>Permitir todo el tiempo</strong>. Si solo das “mientras usas la app”, el GPS se apaga al bloquear.
+                </p>
+              </div>
+            </div>
+          )}
+          {native && (
+            <div className="driver-native-step">
+              <span className="driver-native-step__icon">
+                <Smartphone className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="driver-native-step__title">3. Xiaomi, Huawei, Samsung, OPPO</p>
+                <p className="driver-native-step__body">
+                  Ajustes → Autostart / Inicio automático → El Pollón ON. Batería → Sin restricciones.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         <button
@@ -156,8 +198,20 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
           onClick={activateAndEnter}
         >
           <ShieldCheck className="h-5 w-5" />
-          {busy ? 'Activando…' : 'Permitir avisos y entrar al panel'}
+          {busy ? 'Activando…' : (native ? 'Permitir avisos, GPS y entrar' : 'Permitir avisos y entrar al panel')}
         </button>
+
+        {native && state.canOpenSettings && (
+          <button
+            type="button"
+            className="driver-native-gate__cta"
+            style={{ marginTop: 8, background: 'transparent', color: 'inherit', border: '1px solid currentColor' }}
+            onClick={() => { void openNativeLocationSettings(); }}
+          >
+            <Settings className="h-5 w-5" />
+            Abrir ajustes de ubicación
+          </button>
+        )}
 
         {msg && <p className="driver-native-gate__msg">{msg}</p>}
       </div>

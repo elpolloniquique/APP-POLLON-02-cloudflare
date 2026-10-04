@@ -169,12 +169,15 @@ export async function evaluateDriverLiveTrackingReady(userId) {
         /* ignore */
       }
 
-      const gpsOk = true;
-      const ready = Boolean(
+      const gpsOk = !native || Boolean(
+        location.alwaysOk || location.locationOk || userConfirmedAlways
+      );
+      const notifReady = Boolean(
         notifState === 'granted'
         || notifOk
         || pushDeferred
       );
+      const ready = native ? Boolean(notifReady && gpsOk) : notifReady;
 
       return {
         ...base,
@@ -185,7 +188,7 @@ export async function evaluateDriverLiveTrackingReady(userId) {
         gpsOk,
         locationOk: Boolean(location.locationOk),
         alwaysOk: Boolean(location.alwaysOk || userConfirmedAlways),
-        needsSettings: Boolean(location.needsSettings && !userConfirmedAlways),
+        needsSettings: Boolean((location.needsSettings || (native && !location.alwaysOk)) && !userConfirmedAlways),
         canOpenSettings: Boolean(location.canOpenSettings) || native,
         ready,
         vapidConfigured: hasWebPushSupport() || Boolean(
@@ -238,13 +241,43 @@ export async function completeDriverLiveTrackingSetup(userId) {
       needsNotif: true,
     };
   }
+
+  let gps = { ok: true, alwaysOk: false, locationOk: !native };
+  if (native) {
+    gps = await requestAlwaysLocationPermission().catch((err) => ({
+      ok: false,
+      error: err?.message,
+    }));
+    if (!gps?.ok && !gps?.locationOk) {
+      return {
+        ok: false,
+        error: gps?.error || 'Permite la ubicación (Siempre) para el GPS en segundo plano.',
+        needsGps: true,
+        canOpenSettings: true,
+      };
+    }
+    if (gps?.alwaysOk || gps?.locationOk) {
+      try {
+        localStorage.setItem(`pollon_driver_always_confirmed_${userId}`, gps.alwaysOk ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
   markDriverOnboardingComplete(userId, {
-    alwaysOk: false,
-    mode: native ? 'native_notify' : 'web_notify',
+    alwaysOk: Boolean(gps?.alwaysOk),
+    locationOk: Boolean(gps?.locationOk || !native),
+    mode: native ? 'native_gps_notify' : 'web_notify',
     pushOk: true,
     subscribed: Boolean(subRes?.endpoint || subRes?.deferred || subRes?.ok),
   });
-  return { ok: true, mode: native ? 'native_notify' : 'web_notify', push: subRes };
+  return {
+    ok: true,
+    mode: native ? 'native_gps_notify' : 'web_notify',
+    push: subRes,
+    gps,
+  };
 }
 
 /** La APK nativa es para GPS 100%; el panel también funciona en la PWA de clientes. */

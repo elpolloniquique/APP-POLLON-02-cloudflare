@@ -94,7 +94,8 @@ self.addEventListener('push', (event) => {
       silent: false,
       timestamp: Date.now(),
       data: {
-        url: payload.url || defaultUrl,
+        url: payload.url
+          || (payload.offerId ? `/repartidor/oferta/${payload.offerId}` : defaultUrl),
         offerId: payload.offerId || null,
         jobId: payload.jobId || null,
         orderId: payload.orderId || null,

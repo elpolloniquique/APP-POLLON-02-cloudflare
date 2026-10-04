@@ -92,6 +92,7 @@ export function AppRoutes() {
         )}
       >
         <Route index element={<LazyPage><DriverHome /></LazyPage>} />
+        <Route path="oferta/:offerId" element={<LazyPage><DriverHome /></LazyPage>} />
         <Route path="mapa" element={<LazyPage><DriverMapPage /></LazyPage>} />
         <Route path="historial" element={<LazyPage><DriverHistory /></LazyPage>} />
         <Route path="ingresos" element={<LazyPage><DriverEarnings /></LazyPage>} />

@@ -9,13 +9,13 @@ import android.os.Looper;
 import android.os.PowerManager;
 
 /**
- * Alarma nativa de pedido nuevo: 3 tonos fuertes.
- * La notificación sticky permanece en bandeja hasta aceptar/rechazar.
+ * Alarma nativa de pedido nuevo: 2 tonos cortos (tipo WhatsApp).
+ * Se corta al aceptar, rechazar o tocar la notificación.
  */
 final class OfferAlarmPlayer {
-    private static final int BEATS = 3;
-    private static final int BEAT_MS = 1400;
-    private static final int TONE_MS = 900;
+    private static final int BEATS = 2;
+    private static final int BEAT_MS = 900;
+    private static final int TONE_MS = 650;
 
     private static ToneGenerator tone;
     private static Handler handler;

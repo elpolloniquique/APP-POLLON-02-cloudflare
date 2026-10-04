@@ -10,7 +10,7 @@ import { DRIVER_APP_VERSION_NAME } from '../utils/driverNativeConstants';
 let listenersBound = false;
 let lastToken = null;
 let registrationKickoff = null;
-const OFFER_CHANNEL_ID = 'pollon_driver_alarm_v3';
+const OFFER_CHANNEL_ID = 'pollon_driver_offer_v4';
 
 function withTimeout(promise, ms, fallback) {
   let timer;
@@ -85,8 +85,8 @@ async function ensureOfferNotificationChannel(PushNotifications) {
   await withTimeout(
     PushNotifications.createChannel({
       id: OFFER_CHANNEL_ID,
-      name: 'Pedidos nuevos · alarma',
-      description: 'Suena aunque la pantalla esté apagada o estés en otra app',
+      name: 'Pedidos nuevos',
+      description: 'Aviso de pedido nuevo, igual que WhatsApp, con pantalla apagada o app cerrada',
       importance: 5,
       visibility: 1,
       sound: 'default',
@@ -152,6 +152,7 @@ export async function registerNativePushHandlers({ onOffer } = {}) {
                 address: data.address,
                 fee: data.fee,
                 badgeCount: Number(data.badgeCount) || 1,
+                deepLink: data.deepLink || data.url,
               }),
             )
             .catch(() => {});

@@ -28,10 +28,44 @@ public class DriverBadgePlugin extends Plugin {
     public void stopOfferAlarm(PluginCall call) {
         OfferAlarmPlayer.stop();
         try {
-            android.app.NotificationManager nm =
-                (android.app.NotificationManager) getContext().getSystemService(android.content.Context.NOTIFICATION_SERVICE);
-            if (nm != null) nm.cancel(PollonMessagingService.NOTIF_ID);
+            PollonMessagingService.cancelOfferNotifications(getContext());
         } catch (Exception ignored) {}
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void setOnlineSession(PluginCall call) {
+        String pingUrl = call.getString("pingUrl", "");
+        boolean want = call.getBoolean("wantOnline", true);
+        if (want && pingUrl != null && !pingUrl.isEmpty()) {
+            PollonPrefs.setOnlineSession(getContext(), pingUrl);
+            PollonOnlineWorker.schedule(getContext());
+            PollonOnlineService.stop(getContext());
+        } else {
+            PollonPrefs.clearOnlineSession(getContext());
+            PollonOnlineWorker.cancel(getContext());
+            PollonOnlineService.stop(getContext());
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void clearOnlineSession(PluginCall call) {
+        PollonPrefs.clearOnlineSession(getContext());
+        PollonOnlineWorker.cancel(getContext());
+        PollonOnlineService.stop(getContext());
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void touchOnlineHeartbeat(PluginCall call) {
+        PollonPrefs.touchJsGps(getContext());
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void stopOnlineService(PluginCall call) {
+        PollonOnlineService.stop(getContext());
         call.resolve();
     }
 }

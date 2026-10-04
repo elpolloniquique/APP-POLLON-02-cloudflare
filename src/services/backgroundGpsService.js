@@ -3,11 +3,20 @@
  * - App nativa: foreground service + notificación → pantalla apagada / otra app.
  * - Web/PWA: watchPosition (limitado).
  */
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 import { getDriverGpsPingUrl } from '../utils/driverNativeConstants';
+
+const DriverBadge = registerPlugin('DriverBadge', {
+  web: {
+    setOnlineSession: async () => {},
+    clearOnlineSession: async () => {},
+    touchOnlineHeartbeat: async () => {},
+    stopOnlineService: async () => {},
+  },
+});
 
 const PING_TOKEN_KEY = 'pollon_gps_ping_token';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -15,6 +24,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 let webStop = null;
 let nativeRunning = false;
 let startedWithNativeUrl = false;
+let startedIdle = false;
 let lastPublishAt = 0;
 let heartbeatTimer = null;
 const gpsListeners = new Set();
@@ -23,7 +33,9 @@ export const NATIVE_GPS_INTERVAL_MS = 25_000;
 export const NATIVE_GPS_DISTANCE_M = 40;
 
 export function driverShouldShareGps(summary) {
-  return (summary?.activeAssignments || []).length > 0;
+  if ((summary?.activeAssignments || []).length > 0) return true;
+  const st = String(summary?.driver?.operational_status || '');
+  return st === 'available' || st === 'offered';
 }
 
 export function subscribeDriverGpsUpdates(fn) {
@@ -82,10 +94,24 @@ function startHeartbeat() {
   stopHeartbeat();
   heartbeatTimer = setInterval(() => {
     if (!nativeRunning) return;
+    DriverBadge.touchOnlineHeartbeat().catch(() => {});
     getAndPublishCurrentFix({ timeoutMs: 3500, force: false }).then((fix) => {
       if (fix) notifyGps(fix, null);
     }).catch(() => {});
   }, NATIVE_GPS_INTERVAL_MS);
+}
+
+async function persistOnlineSession(pingUrl, wantOnline) {
+  if (!isNativeDriverApp()) return;
+  try {
+    if (wantOnline && pingUrl) {
+      await DriverBadge.setOnlineSession({ pingUrl, wantOnline: true });
+    } else {
+      await DriverBadge.clearOnlineSession();
+    }
+  } catch {
+    /* plugin aún no listo */
+  }
 }
 
 export function isNativeDriverApp() {
@@ -343,7 +369,7 @@ export async function getAndPublishCurrentFix({ timeoutMs = 12000, force = true 
  * GPS nativo en segundo plano → Cloudflare KV (no Supabase).
  * El POST a /api/driver-gps-ping sigue con pantalla apagada / otra app.
  */
-export async function startDriverBackgroundGps({ forceRestart = false } = {}) {
+export async function startDriverBackgroundGps({ forceRestart = false, idle = false } = {}) {
   if (!isNativeDriverApp()) {
     return { ok: true, mode: 'web', skipped: true };
   }
@@ -363,15 +389,18 @@ export async function startDriverBackgroundGps({ forceRestart = false } = {}) {
     };
   }
   const needUrlRestart = nativeRunning && !startedWithNativeUrl && Boolean(pingUrl);
+  const needModeRestart = nativeRunning && startedIdle !== Boolean(idle);
 
-  if (nativeRunning && !forceRestart && !needUrlRestart) {
+  if (nativeRunning && !forceRestart && !needUrlRestart && !needModeRestart) {
     const first = await getAndPublishCurrentFix({ timeoutMs: 8000 });
     if (first) notifyGps(first, null);
     startHeartbeat();
+    await persistOnlineSession(pingUrl, true);
     return {
       ok: true,
       mode: 'native',
       alreadyRunning: true,
+      idle,
       nativePost: startedWithNativeUrl,
       alwaysOk: perm.alwaysOk !== false,
       firstFix: Boolean(first),
@@ -379,18 +408,20 @@ export async function startDriverBackgroundGps({ forceRestart = false } = {}) {
     };
   }
 
-  await stopDriverBackgroundGps();
+  await stopDriverBackgroundGps({ keepSession: true });
 
   try {
     const first = await getAndPublishCurrentFix({ timeoutMs: 10000 });
     if (first) notifyGps(first, null);
 
     const startOpts = {
-      backgroundMessage: 'Entrega en curso. No detengas esta notificación aunque apagues la pantalla.',
-      backgroundTitle: 'El Pollón · En ruta',
+      backgroundMessage: idle
+        ? 'Disponible para pedidos. No detengas esta notificación aunque apagues la pantalla.'
+        : 'Entrega en curso. No detengas esta notificación aunque apagues la pantalla.',
+      backgroundTitle: idle ? 'El Pollón · En línea' : 'El Pollón · En ruta',
       requestPermissions: false,
       stale: true,
-      distanceFilter: NATIVE_GPS_DISTANCE_M,
+      distanceFilter: idle ? 80 : NATIVE_GPS_DISTANCE_M,
     };
     if (pingUrl) startOpts.url = pingUrl;
 
@@ -416,10 +447,13 @@ export async function startDriverBackgroundGps({ forceRestart = false } = {}) {
     });
     nativeRunning = true;
     startedWithNativeUrl = Boolean(pingUrl);
+    startedIdle = Boolean(idle);
     startHeartbeat();
+    await persistOnlineSession(pingUrl, true);
     return {
       ok: true,
       mode: 'native',
+      idle,
       nativePost: startedWithNativeUrl,
       alwaysOk: perm.alwaysOk !== false,
       needsSettings: Boolean(perm.needsSettings),
@@ -433,7 +467,7 @@ export async function startDriverBackgroundGps({ forceRestart = false } = {}) {
   }
 }
 
-export async function stopDriverBackgroundGps() {
+export async function stopDriverBackgroundGps({ keepSession = false } = {}) {
   stopHeartbeat();
   if (webStop) {
     try { webStop(); } catch { /* ignore */ }
@@ -447,7 +481,9 @@ export async function stopDriverBackgroundGps() {
     }
     nativeRunning = false;
     startedWithNativeUrl = false;
+    startedIdle = false;
   }
+  if (!keepSession) await persistOnlineSession(null, false);
 }
 
 export function isDriverBackgroundGpsRunning() {

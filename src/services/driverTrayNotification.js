@@ -4,8 +4,9 @@
  */
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { isNativeDriverApp } from './backgroundGpsService';
+import { driverOfferDeepLink } from '../utils/driverNativeConstants';
 
-const OFFER_CHANNEL_ID = 'pollon_driver_alarm_v3';
+const OFFER_CHANNEL_ID = 'pollon_driver_offer_v4';
 const OFFER_NOTIF_BASE = 71001;
 
 const DriverBadge = registerPlugin('DriverBadge', {
@@ -65,8 +66,8 @@ export async function ensureDriverOfferChannel() {
   try {
     await LocalNotifications.createChannel({
       id: OFFER_CHANNEL_ID,
-      name: 'Pedidos nuevos · alarma',
-      description: 'Suena aunque la pantalla esté apagada o estés en otra app',
+      name: 'Pedidos nuevos',
+      description: 'Aviso de pedido nuevo, igual que WhatsApp, con pantalla apagada o app cerrada',
       importance: 5,
       visibility: 1,
       sound: 'default',
@@ -108,6 +109,7 @@ export async function showDriverOfferTray({
   address,
   fee,
   badgeCount = 1,
+  deepLink,
 } = {}) {
   if (!isNativeDriverApp()) return { ok: false };
   const LocalNotifications = await getLocalNotifications();
@@ -142,12 +144,12 @@ export async function showDriverOfferTray({
           channelId: OFFER_CHANNEL_ID,
           smallIcon: 'ic_stat_pollon',
           iconColor: '#E11D48',
-          autoCancel: false,
+          autoCancel: true,
           ongoing: false,
           extra: {
             type: 'driver_offer',
             offerId: String(offerId || ''),
-            deepLink: '/repartidor',
+            deepLink: deepLink || driverOfferDeepLink(offerId),
           },
         },
       ],

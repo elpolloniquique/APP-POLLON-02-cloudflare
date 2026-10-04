@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { DriverOfferCard } from '../../components/delivery/DriverOfferCard';
 import { DriverActiveOrderCard } from '../../components/delivery/DriverActiveOrderCard';
 import {
@@ -27,6 +28,7 @@ import {
   stopDriverBackgroundGps,
   isDriverBackgroundGpsRunning,
   subscribeDriverGpsUpdates,
+  driverShouldShareGps,
 } from '../../services/backgroundGpsService';
 import {
   startDriverLiveShare,
@@ -46,6 +48,7 @@ function offerAlarmKey(o) {
 }
 
 export function DriverHome() {
+  const { offerId: focusOfferId } = useParams();
   const { user, profile } = useAuth();
   const userId = user?.id || profile?.id;
   const [summary, setSummary] = useState(null);
@@ -82,7 +85,7 @@ export function DriverHome() {
     stopAlarmRef.current?.();
     unlockDriverAudio().then(() => {
       stopAlarmRef.current?.();
-      stopAlarmRef.current = playDriverOrderAlarm({ loops: 3 });
+      stopAlarmRef.current = playDriverOrderAlarm({ loops: 2 });
     });
     try { navigator.vibrate?.([220, 80, 320, 80, 420]); } catch { /* ignore */ }
     if (isNativeDriverApp()) {
@@ -312,7 +315,7 @@ export function DriverHome() {
     await load();
   }, [load, clearGps, summary?.activeAssignments]);
 
-  const startGps = useCallback(async (publish) => {
+  const startGps = useCallback(async (publish, { idle = false } = {}) => {
     publishRef.current = !!publish;
     if (!publish) {
       setGpsOn(false);
@@ -320,7 +323,7 @@ export function DriverHome() {
     }
 
     const res = isNativeDriverApp()
-      ? await startDriverBackgroundGps()
+      ? await startDriverBackgroundGps({ idle })
       : await startDriverLiveShare();
     if (!res.ok) {
       setGpsError(res.error || 'No se pudo compartir la ubicación.');
@@ -331,21 +334,23 @@ export function DriverHome() {
     if (res.position) setGpsPos(res.position);
     setGpsOn(true);
     setGpsError('');
-    gpsModeRef.current = 'active';
+    gpsModeRef.current = idle ? 'idle' : 'active';
     return res;
   }, []);
 
-  // GPS en Cloudflare solo con pedido activo (se apaga al entregar todos).
+  // GPS en KV: Disponible (idle) o con pedido activo. Se apaga al desconectarse.
   useEffect(() => {
     if (!summary) return undefined;
-    const hasActive = (summary.activeAssignments || []).length > 0;
+    const shouldShare = driverShouldShareGps(summary);
+    const idle = shouldShare && (summary.activeAssignments || []).length === 0;
+    const nextMode = idle ? 'idle' : 'active';
     const sharing = isNativeDriverApp()
       ? isDriverBackgroundGpsRunning()
       : isDriverLiveShareRunning();
-    if (hasActive && !sharing) {
-      void startGps(true);
+    if (shouldShare && (!sharing || gpsModeRef.current !== nextMode)) {
+      void startGps(true, { idle });
     }
-    if (!hasActive && gpsModeRef.current) {
+    if (!shouldShare && gpsModeRef.current) {
       void clearGps();
     }
     return undefined;
@@ -392,11 +397,11 @@ export function DriverHome() {
       await unlockDriverAudio();
       if (next === 'available') {
         if (!permsReady) {
-          throw new Error('Activa las notificaciones para ponerte Disponible.');
+          throw new Error('Activa avisos y ubicación (Siempre) para ponerte Disponible.');
         }
         const ready = await evaluateDriverLiveTrackingReady(userId);
         if (!ready.ready) {
-          throw new Error('Activa las notificaciones para ponerte Disponible.');
+          throw new Error('Activa avisos y ubicación (Siempre) para ponerte Disponible.');
         }
         await ensureDriverPushSubscription().catch(() => {});
         kickoffNativePushRegistration();
@@ -447,7 +452,7 @@ export function DriverHome() {
     };
     optimisticAssignRef.current = optimistic;
     publishRef.current = true;
-    void startGps(true);
+    void startGps(true, { idle: false });
     setSummary((prev) => {
       if (!prev) return prev;
       return {
@@ -536,7 +541,15 @@ export function DriverHome() {
   };
 
   const actives = summary?.activeAssignments || [];
-  const offers = summary?.pendingOffers || [];
+  const offers = useMemo(() => {
+    const list = [...(summary?.pendingOffers || [])];
+    if (!focusOfferId) return list;
+    return list.sort((a, b) => {
+      if (String(a.id) === String(focusOfferId)) return -1;
+      if (String(b.id) === String(focusOfferId)) return 1;
+      return 0;
+    });
+  }, [summary?.pendingOffers, focusOfferId]);
   const isOnline = summary?.driver?.operational_status === 'available'
     || ['heading_to_branch', 'delivering', 'carrying_orders', 'offered'].includes(summary?.driver?.operational_status);
   const maxOrders = summary?.driver?.max_orders || 2;
@@ -554,12 +567,12 @@ export function DriverHome() {
         <div>
           <p className="font-bold">Avisos de pedido nuevo</p>
           <p className="text-xs opacity-90">
-            Llegan a la bandeja como WhatsApp. Ponte Disponible para ver y aceptar pedidos nuevos.
+            Llegan a la bandeja como WhatsApp (pantalla apagada, otra app o app cerrada). Toca el aviso para abrir el pedido.
           </p>
         </div>
       </div>
 
-      {actives.length > 0 && (
+      {(actives.length > 0 || isOnline) && (
         <div className={`flex items-start gap-2 rounded-2xl border px-3.5 py-3 text-sm ${
           gpsOn
             ? 'border-sky-200 bg-sky-50 text-sky-950'
@@ -568,16 +581,18 @@ export function DriverHome() {
         >
           <span className="mt-0.5 text-base">📍</span>
           <div>
-            <p className="font-bold">{gpsOn ? 'Ubicación en vivo' : 'Activa la ubicación'}</p>
+            <p className="font-bold">{gpsOn ? (actives.length ? 'Ubicación en vivo' : 'En línea · GPS activo') : 'Activa la ubicación'}</p>
             <p className="text-xs opacity-90">
               {gpsOn
-                ? 'Admin y cajeras siguen tu ruta hasta Entregado. En la app nativa sigue con pantalla apagada; no detengas la notificación de “En ruta”.'
-                : (gpsError || 'Al aceptar se comparte tu GPS. Permite la ubicación de este sitio.')}
+                ? (actives.length
+                  ? 'Admin y cajeras siguen tu ruta hasta Entregado. En la app nativa sigue con pantalla apagada; no detengas la notificación de “En ruta”.'
+                  : 'El mapa ve que estás Disponible. Con pantalla apagada no detengas la notificación “En línea”.')
+                : (gpsError || 'Permite ubicación Siempre para que el GPS siga con la pantalla apagada.')}
             </p>
             {!gpsOn && (
               <button
                 type="button"
-                onClick={() => { void startGps(true); }}
+                onClick={() => { void startGps(true, { idle: actives.length === 0 }); }}
                 className="mt-1 text-xs font-bold underline"
               >
                 Permitir ubicación ahora
@@ -631,6 +646,7 @@ export function DriverHome() {
           <DriverOfferCard
             key={`${offer.id}-${offer.expires_at || ''}`}
             offer={offer}
+            focused={Boolean(focusOfferId && String(offer.id) === String(focusOfferId))}
             onAccept={onAccept}
             onReject={onReject}
             loading={offerBusyId === offer.id}
