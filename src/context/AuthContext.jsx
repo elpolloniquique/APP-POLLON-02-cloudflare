@@ -228,10 +228,12 @@ export function AuthProvider({ children }) {
                   return m.ensureDriverPushSubscription({ force: false, userId: uid });
                 })
                 .catch(() => {});
-              import('../services/fcmService')
-                .then((m) => m.kickoffNativePushRegistration())
-                .catch(() => {});
-            }, 2500);
+              if (isNativeApp()) {
+                import('../services/fcmService')
+                  .then((m) => m.kickoffNativePushRegistration())
+                  .catch(() => {});
+              }
+            }, isNativeApp() ? 2500 : 400);
           })
           .catch((err) => {
             console.warn('[Pollón] boot profile:', err);
@@ -272,7 +274,7 @@ export function AuthProvider({ children }) {
       return null;
     };
 
-    const sessionWait = isNativeApp() ? 3500 : 8000;
+    const sessionWait = isNativeApp() ? 1800 : 8000;
     Promise.race([
       resolveBootSession(),
       new Promise((resolve) => {

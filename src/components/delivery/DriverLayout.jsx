@@ -18,6 +18,7 @@ import {
   isNativeDriverApp,
   stopDriverBackgroundGps,
   startDriverBackgroundGps,
+  driverShouldShareGps,
 } from '../../services/backgroundGpsService';
 import { stopDriverLiveShare } from '../../services/driverLiveShareService';
 import { getDriverOnboardingRecord } from '../../services/driverOnboardingService';
@@ -129,8 +130,14 @@ export function DriverLayout() {
     const first = window.setTimeout(() => { void refreshBadge(); }, 400);
     const gpsKick = window.setTimeout(() => {
       if (!isNativeDriverApp()) return;
-      startDriverBackgroundGps({ idle: true, quiet: true }).catch(() => {});
-    }, 2800);
+      getMyDriverSummary()
+        .then((s) => {
+          if (!driverShouldShareGps(s)) return;
+          const idle = (s?.activeAssignments || []).length === 0;
+          return startDriverBackgroundGps({ idle, quiet: true });
+        })
+        .catch(() => startDriverBackgroundGps({ idle: true, quiet: true }).catch(() => {}));
+    }, 1600);
     if (native) setMyOperationalStatus('available').catch(() => {});
     const unsub = subscribeDispatch(() => refreshBadge());
     const t = setInterval(refreshBadge, 15000);

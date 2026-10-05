@@ -18,6 +18,7 @@ import {
   requestAlwaysLocationPermission,
 } from '../../services/backgroundGpsService';
 import { isDriverRole } from '../../services/authService';
+import { oemPushTips } from '../../utils/deviceOem';
 import '../../styles/driver-native.css';
 
 /**
@@ -29,6 +30,7 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
   const userId = user?.id || profile?.authUserId || profile?.id || 'anon';
   const driverRole = isDriverRole(role || profile?.rol || profile?.role);
   const native = isNativeDriverApp();
+  const oemTips = native ? null : oemPushTips();
 
   const [state, setState] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -192,6 +194,19 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
                 <p className="driver-native-step__title">3. Xiaomi, Huawei, Samsung, OPPO</p>
                 <p className="driver-native-step__body">
                   Ajustes → Autostart / Inicio automático → El Pollón ON. Batería → Sin restricciones.
+                </p>
+              </div>
+            </div>
+          )}
+          {!native && (
+            <div className="driver-native-step">
+              <span className="driver-native-step__icon">
+                <Smartphone className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="driver-native-step__title">2. {oemTips?.title}</p>
+                <p className="driver-native-step__body">
+                  {oemTips?.steps?.[0]} {oemTips?.steps?.[1] || ''}
                 </p>
               </div>
             </div>

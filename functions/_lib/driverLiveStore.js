@@ -5,9 +5,9 @@
 
 export const DRIVER_LIVE_KV_BINDING = 'DRIVER_LIVE_KV';
 export const LIVE_TTL_SEC = 8 * 3600;
-export const MIN_WRITE_MS = 15_000;
-export const FORCE_WRITE_MS = 45_000;
-export const MIN_MOVE_M = 30;
+export const MIN_WRITE_MS = 8_000;
+export const FORCE_WRITE_MS = 22_000;
+export const MIN_MOVE_M = 15;
 export const IDLE_MIN_WRITE_MS = 75_000;
 export const IDLE_FORCE_WRITE_MS = 90_000;
 export const IDLE_MIN_MOVE_M = 80;

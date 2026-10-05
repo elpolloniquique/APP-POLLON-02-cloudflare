@@ -193,7 +193,7 @@ export function AdminOrders() {
   useEffect(() => {
     refreshDelivery();
     fetchDriverNamesForFilter().then(setDriverNames).catch(() => {});
-    const t = setInterval(refreshDelivery, 12000);
+    const t = setInterval(refreshDelivery, 8000);
     return () => clearInterval(t);
   }, [refreshDelivery]);
 

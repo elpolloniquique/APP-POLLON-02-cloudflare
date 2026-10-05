@@ -39,7 +39,7 @@ export function FollowDriver() {
       }
     };
     load();
-    const t = setInterval(load, 12_000);
+    const t = setInterval(load, 8_000);
     return () => {
       cancelled = true;
       clearInterval(t);

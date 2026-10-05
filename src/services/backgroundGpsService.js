@@ -29,8 +29,8 @@ let lastPublishAt = 0;
 let heartbeatTimer = null;
 const gpsListeners = new Set();
 
-export const NATIVE_GPS_INTERVAL_MS = 25_000;
-export const NATIVE_GPS_DISTANCE_M = 40;
+export const NATIVE_GPS_INTERVAL_MS = 12_000;
+export const NATIVE_GPS_DISTANCE_M = 18;
 
 export function driverShouldShareGps(summary) {
   if ((summary?.activeAssignments || []).length > 0) return true;
@@ -334,7 +334,7 @@ async function publishNativeFix(location, { force = false } = {}) {
   const lng = Number(location.longitude ?? location.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   const now = Date.now();
-  if (!force && lastPublishAt && now - lastPublishAt < NATIVE_GPS_INTERVAL_MS) {
+  if (!force && lastPublishAt && now - lastPublishAt < 8_000) {
     return { lat, lng, accuracy: location.accuracy ?? null };
   }
   lastPublishAt = now;
@@ -461,6 +461,7 @@ export async function startDriverBackgroundGps({ forceRestart = false, idle = fa
       requestPermissions: false,
       stale: true,
       distanceFilter: idle ? 80 : NATIVE_GPS_DISTANCE_M,
+      interval: idle ? 75_000 : NATIVE_GPS_INTERVAL_MS,
     };
     if (pingUrl) startOpts.url = pingUrl;
 

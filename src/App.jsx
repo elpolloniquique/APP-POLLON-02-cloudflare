@@ -8,6 +8,7 @@ import { SeoManager } from './components/seo/SeoManager';
 import { SiteAlertOverlay } from './components/layout/SiteAlertOverlay';
 import { AppRoutes } from './routes/AppRoutes';
 import { ensurePwaInstallListeners } from './utils/pwaInstallBridge';
+import { DriverWebPushGuardian } from './components/delivery/DriverWebPushGuardian';
 import { isNativeDriverApp } from './services/backgroundGpsService';
 
 function PwaInstallBootstrap() {
@@ -39,6 +40,7 @@ export default function App() {
           <CartProvider>
             <BranchMenuProvider>
               <PwaInstallBootstrap />
+              <DriverWebPushGuardian />
               <SeoManager />
               <NativeDriverEntryRedirect>
                 <AppRoutes />

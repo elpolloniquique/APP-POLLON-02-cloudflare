@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { DriverOfferCard } from '../../components/delivery/DriverOfferCard';
 import { DriverActiveOrderCard } from '../../components/delivery/DriverActiveOrderCard';
+import { DriverOemPushGuide } from '../../components/delivery/DriverOemPushGuide';
 import {
   ensureMyDriverProfile,
   getMyDriverSummary,
@@ -29,9 +30,9 @@ import {
   isDriverBackgroundGpsRunning,
   subscribeDriverGpsUpdates,
   driverShouldShareGps,
+  getAndPublishCurrentFix,
 } from '../../services/backgroundGpsService';
 import {
-  startDriverLiveShare,
   stopDriverLiveShare,
   subscribeDriverLiveShare,
   isDriverLiveShareRunning,
@@ -327,9 +328,12 @@ export function DriverHome() {
       return { ok: true };
     }
 
-    const res = isNativeDriverApp()
-      ? await startDriverBackgroundGps({ idle })
-      : await startDriverLiveShare();
+    const switchFromIdle = gpsModeRef.current === 'idle' && !idle;
+    const res = await startDriverBackgroundGps({
+      idle,
+      quiet: true,
+      forceRestart: switchFromIdle,
+    });
     if (!res.ok) {
       setGpsError(res.error || 'No se pudo compartir la ubicación.');
       setGpsOn(false);
@@ -349,18 +353,32 @@ export function DriverHome() {
     if (!summary) return undefined;
     const shouldShare = driverShouldShareGps(summary);
     const idle = shouldShare && (summary.activeAssignments || []).length === 0;
+    const wantMode = idle ? 'idle' : 'active';
     const sharing = isNativeDriverApp()
       ? isDriverBackgroundGpsRunning()
       : isDriverLiveShareRunning();
-    if (shouldShare && !sharing) {
-      const delay = isNativeDriverApp() ? 3200 : 0;
+    const needStart = shouldShare && (!sharing || gpsModeRef.current !== wantMode);
+    if (needStart) {
+      const delay = sharing ? 200 : (isNativeDriverApp() ? 800 : 0);
       const t = window.setTimeout(() => {
         void (isNativeDriverApp()
-          ? startDriverBackgroundGps({ idle, quiet: true }).then((res) => {
+          ? startDriverBackgroundGps({
+            idle,
+            quiet: true,
+            forceRestart: Boolean(gpsModeRef.current && gpsModeRef.current !== wantMode),
+          }).then((res) => {
             if (res?.ok) {
               setGpsOn(true);
-              gpsModeRef.current = idle ? 'idle' : 'active';
+              gpsModeRef.current = wantMode;
               if (res.position) setGpsPos(res.position);
+              const hasRealJob = (summary.activeAssignments || []).some(
+                (a) => a?.id && !String(a.id).startsWith('opt-'),
+              );
+              if (hasRealJob) {
+                void getAndPublishCurrentFix({ timeoutMs: 3500, force: true }).then((pos) => {
+                  if (pos) setGpsPos(pos);
+                });
+              }
             }
           })
           : startGps(true, { idle }));
@@ -492,6 +510,9 @@ export function DriverHome() {
       .then(() => {
         if (orderId) void syncAfterDriverAccept(orderId);
         offerBusyRef.current = null;
+        void getAndPublishCurrentFix({ timeoutMs: 3500, force: true }).then((pos) => {
+          if (pos) setGpsPos(pos);
+        });
         void load();
       })
       .catch((err) => {
@@ -621,6 +642,8 @@ export function DriverHome() {
           </div>
         </div>
       )}
+
+      {webAlerts && <DriverOemPushGuide />}
 
       {!webAlerts && (actives.length > 0 || isOnline) && (
         <div className={`flex items-start gap-2 rounded-2xl border px-3.5 py-3 text-sm ${

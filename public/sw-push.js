@@ -159,10 +159,82 @@ self.addEventListener('notificationclick', (event) => {
 
 self.addEventListener('message', (event) => {
   const data = event.data;
-  if (!data || data.type !== 'DRIVER_CLEAR_BADGE') return;
-  event.waitUntil(updateAppBadge(0));
+  if (data?.type === 'DRIVER_CLEAR_BADGE') {
+    event.waitUntil(updateAppBadge(0));
+    return;
+  }
+  if (data?.type === 'DRIVER_POLL_ALERTS') {
+    event.waitUntil(pollPendingOffers());
+  }
 });
 
 self.addEventListener('pushsubscriptionchange', (event) => {
-  event.waitUntil(Promise.resolve());
+  event.waitUntil((async () => {
+    const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of list) {
+      try {
+        client.postMessage({ type: 'PUSH_SUBSCRIPTION_CHANGE' });
+      } catch {
+        /* ignore */
+      }
+    }
+  })());
+});
+
+async function showOfferList(offers) {
+  for (const offer of offers || []) {
+    const tag = offer.tag || (offer.jobId ? `pollon-job-${offer.jobId}` : 'pollon-driver-offer');
+    const title = offer.title || 'NUEVO PEDIDO';
+    const body = offer.body || 'Nuevo pedido · Ábrelo en la app nativa para aceptar';
+    try {
+      await self.registration.showNotification(title, {
+        body,
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        tag,
+        renotify: true,
+        requireInteraction: true,
+        data: {
+          url: offer.offerId ? `/repartidor/oferta/${offer.offerId}` : '/repartidor',
+          offerId: offer.offerId || null,
+          jobId: offer.jobId || null,
+        },
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+async function pollPendingOffers() {
+  try {
+    const sub = await self.registration.pushManager.getSubscription();
+    if (!sub) return;
+    const json = sub.toJSON();
+    const res = await fetch('/api/driver-alert-poll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        endpoint: json.endpoint,
+        auth: json.keys?.auth,
+      }),
+    });
+    if (!res.ok) return;
+    const data = await res.json().catch(() => ({}));
+    await showOfferList(data.offers || []);
+  } catch {
+    /* Chrome/Xiaomi sin red */
+  }
+}
+
+self.addEventListener('periodicsync', (event) => {
+  if (event.tag === 'pollon-driver-alerts') {
+    event.waitUntil(pollPendingOffers());
+  }
+});
+
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'pollon-driver-alerts') {
+    event.waitUntil(pollPendingOffers());
+  }
 });
