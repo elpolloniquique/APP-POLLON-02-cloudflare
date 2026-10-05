@@ -71,13 +71,8 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
     }
     let cancelled = false;
     refresh();
-    const onVis = () => {
-      if (document.visibilityState === 'visible' && !cancelled) refresh({ soft: true });
-    };
-    document.addEventListener('visibilitychange', onVis);
     return () => {
       cancelled = true;
-      document.removeEventListener('visibilitychange', onVis);
     };
   }, [refresh, driverRole, onReadyChange]);
 

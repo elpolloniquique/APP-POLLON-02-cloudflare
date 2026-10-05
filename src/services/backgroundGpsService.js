@@ -217,7 +217,7 @@ export async function checkLocationPermissionSnapshot() {
 /**
  * Solicita ubicación (When In Use) y, en nativo, “Siempre” / background.
  */
-export async function requestAlwaysLocationPermission() {
+export async function requestAlwaysLocationPermission() { // quiet callers should use checkLocationPermissionSnapshot
   if (!isNativeDriverApp()) {
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
@@ -233,17 +233,43 @@ export async function requestAlwaysLocationPermission() {
   }
 
   try {
+    let status = await withTimeout(
+      BackgroundGeolocation.checkPermissions(),
+      2500,
+      null,
+    );
+    if (status && status.location === 'granted' && isBgLocationOk(status)) {
+      return {
+        ok: true,
+        mode: 'native',
+        status,
+        locationOk: true,
+        alwaysOk: true,
+        needsSettings: false,
+        canOpenSettings: false,
+      };
+    }
+
     try {
-      await Geolocation.requestPermissions();
+      await withTimeout(Geolocation.requestPermissions(), 2500, null);
     } catch {
       /* ignore */
     }
 
-    let status = await BackgroundGeolocation.checkPermissions();
+    if (!status) {
+      status = await withTimeout(BackgroundGeolocation.checkPermissions(), 2500, null);
+    }
+    if (!status) {
+      return { ok: false, error: 'GPS no respondió', canOpenSettings: true };
+    }
     if (status.location !== 'granted') {
-      status = await BackgroundGeolocation.requestPermissions({
-        permissions: ['location', 'notification'],
-      });
+      status = await withTimeout(
+        BackgroundGeolocation.requestPermissions({
+          permissions: ['location', 'notification'],
+        }),
+        4000,
+        status,
+      );
     }
 
     if (status.location !== 'granted') {
@@ -258,13 +284,17 @@ export async function requestAlwaysLocationPermission() {
     }
 
     if (!isBgLocationOk(status)) {
-      status = await BackgroundGeolocation.requestPermissions({
-        permissions: ['backgroundLocation', 'notification'],
-      });
+      status = await withTimeout(
+        BackgroundGeolocation.requestPermissions({
+          permissions: ['backgroundLocation', 'notification'],
+        }),
+        4000,
+        status,
+      );
     }
 
     try {
-      status = await BackgroundGeolocation.checkPermissions();
+      status = await withTimeout(BackgroundGeolocation.checkPermissions(), 2000, status);
     } catch {
       /* keep */
     }
@@ -369,14 +399,27 @@ export async function getAndPublishCurrentFix({ timeoutMs = 12000, force = true 
  * GPS nativo en segundo plano → Cloudflare KV (no Supabase).
  * El POST a /api/driver-gps-ping sigue con pantalla apagada / otra app.
  */
-export async function startDriverBackgroundGps({ forceRestart = false, idle = false } = {}) {
+export async function startDriverBackgroundGps({ forceRestart = false, idle = false, quiet = false } = {}) {
   if (!isNativeDriverApp()) {
     return { ok: true, mode: 'web', skipped: true };
   }
 
-  const perm = await requestAlwaysLocationPermission();
-  if (!perm.ok) {
-    return perm;
+  if (nativeRunning && !forceRestart && startedIdle === Boolean(idle)) {
+    startHeartbeat();
+    return {
+      ok: true,
+      mode: 'native',
+      alreadyRunning: true,
+      idle,
+      nativePost: startedWithNativeUrl,
+    };
+  }
+
+  const perm = quiet
+    ? await checkLocationPermissionSnapshot()
+    : await requestAlwaysLocationPermission();
+  if (!perm.ok && !perm.locationOk) {
+    return quiet ? { ok: false, deferred: true, error: perm.error } : perm;
   }
 
   const pingToken = await ensureGpsPingToken();
@@ -392,10 +435,8 @@ export async function startDriverBackgroundGps({ forceRestart = false, idle = fa
   const needModeRestart = nativeRunning && startedIdle !== Boolean(idle);
 
   if (nativeRunning && !forceRestart && !needUrlRestart && !needModeRestart) {
-    const first = await getAndPublishCurrentFix({ timeoutMs: 8000 });
-    if (first) notifyGps(first, null);
     startHeartbeat();
-    await persistOnlineSession(pingUrl, true);
+    void persistOnlineSession(pingUrl, true);
     return {
       ok: true,
       mode: 'native',
@@ -403,15 +444,13 @@ export async function startDriverBackgroundGps({ forceRestart = false, idle = fa
       idle,
       nativePost: startedWithNativeUrl,
       alwaysOk: perm.alwaysOk !== false,
-      firstFix: Boolean(first),
-      position: first || null,
     };
   }
 
   await stopDriverBackgroundGps({ keepSession: true });
 
   try {
-    const first = await getAndPublishCurrentFix({ timeoutMs: 10000 });
+    const first = quiet ? null : await getAndPublishCurrentFix({ timeoutMs: 4000 });
     if (first) notifyGps(first, null);
 
     const startOpts = {
@@ -425,7 +464,7 @@ export async function startDriverBackgroundGps({ forceRestart = false, idle = fa
     };
     if (pingUrl) startOpts.url = pingUrl;
 
-    await BackgroundGeolocation.start(startOpts, (location, error) => {
+    await withTimeout(BackgroundGeolocation.start(startOpts, (location, error) => {
       if (error) {
         if (error.code === 'NOT_AUTHORIZED') {
           notifyGps(null, new Error('Permiso de ubicación denegado'));
@@ -444,12 +483,12 @@ export async function startDriverBackgroundGps({ forceRestart = false, idle = fa
       };
       notifyGps(payload, null);
       void publishNativeFix(location);
-    });
+    }), 7000, null);
     nativeRunning = true;
     startedWithNativeUrl = Boolean(pingUrl);
     startedIdle = Boolean(idle);
     startHeartbeat();
-    await persistOnlineSession(pingUrl, true);
+    void persistOnlineSession(pingUrl, true);
     return {
       ok: true,
       mode: 'native',

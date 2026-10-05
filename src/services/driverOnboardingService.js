@@ -107,6 +107,23 @@ export async function evaluateDriverLiveTrackingReady(userId) {
     savedCompletedAt: getDriverOnboardingRecord(userId)?.completedAt || null,
   };
 
+  if (native && base.savedCompletedAt) {
+    return {
+      ...base,
+      notifOk: true,
+      hasPushSub: true,
+      pushDeferred: false,
+      notifState: 'granted',
+      gpsOk: true,
+      locationOk: true,
+      alwaysOk: true,
+      needsSettings: false,
+      canOpenSettings: true,
+      ready: true,
+      fromCache: true,
+    };
+  }
+
   // Cap duro: nunca dejar la UI en “Verificando…” infinito (plugins nativos a veces no responden)
   const evaluated = await withTimeout(
     (async () => {

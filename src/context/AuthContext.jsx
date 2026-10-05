@@ -21,6 +21,7 @@ import { CUSTOMER_SESSION_KEY } from '../utils/constants';
 
 const AuthContext = createContext(null);
 const STAFF_PROFILE_CACHE_KEY = 'ep_staff_profile_v1';
+const NATIVE_SESSION_KEY = 'pollon_native_session_v1';
 
 function isNativeApp() {
   try {
@@ -75,6 +76,38 @@ function writeStaffProfileCache(profile) {
   }
 }
 
+function readNativeSession() {
+  try {
+    const raw = localStorage.getItem(NATIVE_SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s?.user?.id) return null;
+    return s;
+  } catch {
+    return null;
+  }
+}
+
+function writeNativeSession(session) {
+  try {
+    if (!session?.user?.id) {
+      localStorage.removeItem(NATIVE_SESSION_KEY);
+      return;
+    }
+    localStorage.setItem(NATIVE_SESSION_KEY, JSON.stringify({
+      user: {
+        id: session.user.id,
+        email: session.user.email || '',
+        user_metadata: session.user.user_metadata || {},
+      },
+      access_token: session.access_token || '',
+      refresh_token: session.refresh_token || '',
+    }));
+  } catch {
+    /* ignore */
+  }
+}
+
 function roleOf(profile) {
   return normalizeRole(profile?.rol || profile?.role);
 }
@@ -91,12 +124,18 @@ function shouldKeepCachedStaff(existing, incoming) {
 
 export function AuthProvider({ children }) {
   const cachedBoot = readStaffProfileCache();
-  const [session, setSession] = useState(null);
+  const cachedNativeSession = isNativeApp() ? readNativeSession() : null;
+  const canPaintNative = Boolean(
+    cachedNativeSession?.user?.id
+    && cachedBoot
+    && (isStaffRole(roleOf(cachedBoot)) || isDriverRole(roleOf(cachedBoot)))
+  );
+  const [session, setSession] = useState(() => cachedNativeSession);
   const [profile, setProfile] = useState(() => cachedBoot);
-  const [loading, setLoading] = useState(true);
-  const profileUserIdRef = useRef(cachedBoot?.authUserId || null);
+  const [loading, setLoading] = useState(() => !canPaintNative);
+  const profileUserIdRef = useRef(cachedBoot?.authUserId || cachedBoot?.id || null);
   const profileCacheRef = useRef(cachedBoot);
-  const bootDoneRef = useRef(false);
+  const bootDoneRef = useRef(canPaintNative);
 
   const refreshProfile = useCallback(async (user, { force = false } = {}) => {
     if (!user) {
@@ -157,27 +196,29 @@ export function AuthProvider({ children }) {
       }
       bootDoneRef.current = true;
       setSession(s || null);
-      if (s?.user) {
-        try {
-          await refreshProfile(s.user);
-        } catch (err) {
-          console.warn('[Pollón] boot profile:', err);
-        }
-        const cached = profileCacheRef.current;
-        if (isDriverRole(roleOf(cached))) {
-          const uid = s.user.id;
-          import('../services/pushService')
-            .then((m) => {
-              m.rememberPushForUser(uid);
-              return m.ensureDriverPushSubscription({ force: false, userId: uid });
-            })
-            .catch(() => {});
-          import('../services/fcmService')
-            .then((m) => m.kickoffNativePushRegistration())
-            .catch(() => {});
-        }
-      }
+      writeNativeSession(s || null);
       if (!cancelled) setLoading(false);
+      if (s?.user) {
+        refreshProfile(s.user)
+          .then((cached) => {
+            if (!isDriverRole(roleOf(cached || profileCacheRef.current))) return;
+            const uid = s.user.id;
+            window.setTimeout(() => {
+              import('../services/pushService')
+                .then((m) => {
+                  m.rememberPushForUser(uid);
+                  return m.ensureDriverPushSubscription({ force: false, userId: uid });
+                })
+                .catch(() => {});
+              import('../services/fcmService')
+                .then((m) => m.kickoffNativePushRegistration())
+                .catch(() => {});
+            }, 2500);
+          })
+          .catch((err) => {
+            console.warn('[Pollón] boot profile:', err);
+          });
+      }
     };
 
     const customerLocal = getCustomerLocal();
@@ -202,11 +243,17 @@ export function AuthProvider({ children }) {
     // NO poner loading=false solo por caché: sin session el gate nativo
     // mostraba login/blank mientras Supabase aún restauraba la sesión.
 
-    getSession()
-      .then((s) => finishBoot(s))
+    const sessionWait = isNativeApp() ? 2000 : 8000;
+    Promise.race([
+      getSession(),
+      new Promise((resolve) => {
+        setTimeout(() => resolve(readNativeSession() || undefined), sessionWait);
+      }),
+    ])
+      .then((s) => finishBoot(s === undefined ? (readNativeSession() || null) : s))
       .catch((err) => {
         console.warn('[Pollón] getSession:', err?.message || err);
-        finishBoot(null);
+        finishBoot(readNativeSession() || null);
       });
 
     const sb = getSupabase();
@@ -222,6 +269,7 @@ export function AuthProvider({ children }) {
           profileUserIdRef.current = null;
           profileCacheRef.current = null;
           writeStaffProfileCache(null);
+          writeNativeSession(null);
         }
         if (event === 'INITIAL_SESSION' && !bootDoneRef.current) {
           finishBoot(null);
@@ -259,6 +307,7 @@ export function AuthProvider({ children }) {
     const user = result?.user ?? s?.user;
     if (!s || !user) throw new Error('No se pudo iniciar sesión. Revisa email y contraseña.');
     setSession(s);
+    writeNativeSession(s);
     profileUserIdRef.current = null;
     profileCacheRef.current = null;
     const p = await getProfileByAuthIdSafe(user.id, user);
@@ -306,6 +355,7 @@ export function AuthProvider({ children }) {
     profileUserIdRef.current = null;
     profileCacheRef.current = null;
     writeStaffProfileCache(null);
+    writeNativeSession(null);
   };
 
   const requestPasswordReset = (email) => resetPassword(email);

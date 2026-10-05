@@ -343,12 +343,23 @@ export function DriverHome() {
     if (!summary) return undefined;
     const shouldShare = driverShouldShareGps(summary);
     const idle = shouldShare && (summary.activeAssignments || []).length === 0;
-    const nextMode = idle ? 'idle' : 'active';
     const sharing = isNativeDriverApp()
       ? isDriverBackgroundGpsRunning()
       : isDriverLiveShareRunning();
-    if (shouldShare && (!sharing || gpsModeRef.current !== nextMode)) {
-      void startGps(true, { idle });
+    if (shouldShare && !sharing) {
+      const delay = isNativeDriverApp() ? 3200 : 0;
+      const t = window.setTimeout(() => {
+        void (isNativeDriverApp()
+          ? startDriverBackgroundGps({ idle, quiet: true }).then((res) => {
+            if (res?.ok) {
+              setGpsOn(true);
+              gpsModeRef.current = idle ? 'idle' : 'active';
+              if (res.position) setGpsPos(res.position);
+            }
+          })
+          : startGps(true, { idle }));
+      }, delay);
+      return () => clearTimeout(t);
     }
     if (!shouldShare && gpsModeRef.current) {
       void clearGps();

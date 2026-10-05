@@ -18,8 +18,6 @@ import {
   isNativeDriverApp,
   stopDriverBackgroundGps,
   startDriverBackgroundGps,
-  isDriverBackgroundGpsRunning,
-  driverShouldShareGps,
 } from '../../services/backgroundGpsService';
 import { syncDriverLiveShareFromSummary, stopDriverLiveShare } from '../../services/driverLiveShareService';
 import { getDriverOnboardingRecord } from '../../services/driverOnboardingService';
@@ -62,19 +60,7 @@ export function DriverLayout() {
       setPendingOffers((prev) => (prev === n ? prev : n));
       if (n > 0) await setDriverAppBadge(n);
       else await clearDriverAppBadge();
-      const shouldShare = driverShouldShareGps(s);
-      const idle = shouldShare && (s?.activeAssignments || []).length === 0;
-      if (isNativeDriverApp()) {
-        if (shouldShare) {
-          if (!isDriverBackgroundGpsRunning()) {
-            window.setTimeout(() => {
-              startDriverBackgroundGps({ idle }).catch(() => {});
-            }, 700);
-          }
-        } else {
-          void stopDriverBackgroundGps().catch(() => {});
-        }
-      } else {
+      if (!isNativeDriverApp()) {
         await syncDriverLiveShareFromSummary(s).catch(() => {});
       }
     } catch {
@@ -95,10 +81,7 @@ export function DriverLayout() {
     window.addEventListener('touchstart', unlock, opts);
     window.addEventListener('click', unlock, opts);
     const onVis = () => {
-      if (document.visibilityState === 'visible') {
-        unlockDriverAudio();
-        if (trackingReady) refreshBadge();
-      }
+      if (document.visibilityState === 'visible') unlockDriverAudio();
     };
     document.addEventListener('visibilitychange', onVis);
     return () => {
@@ -110,36 +93,45 @@ export function DriverLayout() {
   }, [refreshBadge, trackingReady]);
 
   useEffect(() => {
-    retryDriverPushInBackground().catch(() => {});
-    ensureDriverPushSubscription().catch(() => {});
     if (native) {
-      registerNativePushHandlers({
-        onOffer: () => {
-          refreshBadge();
-          try {
-            window.dispatchEvent(new CustomEvent('pollon-driver-push', {
-              detail: { type: 'driver_offer' },
-            }));
-          } catch {
-            /* ignore */
-          }
-        },
-      }).catch(() => {});
-      ensureNativePushRegistration().catch(() => {});
       bootNativeSafeArea().catch(() => {});
       import('@capacitor/splash-screen')
-        .then(({ SplashScreen }) => SplashScreen.hide().catch(() => {}))
+        .then(({ SplashScreen }) => SplashScreen.hide({ fadeOutDuration: 150 }).catch(() => {}))
         .catch(() => {});
+      const later = window.setTimeout(() => {
+        registerNativePushHandlers({
+          onOffer: () => {
+            refreshBadge();
+            try {
+              window.dispatchEvent(new CustomEvent('pollon-driver-push', {
+                detail: { type: 'driver_offer' },
+              }));
+            } catch {
+              /* ignore */
+            }
+          },
+        }).catch(() => {});
+        ensureNativePushRegistration().catch(() => {});
+        retryDriverPushInBackground().catch(() => {});
+        ensureDriverPushSubscription().catch(() => {});
+      }, 2000);
+      return () => clearTimeout(later);
     }
+    retryDriverPushInBackground().catch(() => {});
+    ensureDriverPushSubscription().catch(() => {});
+    return undefined;
   }, [refreshBadge, native]);
 
   useEffect(() => {
     if (!trackingReady) return undefined;
-    refreshBadge();
-    ensureDriverPushSubscription().catch(() => {});
+    const first = window.setTimeout(() => { void refreshBadge(); }, 400);
+    const gpsKick = window.setTimeout(() => {
+      if (!isNativeDriverApp()) return;
+      startDriverBackgroundGps({ idle: true, quiet: true }).catch(() => {});
+    }, 2800);
     setMyOperationalStatus('available').catch(() => {});
     const unsub = subscribeDispatch(() => refreshBadge());
-    const t = setInterval(refreshBadge, 8000);
+    const t = setInterval(refreshBadge, 15000);
     const onMsg = (event) => {
       if (event.data?.type === 'DRIVER_NEW_OFFER') refreshBadge();
     };
@@ -153,6 +145,8 @@ export function DriverLayout() {
       navigator.serviceWorker.addEventListener('message', onMsg);
     }
     return () => {
+      clearTimeout(first);
+      clearTimeout(gpsKick);
       unsub();
       clearInterval(t);
       document.removeEventListener('visibilitychange', onVis);

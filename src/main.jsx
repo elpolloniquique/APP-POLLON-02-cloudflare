@@ -50,11 +50,20 @@ if (import.meta.env.PROD && !isViteDev && !isNativeCapacitor && !isLocalHost) {
 
 if (isNativeCapacitor) {
   document.documentElement.classList.add('is-native-app');
+  try {
+    const path = window.location.pathname || '/';
+    if (path === '/' || path === '') {
+      window.history.replaceState({}, '', '/repartidor');
+    }
+  } catch {
+    /* ignore */
+  }
   import('./utils/nativeSafeArea.js')
     .then((m) => m.bootNativeSafeArea())
     .catch(() => {});
-  // No ocultar splash aquí: esperar a que DriverRoute pinte UI estable.
-  // Si se oculta al cargar el bundle, el WebView blanco se ve al reabrir la APK.
+  import('@capacitor/splash-screen')
+    .then(({ SplashScreen }) => SplashScreen.hide({ fadeOutDuration: 200 }).catch(() => {}))
+    .catch(() => {});
   unregisterServiceWorkers();
 }
 
@@ -64,11 +73,12 @@ if (!rootEl) {
 }
 
 try {
-  createRoot(rootEl).render(
+  const tree = isNativeCapacitor ? <App /> : (
     <StrictMode>
       <App />
-    </StrictMode>,
+    </StrictMode>
   );
+  createRoot(rootEl).render(tree);
 } catch (err) {
   console.error('[El Pollón] Error al iniciar la app:', err);
   rootEl.innerHTML = '<p style="padding:1.25rem;font-family:Inter,sans-serif;color:#111">No se pudo iniciar la app en local. Abre la consola del navegador (F12) y recarga con Ctrl+Shift+R.</p>';

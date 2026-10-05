@@ -10,6 +10,8 @@ import android.os.PowerManager;
 import android.provider.Settings;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
@@ -29,12 +31,10 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         PollonMessagingService.ensureChannel(this);
         PollonOnlineService.ensureChannel(this);
-        requestIgnoreBatteryOptimizations();
         listenSystemInsets();
         scheduleSafeAreaInjects();
-        if (PollonPrefs.wantOnline(this)) {
-            PollonOnlineWorker.schedule(this);
-        }
+        mainHandler.postDelayed(this::tuneWebView, 200);
+        mainHandler.postDelayed(this::requestIgnoreBatteryOptimizations, 12000);
         applyDeepLink(getIntent());
     }
 
@@ -48,14 +48,13 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onStart() {
         super.onStart();
-        scheduleSafeAreaInjects();
     }
 
     @Override
     public void onResume() {
         super.onResume();
         resumeWebView();
-        scheduleSafeAreaInjects();
+        injectSafeAreaCss();
     }
 
     /**
@@ -131,11 +130,23 @@ public class MainActivity extends BridgeActivity {
      * Sin esto Xiaomi/Huawei/Samsung matan el GPS a los pocos minutos
      * con pantalla apagada u otra app en primer plano.
      */
+    private void tuneWebView() {
+        try {
+            if (getBridge() == null || getBridge().getWebView() == null) return;
+            WebView w = getBridge().getWebView();
+            w.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+            WebSettings s = w.getSettings();
+            s.setDomStorageEnabled(true);
+            s.setCacheMode(WebSettings.LOAD_DEFAULT);
+        } catch (Exception ignored) {}
+    }
+
     private void resumeWebView() {
         try {
             if (getBridge() == null || getBridge().getWebView() == null) return;
-            getBridge().getWebView().onResume();
-            getBridge().getWebView().resumeTimers();
+            WebView w = getBridge().getWebView();
+            w.onResume();
+            w.resumeTimers();
         } catch (Exception ignored) {}
     }
 

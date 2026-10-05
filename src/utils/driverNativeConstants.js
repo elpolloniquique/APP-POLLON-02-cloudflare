@@ -1,8 +1,8 @@
 /** Constantes app nativa repartidor El Pollón */
 export const DRIVER_APK_PUBLIC_PATH = '/DESCARGAR-APK/El-Pollon-repartidor.apk';
 export const DRIVER_APK_FILE_NAME = 'El-Pollon-repartidor.apk';
-export const DRIVER_APP_VERSION_NAME = '1.4.4';
-export const DRIVER_APP_VERSION_CODE = 19;
+export const DRIVER_APP_VERSION_NAME = '1.4.5';
+export const DRIVER_APP_VERSION_CODE = 20;
 
 export function driverOfferDeepLink(offerId) {
   const id = String(offerId || '').trim();
