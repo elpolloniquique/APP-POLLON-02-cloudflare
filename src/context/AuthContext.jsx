@@ -108,6 +108,24 @@ function writeNativeSession(session) {
   }
 }
 
+async function restoreNativeSupabaseSession() {
+  const cached = readNativeSession();
+  if (!cached?.refresh_token) return cached;
+  const sb = getSupabase();
+  if (!sb) return cached;
+  try {
+    const { data, error } = await sb.auth.setSession({
+      access_token: cached.access_token || '',
+      refresh_token: cached.refresh_token,
+    });
+    if (error || !data?.session?.user) return cached;
+    writeNativeSession(data.session);
+    return data.session;
+  } catch {
+    return cached;
+  }
+}
+
 function roleOf(profile) {
   return normalizeRole(profile?.rol || profile?.role);
 }
@@ -243,11 +261,22 @@ export function AuthProvider({ children }) {
     // NO poner loading=false solo por caché: sin session el gate nativo
     // mostraba login/blank mientras Supabase aún restauraba la sesión.
 
-    const sessionWait = isNativeApp() ? 2000 : 8000;
+    const resolveBootSession = async () => {
+      try {
+        const s = await getSession();
+        if (s?.user) return s;
+      } catch (err) {
+        console.warn('[Pollón] getSession:', err?.message || err);
+      }
+      if (isNativeApp()) return restoreNativeSupabaseSession();
+      return null;
+    };
+
+    const sessionWait = isNativeApp() ? 3500 : 8000;
     Promise.race([
-      getSession(),
+      resolveBootSession(),
       new Promise((resolve) => {
-        setTimeout(() => resolve(readNativeSession() || undefined), sessionWait);
+        setTimeout(() => resolve(undefined), sessionWait);
       }),
     ])
       .then((s) => finishBoot(s === undefined ? (readNativeSession() || null) : s))
@@ -283,6 +312,7 @@ export function AuthProvider({ children }) {
       }
 
       setSession(s);
+      writeNativeSession(s);
       setTimeout(() => {
         refreshProfile(s.user).catch((err) => console.warn('[Pollón] auth state profile:', err));
       }, 0);

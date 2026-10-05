@@ -37,7 +37,7 @@ import {
   isDriverLiveShareRunning,
 } from '../../services/driverLiveShareService';
 import { evaluateDriverLiveTrackingReady } from '../../services/driverOnboardingService';
-import { playDriverOrderAlarm, unlockDriverAudio } from '../../utils/orderAlertSound';
+import { unlockDriverAudio } from '../../utils/orderAlertSound';
 import { kickoffNativePushRegistration } from '../../services/fcmService';
 import { getSupabase, isSupabaseConfigured } from '../../services/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
@@ -68,6 +68,7 @@ export function DriverHome() {
   const publishRef = useRef(false);
   const alarmedKeysRef = useRef(new Set());
   const alertReadyRef = useRef(false);
+  const seenOffersRef = useRef(new Map());
   const stopAlarmRef = useRef(null);
   const loadTimerRef = useRef(null);
   const loadingRef = useRef(false);
@@ -81,19 +82,6 @@ export function DriverHome() {
     fresh.forEach((k) => alarmedKeysRef.current.add(k));
     if (alarmedKeysRef.current.size > 80) {
       alarmedKeysRef.current = new Set([...alarmedKeysRef.current].slice(-40));
-    }
-    stopAlarmRef.current?.();
-    unlockDriverAudio().then(() => {
-      stopAlarmRef.current?.();
-      stopAlarmRef.current = playDriverOrderAlarm({ loops: 2 });
-    });
-    try { navigator.vibrate?.([220, 80, 320, 80, 420]); } catch { /* ignore */ }
-    if (isNativeDriverApp()) {
-      import('@capacitor/haptics')
-        .then(({ Haptics }) => {
-          Haptics.vibrate({ duration: 450 }).catch(() => {});
-        })
-        .catch(() => {});
     }
   }, []);
 
@@ -275,6 +263,19 @@ export function DriverHome() {
       if (!alarmedKeysRef.current.has(key)) newKeys.push(key);
     }
 
+    const nextSeen = new Map();
+    for (const o of offers) {
+      nextSeen.set(o.id, o.job_id || o.ep_delivery_jobs?.id || '');
+    }
+    for (const [id, jobId] of seenOffersRef.current) {
+      if (!nextSeen.has(id)) {
+        import('../../services/driverTrayNotification.js')
+          .then(({ cancelDriverOfferTray }) => cancelDriverOfferTray(id, jobId))
+          .catch(() => {});
+      }
+    }
+    seenOffersRef.current = nextSeen;
+
     if (newKeys.length) {
       playOfferAlarmOnce(newKeys);
     }
@@ -430,13 +431,15 @@ export function DriverHome() {
     }
   };
 
-  const hushOfferUi = (offerId) => {
+  const hushOfferUi = (offer) => {
+    const offerId = offer?.id || offer;
+    const jobId = offer?.job_id || offer?.ep_delivery_jobs?.id || offer?.job?.id || '';
     stopAlarmRef.current?.();
     stopAlarmRef.current = null;
     import('../../services/driverTrayNotification.js')
       .then(({ stopNativeOfferAlarm, cancelDriverOfferTray }) => {
         stopNativeOfferAlarm();
-        cancelDriverOfferTray(offerId);
+        cancelDriverOfferTray(offerId, jobId);
       })
       .catch(() => {});
   };
@@ -451,7 +454,7 @@ export function DriverHome() {
     }
     dismissedOffersRef.current.add(offer.id);
     offerBusyRef.current = offer.id;
-    hushOfferUi(offer.id);
+    hushOfferUi(offer);
 
     const job = offer.ep_delivery_jobs || offer.job || {};
     const optimistic = {
@@ -502,7 +505,7 @@ export function DriverHome() {
     if (!offer?.id || dismissedOffersRef.current.has(offer.id) || offerBusyRef.current) return;
     dismissedOffersRef.current.add(offer.id);
     offerBusyRef.current = offer.id;
-    hushOfferUi(offer.id);
+    hushOfferUi(offer);
     setSummary((prev) => {
       if (!prev) return prev;
       return {

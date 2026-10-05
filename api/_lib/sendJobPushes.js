@@ -112,7 +112,8 @@ export async function sendPushesForJob(admin, jobId) {
       .from('ep_driver_push_subscriptions')
       .select('id, driver_id, endpoint, p256dh, auth');
     await Promise.all((subs || []).map(async (sub) => {
-      const offer = byDriver[sub.driver_id] || sampleOffer;
+      const offer = byDriver[sub.driver_id];
+      if (!offer) return;
       const job = offer?.ep_delivery_jobs || sampleJob;
       const fee = offer?.offered_fee ?? job.delivery_fee ?? 0;
       const notice = offerNoticeText(job, { jobId, offerId: offer?.id, fee });
@@ -154,7 +155,7 @@ export async function sendPushesForJob(admin, jobId) {
       .from('ep_driver_fcm_tokens')
       .select('id, driver_id, token');
     await Promise.all((fcmRows || []).map(async (row) => {
-      const offer = byDriver[row.driver_id] || sampleOffer;
+      const offer = byDriver[row.driver_id];
       if (!offer) return;
       const job = offer.ep_delivery_jobs || sampleJob;
       const fee = offer.offered_fee ?? job.delivery_fee ?? 0;

@@ -27,8 +27,15 @@ public class DriverBadgePlugin extends Plugin {
     @PluginMethod
     public void stopOfferAlarm(PluginCall call) {
         OfferAlarmPlayer.stop();
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void cancelOffer(PluginCall call) {
+        String jobId = call.getString("jobId", "");
+        String offerId = call.getString("offerId", "");
         try {
-            PollonMessagingService.cancelOfferNotifications(getContext());
+            PollonMessagingService.cancelOfferByJob(getContext(), jobId, offerId);
         } catch (Exception ignored) {}
         call.resolve();
     }

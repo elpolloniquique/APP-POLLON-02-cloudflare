@@ -17,8 +17,9 @@ import com.google.firebase.messaging.RemoteMessage;
 import java.util.Map;
 
 /**
- * FCM data-only: heads-up tipo WhatsApp (HIGH, lock screen) en los 4 estados.
- * El tap abre la oferta. Aceptar/rechazar cancela alarma y bandeja.
+ * Bandeja tipo WhatsApp: FCM notification+data pinta el aviso con la app
+ * cerrada / otra app / pantalla apagada. Un tag por pedido (reemplaza, no duplica).
+ * En primer plano no se pinta bandeja: el pedido ya se ve en la app, sin alarma.
  */
 public class PollonMessagingService extends FirebaseMessagingService {
     public static final String CHANNEL_ID = "pollon_driver_offer_v4";
@@ -29,7 +30,6 @@ public class PollonMessagingService extends FirebaseMessagingService {
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
         super.onMessageReceived(remoteMessage);
         showOfferNotification(remoteMessage);
-        OfferAlarmPlayer.start(this);
         try {
             PushNotificationsPlugin.sendRemoteMessage(remoteMessage);
         } catch (Exception ignored) {
@@ -49,9 +49,16 @@ public class PollonMessagingService extends FirebaseMessagingService {
         Map<String, String> data = msg.getData();
         RemoteMessage.Notification n = msg.getNotification();
 
-        String title = n != null && n.getTitle() != null ? n.getTitle() : str(data, "title", "El Pollón · Pedido nuevo");
-        String body = n != null && n.getBody() != null ? n.getBody() : str(data, "body", "Tienes un pedido nuevo. Ábrelo para aceptar.");
+        // Con payload notification, Android ya muestra la bandeja (app cerrada / otra app).
+        // En primer plano el pedido se ve en la lista: no alarma ni aviso extra.
+        if (n != null) return;
+
+        String title = str(data, "title", "El Pollón · Pedido nuevo");
+        String body = str(data, "body", "Tienes un pedido nuevo. Ábrelo para aceptar.");
         String offerId = str(data, "offerId", "offer");
+        String jobId = str(data, "jobId", offerId);
+        String tag = str(data, "tag", "");
+        if (tag.isEmpty()) tag = "pollon-job-" + jobId;
         String deepLink = str(data, "deepLink", "");
         if (deepLink.isEmpty() || !deepLink.startsWith("/")) {
             deepLink = "/repartidor/oferta/" + offerId;
@@ -96,19 +103,44 @@ public class PollonMessagingService extends FirebaseMessagingService {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             builder.setColor(0xFFE11D48);
-            builder.setFullScreenIntent(content, true);
         }
 
         Notification notif = builder.build();
 
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        int notifId = NOTIF_ID + (Math.abs(offerId.hashCode()) % NOTIF_ID_SPAN);
+        int notifId = stableNotifId(jobId, offerId);
         if (nm != null) {
-            nm.notify(notifId, notif);
+            nm.notify(tag, notifId, notif);
         }
 
         try {
             BadgeHelper.apply(this, 1);
+        } catch (Exception ignored) {}
+    }
+
+    static void cancelOfferByJob(Context context, String jobId, String offerId) {
+        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm == null) return;
+        String tag = (jobId != null && !jobId.isEmpty()) ? ("pollon-job-" + jobId) : "";
+        int id = stableNotifId(jobId, offerId);
+        try {
+            if (!tag.isEmpty()) {
+                nm.cancel(tag, 0);
+                nm.cancel(tag, id);
+            }
+            nm.cancel(id);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                android.service.notification.StatusBarNotification[] notes = nm.getActiveNotifications();
+                if (notes != null) {
+                    for (android.service.notification.StatusBarNotification note : notes) {
+                        String noteTag = note.getTag();
+                        if (tag.isEmpty()) continue;
+                        if (tag.equals(noteTag)) {
+                            nm.cancel(noteTag, note.getId());
+                        }
+                    }
+                }
+            }
         } catch (Exception ignored) {}
     }
 
@@ -122,8 +154,11 @@ public class PollonMessagingService extends FirebaseMessagingService {
                 if (notes != null) {
                     for (android.service.notification.StatusBarNotification note : notes) {
                         int id = note.getId();
-                        if (id >= NOTIF_ID && id < NOTIF_ID + NOTIF_ID_SPAN) {
-                            nm.cancel(id);
+                        String tag = note.getTag();
+                        if ((id >= NOTIF_ID && id < NOTIF_ID + NOTIF_ID_SPAN)
+                            || (tag != null && tag.startsWith("pollon-job-"))) {
+                            if (tag != null) nm.cancel(tag, id);
+                            else nm.cancel(id);
                         }
                     }
                 }
@@ -158,6 +193,11 @@ public class PollonMessagingService extends FirebaseMessagingService {
             .build();
         ch.setSound(sound, attrs);
         nm.createNotificationChannel(ch);
+    }
+
+    static int stableNotifId(String jobId, String offerId) {
+        String key = (jobId != null && !jobId.isEmpty()) ? jobId : String.valueOf(offerId);
+        return NOTIF_ID + (Math.abs(key.hashCode()) % NOTIF_ID_SPAN);
     }
 
     private static String str(Map<String, String> data, String key, String fallback) {

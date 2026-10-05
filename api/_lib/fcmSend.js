@@ -107,8 +107,8 @@ async function sendFcmV1(sa, deviceToken, { title, body, data }) {
       body: JSON.stringify({
         message: {
           token: deviceToken,
-          // Solo `data` + HIGH: así onMessageReceived SIEMPRE corre
-          // (pantalla apagada / GPS en primer plano). El Java pinta la bandeja.
+          // notification+data HIGH: Android pinta la bandeja con app cerrada
+          // (como WhatsApp). tag/collapse_key = 1 aviso por pedido, se reemplaza.
           data: Object.fromEntries(
             Object.entries({
               ...data,
@@ -119,12 +119,14 @@ async function sendFcmV1(sa, deviceToken, { title, body, data }) {
           android: {
             priority: 'HIGH',
             ttl: '86400s',
+            collapse_key: String(data?.tag || data?.jobId || 'pollon-offer').slice(0, 40),
             directBootOk: true,
             notification: {
               title: String(title || 'El Pollón · Pedido nuevo'),
               body: String(body || 'Tienes un pedido nuevo. Ábrelo para aceptar.'),
               channel_id: 'pollon_driver_offer_v4',
-              notification_priority: 'PRIORITY_MAX',
+              tag: String(data?.tag || data?.jobId || data?.offerId || 'pollon-offer'),
+              notification_priority: 'PRIORITY_HIGH',
               default_sound: true,
               default_vibrate_timings: true,
               visibility: 'PUBLIC',
@@ -159,6 +161,14 @@ async function sendFcmLegacy(token, { title, body, data }) {
       priority: 'high',
       content_available: true,
       time_to_live: 86400,
+      collapse_key: String(data?.tag || data?.jobId || 'pollon-offer').slice(0, 40),
+      notification: {
+        title: String(title || 'El Pollón · Pedido nuevo'),
+        body: String(body || 'Tienes un pedido nuevo. Ábrelo para aceptar.'),
+        tag: String(data?.tag || data?.jobId || data?.offerId || 'pollon-offer'),
+        sound: 'default',
+        android_channel_id: 'pollon_driver_offer_v4',
+      },
       data: {
         ...data,
         title,

@@ -139,24 +139,8 @@ export async function registerNativePushHandlers({ onOffer } = {}) {
         } catch {
           /* ignore */
         }
-        // App en primer plano: FCM no pone bandeja sola → local tipo WhatsApp
-        if (data.type === 'driver_offer' || data.offerId) {
-          import('./driverTrayNotification.js')
-            .then(({ showDriverOfferTray }) =>
-              showDriverOfferTray({
-                offerId: data.offerId,
-                title: notification?.title || data.title || 'El Pollón · Pedido nuevo',
-                body: notification?.body || data.body,
-                ticket: data.ticket,
-                customerName: data.customerName,
-                address: data.address,
-                fee: data.fee,
-                badgeCount: Number(data.badgeCount) || 1,
-                deepLink: data.deepLink || data.url,
-              }),
-            )
-            .catch(() => {});
-        }
+        // App abierta: el pedido se ve en la lista, sin alarma ni bandeja extra.
+        // App cerrada / otra app: FCM (notification+tag) pinta la bandeja.
       }),
     ).catch(() => {});
 

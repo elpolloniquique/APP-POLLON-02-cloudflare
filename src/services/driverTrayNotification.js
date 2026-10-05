@@ -7,13 +7,14 @@ import { isNativeDriverApp } from './backgroundGpsService';
 import { driverOfferDeepLink } from '../utils/driverNativeConstants';
 
 const OFFER_CHANNEL_ID = 'pollon_driver_offer_v4';
-const OFFER_NOTIF_BASE = 71001;
+const OFFER_NOTIF_BASE = 72001;
 
 const DriverBadge = registerPlugin('DriverBadge', {
   web: {
     set: async () => {},
     clear: async () => {},
     stopOfferAlarm: async () => {},
+    cancelOffer: async () => {},
   },
 });
 
@@ -43,8 +44,8 @@ export async function bindDriverTrayTap() {
   }
 }
 
-function offerNotifId(offerId) {
-  const s = String(offerId || '0');
+function offerNotifId(offerId, jobId) {
+  const s = String(jobId || offerId || '0');
   let h = 0;
   for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return OFFER_NOTIF_BASE + (h % 8000);
@@ -110,6 +111,7 @@ export async function showDriverOfferTray({
   fee,
   badgeCount = 1,
   deepLink,
+  jobId,
 } = {}) {
   if (!isNativeDriverApp()) return { ok: false };
   const LocalNotifications = await getLocalNotifications();
@@ -125,7 +127,7 @@ export async function showDriverOfferTray({
     /* ignore */
   }
 
-  const id = offerNotifId(offerId);
+  const id = offerNotifId(offerId, jobId);
   const text = String(body || [
     ticket ? `Nº ${ticket}` : null,
     customerName || null,
@@ -149,6 +151,7 @@ export async function showDriverOfferTray({
           extra: {
             type: 'driver_offer',
             offerId: String(offerId || ''),
+            jobId: String(jobId || ''),
             deepLink: deepLink || driverOfferDeepLink(offerId),
           },
         },
@@ -162,11 +165,23 @@ export async function showDriverOfferTray({
   return { ok: true, id };
 }
 
-export async function cancelDriverOfferTray(offerId) {
+export async function cancelDriverOfferTray(offerId, jobId) {
   const LocalNotifications = await getLocalNotifications();
-  if (!LocalNotifications) return;
+  if (LocalNotifications) {
+    try {
+      await LocalNotifications.cancel({
+        notifications: [{ id: offerNotifId(offerId, jobId) }],
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+  if (!isNativeDriverApp()) return;
   try {
-    await LocalNotifications.cancel({ notifications: [{ id: offerNotifId(offerId) }] });
+    await DriverBadge.cancelOffer({
+      offerId: String(offerId || ''),
+      jobId: String(jobId || ''),
+    });
   } catch {
     /* ignore */
   }
