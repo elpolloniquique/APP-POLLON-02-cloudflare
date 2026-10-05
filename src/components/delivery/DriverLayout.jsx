@@ -18,9 +18,11 @@ import {
   isNativeDriverApp,
   stopDriverBackgroundGps,
   startDriverBackgroundGps,
+  isDriverBackgroundGpsRunning,
   driverShouldShareGps,
 } from '../../services/backgroundGpsService';
 import { syncDriverLiveShareFromSummary, stopDriverLiveShare } from '../../services/driverLiveShareService';
+import { getDriverOnboardingRecord } from '../../services/driverOnboardingService';
 import { bootNativeSafeArea } from '../../utils/nativeSafeArea';
 import '../../styles/driver-native.css';
 
@@ -37,12 +39,20 @@ export function DriverLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const native = isNativeDriverApp();
-  const [trackingReady, setTrackingReady] = useState(false);
+  const [trackingReady, setTrackingReady] = useState(() => {
+    const rec = getDriverOnboardingRecord(profile?.authUserId || profile?.id, [profile?.id, profile?.authUserId]);
+    return Boolean(rec?.completedAt);
+  });
   const [pendingOffers, setPendingOffers] = useState(0);
 
   const onReadyChange = useCallback((ready) => {
-    setTrackingReady(Boolean(ready));
-  }, []);
+    if (ready) {
+      setTrackingReady(true);
+      return;
+    }
+    const rec = getDriverOnboardingRecord(profile?.authUserId || profile?.id, [profile?.id, profile?.authUserId]);
+    if (!rec?.completedAt) setTrackingReady(false);
+  }, [profile?.id, profile?.authUserId]);
 
   const refreshBadge = useCallback(async () => {
     try {
@@ -55,8 +65,15 @@ export function DriverLayout() {
       const shouldShare = driverShouldShareGps(s);
       const idle = shouldShare && (s?.activeAssignments || []).length === 0;
       if (isNativeDriverApp()) {
-        if (shouldShare) await startDriverBackgroundGps({ idle }).catch(() => {});
-        else await stopDriverBackgroundGps().catch(() => {});
+        if (shouldShare) {
+          if (!isDriverBackgroundGpsRunning()) {
+            window.setTimeout(() => {
+              startDriverBackgroundGps({ idle }).catch(() => {});
+            }, 700);
+          }
+        } else {
+          void stopDriverBackgroundGps().catch(() => {});
+        }
       } else {
         await syncDriverLiveShareFromSummary(s).catch(() => {});
       }

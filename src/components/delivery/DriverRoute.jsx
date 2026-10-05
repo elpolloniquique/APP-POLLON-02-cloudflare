@@ -30,11 +30,12 @@ export function DriverRoute({ children }) {
     return () => clearTimeout(t);
   }, [profile, loading, session, native]);
 
-  // Ocultar splash solo cuando ya hay UI estable (evita WebView blanco).
+  // Ocultar splash al tener UI, y sí o sí a los 2s (reabrir / despertar).
   useEffect(() => {
-    if (!native) return;
-    if (loading) return;
-    hideNativeSplash();
+    if (!native) return undefined;
+    if (!loading) hideNativeSplash();
+    const t = setTimeout(hideNativeSplash, 2000);
+    return () => clearTimeout(t);
   }, [native, loading, session, profile]);
 
   if (loading) return <Loader text="Cargando panel repartidor…" />;

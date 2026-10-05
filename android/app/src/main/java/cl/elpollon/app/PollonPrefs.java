@@ -9,6 +9,7 @@ final class PollonPrefs {
     static final String WANT_ONLINE = "want_online";
     static final String PING_URL = "ping_url";
     static final String LAST_JS_GPS_AT = "last_js_gps_at";
+    static final String ASKED_BATTERY = "asked_battery";
 
     private PollonPrefs() {}
 
@@ -43,6 +44,14 @@ final class PollonPrefs {
 
     static void touchJsGps(Context context) {
         prefs(context).edit().putLong(LAST_JS_GPS_AT, System.currentTimeMillis()).apply();
+    }
+
+    static boolean askedBattery(Context context) {
+        return prefs(context).getBoolean(ASKED_BATTERY, false);
+    }
+
+    static void markAskedBattery(Context context) {
+        prefs(context).edit().putBoolean(ASKED_BATTERY, true).apply();
     }
 
     static void clearOnlineSession(Context context) {

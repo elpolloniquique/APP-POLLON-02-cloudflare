@@ -60,9 +60,12 @@ export function driverNeedsInstall() {
   return false;
 }
 
-export function getDriverOnboardingRecord(userId) {
-  if (!userId) return null;
-  return readStore()[userId] || null;
+export function getDriverOnboardingRecord(userId, extraIds = []) {
+  const all = readStore();
+  for (const id of [userId, ...extraIds].filter(Boolean)) {
+    if (all[id]) return all[id];
+  }
+  return null;
 }
 
 export function markDriverOnboardingComplete(userId, extra = {}) {
@@ -169,13 +172,18 @@ export async function evaluateDriverLiveTrackingReady(userId) {
         /* ignore */
       }
 
+      const previouslyDone = Boolean(base.savedCompletedAt);
       const gpsOk = !native || Boolean(
-        location.alwaysOk || location.locationOk || userConfirmedAlways
+        previouslyDone
+        || location.alwaysOk
+        || location.locationOk
+        || userConfirmedAlways
       );
       const notifReady = Boolean(
         notifState === 'granted'
         || notifOk
         || pushDeferred
+        || previouslyDone
       );
       const ready = native ? Boolean(notifReady && gpsOk) : notifReady;
 
@@ -202,18 +210,25 @@ export async function evaluateDriverLiveTrackingReady(userId) {
 
   if (evaluated) return evaluated;
 
+  const previouslyDone = Boolean(base.savedCompletedAt);
+  let notifFlag = false;
+  try {
+    notifFlag = localStorage.getItem('pollon_native_notif_ok') === '1';
+  } catch {
+    /* ignore */
+  }
   return {
     ...base,
-    notifOk: false,
-    hasPushSub: false,
+    notifOk: previouslyDone || notifFlag,
+    hasPushSub: previouslyDone,
     pushDeferred: false,
-    notifState: 'prompt',
-    gpsOk: false,
-    locationOk: false,
-    alwaysOk: false,
+    notifState: previouslyDone || notifFlag ? 'granted' : 'prompt',
+    gpsOk: previouslyDone,
+    locationOk: previouslyDone,
+    alwaysOk: previouslyDone,
     needsSettings: false,
     canOpenSettings: true,
-    ready: false,
+    ready: previouslyDone || notifFlag,
     evaluateTimedOut: true,
   };
 }

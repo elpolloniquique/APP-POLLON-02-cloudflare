@@ -6,6 +6,7 @@ import {
   evaluateDriverLiveTrackingReady,
   completeDriverLiveTrackingSetup,
   markDriverOnboardingComplete,
+  getDriverOnboardingRecord,
 } from '../../services/driverOnboardingService';
 import {
   ensureDriverPushSubscription,
@@ -25,7 +26,7 @@ import '../../styles/driver-native.css';
  */
 export function DriverLiveTrackingOnboarding({ onReadyChange }) {
   const { user, profile, role } = useAuth();
-  const userId = user?.id || profile?.id || 'anon';
+  const userId = user?.id || profile?.authUserId || profile?.id || 'anon';
   const driverRole = isDriverRole(role || profile?.rol || profile?.role);
   const native = isNativeDriverApp();
 
@@ -33,23 +34,32 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async ({ soft = false } = {}) => {
+    const saved = getDriverOnboardingRecord(userId, [profile?.id, profile?.authUserId, user?.id]);
+    if (saved?.completedAt) onReadyChange?.(true);
     try {
       const s = await evaluateDriverLiveTrackingReady(userId);
       setState(s);
-      onReadyChange?.(s.ready);
-      if (s.ready) {
+      const ready = Boolean(s.ready || saved?.completedAt);
+      onReadyChange?.(ready);
+      if (ready) {
         markDriverOnboardingComplete(userId, { pushOk: true });
       }
       return s;
     } catch (err) {
       console.warn('[Pollón] onboarding:', err);
-      setState({
-        ready: false,
-        notifOk: false,
-        native,
-      });
-      onReadyChange?.(false);
+      if (saved?.completedAt) {
+        onReadyChange?.(true);
+        return { ready: true };
+      }
+      if (!soft) {
+        setState({
+          ready: false,
+          notifOk: false,
+          native,
+        });
+        onReadyChange?.(false);
+      }
       return null;
     }
   }, [userId, onReadyChange, native]);
@@ -62,7 +72,7 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
     let cancelled = false;
     refresh();
     const onVis = () => {
-      if (document.visibilityState === 'visible' && !cancelled) refresh();
+      if (document.visibilityState === 'visible' && !cancelled) refresh({ soft: true });
     };
     document.addEventListener('visibilitychange', onVis);
     return () => {

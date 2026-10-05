@@ -54,6 +54,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onResume() {
         super.onResume();
+        resumeWebView();
         scheduleSafeAreaInjects();
     }
 
@@ -130,12 +131,22 @@ public class MainActivity extends BridgeActivity {
      * Sin esto Xiaomi/Huawei/Samsung matan el GPS a los pocos minutos
      * con pantalla apagada u otra app en primer plano.
      */
+    private void resumeWebView() {
+        try {
+            if (getBridge() == null || getBridge().getWebView() == null) return;
+            getBridge().getWebView().onResume();
+            getBridge().getWebView().resumeTimers();
+        } catch (Exception ignored) {}
+    }
+
     private void requestIgnoreBatteryOptimizations() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
         try {
             PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
             if (pm == null) return;
             if (pm.isIgnoringBatteryOptimizations(getPackageName())) return;
+            if (PollonPrefs.askedBattery(this)) return;
+            PollonPrefs.markAskedBattery(this);
             Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
             intent.setData(Uri.parse("package:" + getPackageName()));
             startActivity(intent);
