@@ -22,6 +22,7 @@ export function DriverOfferCard({
   branchCity = 'Iquique',
   canAccept = true,
   focused = false,
+  alertsOnly = false,
 }) {
   const job = offer?.ep_delivery_jobs || offer?.job || {};
   const fee = offer?.offered_fee || job.delivery_fee || 0;
@@ -105,6 +106,11 @@ export function DriverOfferCard({
           </div>
         </div>
 
+        {alertsOnly ? (
+          <p className="px-3.5 pb-3.5 text-center text-xs font-semibold text-pollon-red">
+            Este aviso es solo para que sepas que hay pedido nuevo. Acepta en la app nativa de repartidor.
+          </p>
+        ) : (
         <div className="grid grid-cols-2 gap-2.5 px-3.5 pb-3.5">
           <button
             type="button"
@@ -133,6 +139,7 @@ export function DriverOfferCard({
             {canAccept ? 'Aceptar' : 'Cupo lleno'}
           </button>
         </div>
+        )}
       </div>
 
       <OrderDetailModal

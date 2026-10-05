@@ -146,13 +146,15 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
         <p className="driver-native-gate__lead">
           {native
             ? 'Primera vez: permite notificaciones (igual que WhatsApp) y ubicación Siempre. Así llegan pedidos y el GPS sigue con pantalla apagada o la app cerrada.'
-            : 'Primera vez en este celular o PC: permite las notificaciones, igual que WhatsApp. Luego entras al panel y ves los pedidos nuevos.'}
+            : 'Primera vez: permite las notificaciones, igual que WhatsApp. Esta app del pollito solo avisa. Aceptas el pedido en la app nativa de repartidor.'}
         </p>
 
         <div className="driver-native-gate__hint">
           <Radio className="h-4 w-4 shrink-0" />
           <p>
-            Cuando llegue un delivery, te llega a la bandeja aunque estés en otra pantalla.
+            {native
+              ? 'Cuando llegue un delivery, te llega a la bandeja aunque estés en otra pantalla.'
+              : 'Instala El Pollón (ícono pollito) y permite avisos. Así el pedido nuevo llega a la bandeja aunque cierres la app, igual que WhatsApp. Aceptas en la app nativa.'}
           </p>
         </div>
 
@@ -203,7 +205,7 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
           onClick={activateAndEnter}
         >
           <ShieldCheck className="h-5 w-5" />
-          {busy ? 'Activando…' : (native ? 'Permitir avisos, GPS y entrar' : 'Permitir avisos y entrar al panel')}
+          {busy ? 'Activando…' : (native ? 'Permitir avisos, GPS y entrar' : 'Permitir avisos de pedidos nuevos')}
         </button>
 
         {native && state.canOpenSettings && (

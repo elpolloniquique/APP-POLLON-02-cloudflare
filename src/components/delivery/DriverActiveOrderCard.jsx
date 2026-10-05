@@ -21,6 +21,7 @@ export function DriverActiveOrderCard({
   loading,
   onPickup,
   onDelivered,
+  alertsOnly = false,
 }) {
   const job = assignment?.ep_delivery_jobs || {};
   const toStore = assignment?.phase === 'to_store' || assignment?.phase === 'at_store';
@@ -118,6 +119,11 @@ export function DriverActiveOrderCard({
             </button>
           )}
           {toStore ? (
+            alertsOnly ? (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 py-3 text-center text-xs font-semibold text-amber-900">
+                Recojo y entrega se marcan en la app nativa de repartidor.
+              </p>
+            ) : (
             <button
               type="button"
               disabled={loading}
@@ -126,7 +132,13 @@ export function DriverActiveOrderCard({
             >
               Pedido recogido
             </button>
+            )
           ) : (
+            alertsOnly ? (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 py-3 text-center text-xs font-semibold text-amber-900">
+                Recojo y entrega se marcan en la app nativa de repartidor.
+              </p>
+            ) : (
             <button
               type="button"
               disabled={loading}
@@ -135,6 +147,7 @@ export function DriverActiveOrderCard({
             >
               Entregado
             </button>
+            )
           )}
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bike, Map, History, Wallet, User, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -19,7 +19,7 @@ import {
   stopDriverBackgroundGps,
   startDriverBackgroundGps,
 } from '../../services/backgroundGpsService';
-import { syncDriverLiveShareFromSummary, stopDriverLiveShare } from '../../services/driverLiveShareService';
+import { stopDriverLiveShare } from '../../services/driverLiveShareService';
 import { getDriverOnboardingRecord } from '../../services/driverOnboardingService';
 import { bootNativeSafeArea } from '../../utils/nativeSafeArea';
 import '../../styles/driver-native.css';
@@ -37,6 +37,11 @@ export function DriverLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const native = isNativeDriverApp();
+  const tabs = native
+    ? TABS
+    : TABS
+      .filter((t) => t.to === '/repartidor' || t.to === '/repartidor/perfil')
+      .map((t) => (t.to === '/repartidor' ? { ...t, label: 'Avisos' } : t));
   const [trackingReady, setTrackingReady] = useState(() => {
     const rec = getDriverOnboardingRecord(profile?.authUserId || profile?.id, [profile?.id, profile?.authUserId]);
     return Boolean(rec?.completedAt);
@@ -60,9 +65,6 @@ export function DriverLayout() {
       setPendingOffers((prev) => (prev === n ? prev : n));
       if (n > 0) await setDriverAppBadge(n);
       else await clearDriverAppBadge();
-      if (!isNativeDriverApp()) {
-        await syncDriverLiveShareFromSummary(s).catch(() => {});
-      }
     } catch {
       /* ignore */
     }
@@ -129,7 +131,7 @@ export function DriverLayout() {
       if (!isNativeDriverApp()) return;
       startDriverBackgroundGps({ idle: true, quiet: true }).catch(() => {});
     }, 2800);
-    setMyOperationalStatus('available').catch(() => {});
+    if (native) setMyOperationalStatus('available').catch(() => {});
     const unsub = subscribeDispatch(() => refreshBadge());
     const t = setInterval(refreshBadge, 15000);
     const onMsg = (event) => {
@@ -154,7 +156,7 @@ export function DriverLayout() {
         navigator.serviceWorker.removeEventListener('message', onMsg);
       }
     };
-  }, [trackingReady, refreshBadge]);
+  }, [trackingReady, refreshBadge, native]);
 
   const handleLogout = async () => {
     await stopDriverLiveShare().catch(() => {});
@@ -163,6 +165,10 @@ export function DriverLayout() {
     await signOut();
     navigate('/', { replace: true });
   };
+
+  if (!native && /^\/repartidor\/(mapa|historial|ingresos)/.test(location.pathname)) {
+    return <Navigate to="/repartidor" replace />;
+  }
 
   if (!trackingReady) {
     return (
@@ -179,7 +185,7 @@ export function DriverLayout() {
           <img src="/img/logo pollon.png" alt="" className="h-10 w-10 rounded-full border border-white/20 bg-white object-contain" />
           <div>
             <p className="font-display text-lg leading-none tracking-wide text-white">EL POLLÓN</p>
-            <p className="mt-0.5 text-[11px] font-semibold text-white/55">Repartidor</p>
+            <p className="mt-0.5 text-[11px] font-semibold text-white/55">{native ? 'Repartidor' : 'Avisos de pedidos'}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -206,7 +212,7 @@ export function DriverLayout() {
 
       <nav className="driver-tabbar fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white shadow-[0_-4px_20px_rgba(0,0,0,.08)]">
         <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-1.5">
-          {TABS.map(({ to, end, icon: Icon, label, badgeKey }) => (
+          {tabs.map(({ to, end, icon: Icon, label, badgeKey }) => (
             <NavLink
               key={to}
               to={to}

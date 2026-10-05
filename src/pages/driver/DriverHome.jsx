@@ -42,6 +42,7 @@ import { kickoffNativePushRegistration } from '../../services/fcmService';
 import { getSupabase, isSupabaseConfigured } from '../../services/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 import { setDriverAppBadge, clearDriverAppBadge } from '../../services/pushService';
+import { getDriverApkDownloadUrl, openNativeDriverApp } from '../../utils/driverNativeConstants';
 
 function offerAlarmKey(o) {
   return `${o.id}|${o.expires_at || ''}`;
@@ -51,6 +52,7 @@ export function DriverHome() {
   const { offerId: focusOfferId } = useParams();
   const { user, profile } = useAuth();
   const userId = user?.id || profile?.id;
+  const webAlerts = !isNativeDriverApp();
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -207,6 +209,7 @@ export function DriverHome() {
   }, [scheduleLoad]);
 
   useEffect(() => {
+    if (webAlerts) return undefined;
     const unsubLive = subscribeDriverLiveShare((pos, err) => {
       if (pos) {
         setGpsPos(pos);
@@ -227,7 +230,7 @@ export function DriverHome() {
       unsubLive();
       unsubNative();
     };
-  }, []);
+  }, [webAlerts]);
 
   useEffect(() => () => {
     // No apagar el FGS nativo al salir de Pedidos (Mapa/Perfil). Lo mantiene DriverLayout.
@@ -317,6 +320,7 @@ export function DriverHome() {
   }, [load, clearGps, summary?.activeAssignments]);
 
   const startGps = useCallback(async (publish, { idle = false } = {}) => {
+    if (!isNativeDriverApp()) return { ok: true };
     publishRef.current = !!publish;
     if (!publish) {
       setGpsOn(false);
@@ -339,8 +343,9 @@ export function DriverHome() {
     return res;
   }, []);
 
-  // GPS en KV: Disponible (idle) o con pedido activo. Se apaga al desconectarse.
+  // GPS en KV: solo app nativa. La PWA de clientes no comparte ubicación ni acepta.
   useEffect(() => {
+    if (webAlerts) return undefined;
     if (!summary) return undefined;
     const shouldShare = driverShouldShareGps(summary);
     const idle = shouldShare && (summary.activeAssignments || []).length === 0;
@@ -366,7 +371,7 @@ export function DriverHome() {
       void clearGps();
     }
     return undefined;
-  }, [summary, clearGps, startGps]);
+  }, [summary, clearGps, startGps, webAlerts]);
 
   // ~5 min de la sucursal → estado "En cocina" (preparando)
   useEffect(() => {
@@ -399,6 +404,7 @@ export function DriverHome() {
   }, [gpsPos, branch?.lat, branch?.lng, summary?.activeAssignments]);
 
   const toggleOnline = async () => {
+    if (webAlerts) return;
     const currentlyOnline = ['available', 'heading_to_branch', 'delivering', 'carrying_orders', 'offered'].includes(
       summary?.driver?.operational_status
     );
@@ -445,6 +451,7 @@ export function DriverHome() {
   };
 
   const onAccept = (offer) => {
+    if (webAlerts) return;
     if (!offer?.id || dismissedOffersRef.current.has(offer.id) || offerBusyRef.current) return;
     const cap = summary?.driver?.max_orders || 2;
     const current = (summary?.activeAssignments || []).length;
@@ -502,6 +509,7 @@ export function DriverHome() {
   };
 
   const onReject = (offer) => {
+    if (webAlerts) return;
     if (!offer?.id || dismissedOffersRef.current.has(offer.id) || offerBusyRef.current) return;
     dismissedOffersRef.current.add(offer.id);
     offerBusyRef.current = offer.id;
@@ -528,6 +536,7 @@ export function DriverHome() {
   };
 
   const onPickup = async (assignment) => {
+    if (webAlerts) return;
     if (String(assignment?.id || '').startsWith('opt-')) return;
     setBusy(true);
     try {
@@ -542,6 +551,7 @@ export function DriverHome() {
   };
 
   const onDelivered = async (assignment) => {
+    if (webAlerts) return;
     setBusy(true);
     try {
       await confirmDelivery(assignment.id);
@@ -579,14 +589,40 @@ export function DriverHome() {
       <div className="flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-900">
         <span className="mt-0.5 text-base">🔔</span>
         <div>
-          <p className="font-bold">Avisos de pedido nuevo</p>
+          <p className="font-bold">{webAlerts ? 'App de clientes · solo avisos' : 'Avisos de pedido nuevo'}</p>
           <p className="text-xs opacity-90">
-            Llegan a la bandeja como WhatsApp (pantalla apagada, otra app o app cerrada). Toca el aviso para abrir el pedido.
+            {webAlerts
+              ? 'Cuando hay un pedido nuevo te llega a la bandeja como WhatsApp, aunque cierres esta app, pases a otra o apagues la pantalla. Para aceptar usa la app nativa de repartidor.'
+              : 'Llegan a la bandeja como WhatsApp (pantalla apagada, otra app o app cerrada). Toca el aviso para abrir el pedido.'}
           </p>
         </div>
       </div>
 
-      {(actives.length > 0 || isOnline) && (
+      {webAlerts && (
+        <div className="rounded-2xl border border-pollon-red/30 bg-white px-3.5 py-3 text-sm text-gray-800 shadow-sm">
+          <p className="font-bold text-pollon-red">Aceptar es en la app nativa</p>
+          <p className="mt-1 text-xs text-gray-600">
+            El ícono del pollito (el-pollon.cl) avisa. El Pollón repartidor es donde tomas el pedido, el GPS y la entrega.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => openNativeDriverApp()}
+              className="rounded-xl bg-pollon-red px-3 py-2 text-xs font-bold text-white"
+            >
+              Abrir app nativa
+            </button>
+            <a
+              href={getDriverApkDownloadUrl()}
+              className="rounded-xl border border-pollon-red px-3 py-2 text-xs font-bold text-pollon-red"
+            >
+              Descargar instalador
+            </a>
+          </div>
+        </div>
+      )}
+
+      {!webAlerts && (actives.length > 0 || isOnline) && (
         <div className={`flex items-start gap-2 rounded-2xl border px-3.5 py-3 text-sm ${
           gpsOn
             ? 'border-sky-200 bg-sky-50 text-sky-950'
@@ -616,6 +652,7 @@ export function DriverHome() {
         </div>
       )}
 
+      {!webAlerts && (
       <div className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
         <div className="min-w-0">
           <p className="text-xs text-gray-500">Estado</p>
@@ -639,6 +676,7 @@ export function DriverHome() {
           {isOnline ? 'Disponible' : 'Conectarme'}
         </button>
       </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -666,7 +704,8 @@ export function DriverHome() {
             loading={offerBusyId === offer.id}
             driverName={driverName}
             branchCity={branchCity}
-            canAccept={actives.length < maxOrders}
+            canAccept={!webAlerts && actives.length < maxOrders}
+            alertsOnly={webAlerts}
           />
         ))}
       </div>
@@ -680,6 +719,7 @@ export function DriverHome() {
             driverName={driverName}
             branchCity={branchCity}
             loading={busy || String(active.id || '').startsWith('opt-')}
+            alertsOnly={webAlerts}
             onPickup={onPickup}
             onDelivered={onDelivered}
           />
@@ -688,9 +728,11 @@ export function DriverHome() {
 
       {!loading && offers.length === 0 && actives.length === 0 && (
         <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-4 py-10 text-center text-sm text-gray-500">
-          {isOnline
-            ? `Esperando pedidos… Puedes llevar hasta ${maxOrders} a la vez antes del recojo. Al marcar pedido recogido no llegan más ofertas hasta entregar todos.`
-            : 'Pulsa Conectarme para recibir pedidos nuevos.'}
+          {webAlerts
+            ? 'Cuando haya un pedido nuevo te llega el aviso a la bandeja. Ábrelo y acéptalo en la app nativa.'
+            : (isOnline
+              ? `Esperando pedidos… Puedes llevar hasta ${maxOrders} a la vez antes del recojo. Al marcar pedido recogido no llegan más ofertas hasta entregar todos.`
+              : 'Pulsa Conectarme para recibir pedidos nuevos.')}
         </div>
       )}
     </div>

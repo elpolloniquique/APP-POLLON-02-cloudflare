@@ -357,9 +357,11 @@ export function AuthProvider({ children }) {
           return m.ensureDriverPushSubscription({ force: false, userId: uid });
         })
         .catch(() => {});
-      import('../services/fcmService')
-        .then((m) => m.kickoffNativePushRegistration())
-        .catch(() => {});
+      if (isNativeApp()) {
+        import('../services/fcmService')
+          .then((m) => m.kickoffNativePushRegistration())
+          .catch(() => {});
+      }
     }
     return { session: s, profile: resolved };
   };
