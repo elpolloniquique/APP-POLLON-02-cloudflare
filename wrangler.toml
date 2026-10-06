@@ -6,8 +6,9 @@ compatibility_date = "2025-09-01"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "dist"
 
-# GPS en vivo del repartidor (opción 1): KV se vincula en el deploy de GitHub
-# (DRIVER_LIVE_KV). No escribe en Supabase Realtime.
+# GPS en vivo: si CI logra vincular DRIVER_LIVE_KV se usa KV.
+# Si el deploy Git de Pages deja KV sin bindear, las Functions guardan
+# la posición con fallback (sin Realtime). No pongas el id KV a mano aquí.
 
 [vars]
 VITE_PUBLIC_SITE_URL = "https://www.el-pollon.cl"

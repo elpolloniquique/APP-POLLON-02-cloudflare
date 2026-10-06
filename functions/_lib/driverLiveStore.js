@@ -3,6 +3,8 @@
  * Una clave por conductor; se sobrescribe. TTL 8 h por seguridad.
  */
 
+import { canUseSecretsLiveStore, makeSecretsLiveKv } from './driverLiveFallbackStore.js';
+
 export const DRIVER_LIVE_KV_BINDING = 'DRIVER_LIVE_KV';
 export const LIVE_TTL_SEC = 8 * 3600;
 export const MIN_WRITE_MS = 8_000;
@@ -36,8 +38,17 @@ export function haversineMeters(a, b) {
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
+export function liveStoreKind(env) {
+  const bound = env?.[DRIVER_LIVE_KV_BINDING];
+  if (bound && typeof bound.get === 'function') return 'kv';
+  if (canUseSecretsLiveStore(env)) return 'secrets';
+  return 'none';
+}
+
 export function getKv(env) {
-  return env?.[DRIVER_LIVE_KV_BINDING] || null;
+  const bound = env?.[DRIVER_LIVE_KV_BINDING];
+  if (bound && typeof bound.get === 'function') return bound;
+  return makeSecretsLiveKv(env);
 }
 
 export function drvKey(driverId) {

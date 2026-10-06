@@ -66,6 +66,9 @@ export async function listLiveLocations() {
     try {
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       const payload = await res.json().catch(() => ({}));
+      if (payload.warning) {
+        console.warn('[Pollón] driver-live', url, payload.warning, payload.store || '');
+      }
       return res.ok ? (payload.locations || []) : [];
     } catch {
       return [];

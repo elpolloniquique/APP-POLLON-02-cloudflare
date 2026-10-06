@@ -10,6 +10,7 @@ import { applyCloudflareEnv } from '../_lib/vercelAdapter.js';
 import { ingestDriverLivePoint, clearDriverLive } from '../_lib/ingestDriverLive.js';
 import {
   getKv,
+  liveStoreKind,
   drvKey,
   followKey,
   kvGetJson,
@@ -58,7 +59,7 @@ async function parseJson(request) {
 async function handlePing(request, env) {
   const kv = getKv(env);
   if (!kv) {
-    return json({ error: 'KV no vinculado. Falta DRIVER_LIVE_KV en Cloudflare Pages.' }, 503);
+    return json({ error: 'No hay almacén GPS en el-pollon.cl.' }, 503);
   }
 
   const creds = supabaseClients();
@@ -98,7 +99,7 @@ async function handlePing(request, env) {
 
 async function handleStaffList(request, env) {
   const kv = getKv(env);
-  if (!kv) return json({ locations: [], warning: 'kv_unbound' });
+  if (!kv) return json({ locations: [], warning: 'kv_unbound', store: liveStoreKind(env) });
 
   const creds = supabaseClients();
   if (creds.error) return json({ error: creds.error }, 500);
@@ -129,12 +130,12 @@ async function handleStaffList(request, env) {
     if (branchId && loc.branch_id && loc.branch_id !== branchId) continue;
     locations.push(loc);
   }
-  return json({ locations });
+  return json({ locations, store: liveStoreKind(env) });
 }
 
 async function handleFollow(env, followToken) {
   const kv = getKv(env);
-  if (!kv) return json({ ok: false, active: false, error: 'kv_unbound' }, 503);
+  if (!kv) return json({ ok: false, active: false, error: 'kv_unbound', store: liveStoreKind(env) }, 503);
   const token = String(followToken || '').trim();
   if (!token || token.length < 8) return json({ ok: false, active: false, error: 'token' }, 400);
   const map = await kvGetJson(kv, followKey(token));
@@ -168,9 +169,13 @@ async function handleOrder(request, env, orderId) {
   const row = await kvGetJson(kv, drvKey(driverId));
   const matchesOrder = Boolean(
     row
+    && row.lat != null
+    && row.lng != null
     && (
-      String(row.order_id) === String(orderId)
+      !row.order_id
+      || String(row.order_id) === String(orderId)
       || (Array.isArray(row.jobs) && row.jobs.some((j) => String(j.order_id) === String(orderId)))
+      || String(row.driver_id) === String(driverId)
     ),
   );
   if (!matchesOrder) return json({ ok: false, active: false });
@@ -196,6 +201,10 @@ export async function onRequest(context) {
     }
 
     const url = new URL(request.url);
+    if (url.searchParams.get('health') === '1') {
+      const kind = liveStoreKind(env);
+      return json({ ok: kind !== 'none', store: kind, kv_bound: kind === 'kv' });
+    }
     const follow = url.searchParams.get('t') || url.searchParams.get('token') || '';
     const orderId = url.searchParams.get('orderId') || url.searchParams.get('order') || '';
     const view = url.searchParams.get('view') || '';

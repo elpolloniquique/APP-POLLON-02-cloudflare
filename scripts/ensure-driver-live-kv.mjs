@@ -52,7 +52,7 @@ function writeWranglerKvId(id) {
 
 async function main() {
   if (!ACCOUNT || !TOKEN) {
-    fail('Sin CLOUDFLARE_API_TOKEN / ACCOUNT_ID — omite KV (el GPS en vivo no publicará).');
+    fail('Sin CLOUDFLARE_API_TOKEN / ACCOUNT_ID — el GPS usará fallback en Functions.');
     return;
   }
 
@@ -105,5 +105,5 @@ async function main() {
 }
 
 main().catch((err) => {
-  fail(err.message || String(err), { fatal: true });
+  fail(err.message || String(err), { fatal: false });
 });

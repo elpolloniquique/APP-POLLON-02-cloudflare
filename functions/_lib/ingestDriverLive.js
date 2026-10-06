@@ -46,7 +46,7 @@ export async function ingestDriverLivePoint({
 } = {}) {
   const kv = getKv(env);
   if (!kv) {
-    return { ok: false, status: 503, error: 'KV no vinculado. Falta DRIVER_LIVE_KV en Cloudflare Pages.' };
+    return { ok: false, status: 503, error: 'No hay almacén GPS (KV ni fallback).' };
   }
   const driverId = driverRow?.id;
   if (!driverId) return { ok: false, status: 403, error: 'No eres repartidor' };
