@@ -154,6 +154,7 @@ export function AuthProvider({ children }) {
   const profileUserIdRef = useRef(cachedBoot?.authUserId || cachedBoot?.id || null);
   const profileCacheRef = useRef(cachedBoot);
   const bootDoneRef = useRef(canPaintNative);
+  const explicitSignOutRef = useRef(false);
 
   const refreshProfile = useCallback(async (user, { force = false } = {}) => {
     if (!user) {
@@ -201,11 +202,13 @@ export function AuthProvider({ children }) {
 
     const finishBoot = async (s) => {
       if (cancelled) return;
+      const cached = isNativeApp() ? readNativeSession() : null;
+      const resolved = s?.user ? s : cached;
       if (bootDoneRef.current) {
-        if (s?.user) {
-          setSession(s);
+        if (resolved?.user) {
+          setSession(resolved);
           try {
-            await refreshProfile(s.user);
+            await refreshProfile(resolved.user);
           } catch (err) {
             console.warn('[Pollón] late boot profile:', err);
           }
@@ -213,14 +216,14 @@ export function AuthProvider({ children }) {
         return;
       }
       bootDoneRef.current = true;
-      setSession(s || null);
-      writeNativeSession(s || null);
+      setSession(resolved || null);
+      if (resolved?.user) writeNativeSession(resolved);
       if (!cancelled) setLoading(false);
-      if (s?.user) {
-        refreshProfile(s.user)
+      if (resolved?.user) {
+        refreshProfile(resolved.user)
           .then((cached) => {
             if (!isDriverRole(roleOf(cached || profileCacheRef.current))) return;
-            const uid = s.user.id;
+            const uid = resolved.user.id;
             window.setTimeout(() => {
               import('../services/pushService')
                 .then((m) => {
@@ -294,16 +297,27 @@ export function AuthProvider({ children }) {
       if (cancelled) return;
 
       if (!s?.user) {
-        if (event === 'SIGNED_OUT' && !getLegacySession() && !getCustomerLocal()) {
-          setSession(null);
-          setProfile(null);
-          profileUserIdRef.current = null;
-          profileCacheRef.current = null;
-          writeStaffProfileCache(null);
-          writeNativeSession(null);
+        if (event === 'SIGNED_OUT') {
+          if (explicitSignOutRef.current) {
+            setSession(null);
+            setProfile(null);
+            profileUserIdRef.current = null;
+            profileCacheRef.current = null;
+            writeStaffProfileCache(null);
+            writeNativeSession(null);
+            explicitSignOutRef.current = false;
+          } else if (isNativeApp()) {
+            const keep = readNativeSession();
+            if (keep?.user) {
+              setSession(keep);
+              void restoreNativeSupabaseSession().then((restored) => {
+                if (restored?.user) setSession(restored);
+              });
+            }
+          }
         }
         if (event === 'INITIAL_SESSION' && !bootDoneRef.current) {
-          finishBoot(null);
+          finishBoot(isNativeApp() ? readNativeSession() : null);
         }
         return;
       }
@@ -383,6 +397,7 @@ export function AuthProvider({ children }) {
   };
 
   const signOut = async () => {
+    explicitSignOutRef.current = true;
     await authSignOut();
     setSession(null);
     setProfile(null);

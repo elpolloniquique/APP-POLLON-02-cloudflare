@@ -29,8 +29,8 @@ let lastPublishAt = 0;
 let heartbeatTimer = null;
 const gpsListeners = new Set();
 
-export const NATIVE_GPS_INTERVAL_MS = 12_000;
-export const NATIVE_GPS_DISTANCE_M = 18;
+export const NATIVE_GPS_INTERVAL_MS = 8_000;
+export const NATIVE_GPS_DISTANCE_M = 12;
 
 export function driverShouldShareGps(summary) {
   if ((summary?.activeAssignments || []).length > 0) return true;

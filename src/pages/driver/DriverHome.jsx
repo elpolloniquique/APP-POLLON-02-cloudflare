@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { Bell, MapPin, Radio } from 'lucide-react';
 import { DriverOfferCard } from '../../components/delivery/DriverOfferCard';
 import { DriverActiveOrderCard } from '../../components/delivery/DriverActiveOrderCard';
 import { DriverOemPushGuide } from '../../components/delivery/DriverOemPushGuide';
@@ -190,7 +191,7 @@ export function DriverHome() {
     const onNativePush = (event) => {
       const data = event?.detail || {};
       if (data.type === 'driver_offer' || data.offerId || data.type === 'DRIVER_NEW_OFFER') {
-        scheduleLoad();
+        void load();
       }
     };
     window.addEventListener('pollon-driver-push', onNativePush);
@@ -199,7 +200,7 @@ export function DriverHome() {
       onSw = (event) => {
         const data = event.data;
         if (!data || data.type !== 'DRIVER_NEW_OFFER') return;
-        scheduleLoad();
+        void load();
       };
       navigator.serviceWorker.addEventListener('message', onSw);
     }
@@ -207,7 +208,7 @@ export function DriverHome() {
       window.removeEventListener('pollon-driver-push', onNativePush);
       if (onSw) navigator.serviceWorker.removeEventListener('message', onSw);
     };
-  }, [scheduleLoad]);
+  }, [load]);
 
   useEffect(() => {
     if (webAlerts) return undefined;
@@ -282,6 +283,23 @@ export function DriverHome() {
 
     if (newKeys.length) {
       playOfferAlarmOnce(newKeys);
+      if (isNativeDriverApp()) {
+        for (const o of offers) {
+          if (!newKeys.includes(offerAlarmKey(o))) continue;
+          const job = o.ep_delivery_jobs || {};
+          import('../../services/driverTrayNotification.js')
+            .then(({ showDriverOfferTray }) => showDriverOfferTray({
+              offerId: o.id,
+              jobId: o.job_id || job.id,
+              ticket: job.ticket_code,
+              customerName: job.customer_name,
+              address: job.customer_address,
+              fee: o.offered_fee || job.delivery_fee,
+              badgeCount: offers.length,
+            }))
+            .catch(() => {});
+        }
+      }
     }
 
     if (!offers.length) {
@@ -503,13 +521,14 @@ export function DriverHome() {
         ],
       };
     });
-    setOfferBusyId(null);
+    setOfferBusyId(offer.id);
 
     const orderId = job.source_order_id || offer.source_order_id || null;
     void acceptOffer(offer.id)
       .then(() => {
         if (orderId) void syncAfterDriverAccept(orderId);
         offerBusyRef.current = null;
+        setOfferBusyId(null);
         void getAndPublishCurrentFix({ timeoutMs: 3500, force: true }).then((pos) => {
           if (pos) setGpsPos(pos);
         });
@@ -519,6 +538,7 @@ export function DriverHome() {
         dismissedOffersRef.current.delete(offer.id);
         if (optimisticAssignRef.current?.id === optimistic.id) optimisticAssignRef.current = null;
         offerBusyRef.current = null;
+        setOfferBusyId(null);
         const msg = err.message || '';
         if (/tomado por otro|ya no disponible|expirad|otro repartidor/i.test(msg)) {
           setError('Este pedido ya fue aceptado por otro repartidor.');
@@ -542,15 +562,17 @@ export function DriverHome() {
         pendingOffers: (prev.pendingOffers || []).filter((o) => o.id !== offer.id),
       };
     });
-    setOfferBusyId(null);
+    setOfferBusyId(offer.id);
     void rejectOffer(offer.id)
       .then(() => {
         offerBusyRef.current = null;
+        setOfferBusyId(null);
         void load();
       })
       .catch((err) => {
         dismissedOffersRef.current.delete(offer.id);
         offerBusyRef.current = null;
+        setOfferBusyId(null);
         setError(err.message);
         void load();
       });
@@ -563,6 +585,10 @@ export function DriverHome() {
     try {
       // confirmPickup ya sincroniza pedido → en_delivery
       await confirmPickup(assignment.id);
+      void startGps(true, { idle: false });
+      void getAndPublishCurrentFix({ timeoutMs: 3500, force: true }).then((pos) => {
+        if (pos) setGpsPos(pos);
+      });
       await load();
     } catch (e) {
       setError(e.message);
@@ -576,8 +602,11 @@ export function DriverHome() {
     setBusy(true);
     try {
       await confirmDelivery(assignment.id);
+      const leftover = (summary?.activeAssignments || []).filter((a) => a.id !== assignment.id);
+      if (!leftover.length) {
+        await setMyOperationalStatus('available').catch(() => {});
+      }
       await load();
-      // El efecto de actives baja GPS background → idle / stop
     } catch (e) {
       setError(e.message);
     } finally {
@@ -607,17 +636,17 @@ export function DriverHome() {
 
   return (
     <div className="mx-auto max-w-lg space-y-3 p-3 sm:p-4">
-      <div className="flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-900">
-        <span className="mt-0.5 text-base">🔔</span>
-        <div>
-          <p className="font-bold">{webAlerts ? 'App de clientes · solo avisos' : 'Avisos de pedido nuevo'}</p>
-          <p className="text-xs opacity-90">
-            {webAlerts
-              ? 'Cuando hay un pedido nuevo te llega a la bandeja como WhatsApp, aunque cierres esta app, pases a otra o apagues la pantalla. Para aceptar usa la app nativa de repartidor.'
-              : 'Llegan a la bandeja como WhatsApp (pantalla apagada, otra app o app cerrada). Toca el aviso para abrir el pedido.'}
-          </p>
+      {webAlerts && (
+        <div className="flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-900">
+          <Bell className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-bold">App de clientes · solo avisos</p>
+            <p className="text-xs opacity-90">
+              Cuando hay un pedido nuevo te llega a la bandeja como WhatsApp. Para aceptar usa la app nativa de repartidor.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {webAlerts && (
         <div className="rounded-2xl border border-pollon-red/30 bg-white px-3.5 py-3 text-sm text-gray-800 shadow-sm">
@@ -645,59 +674,59 @@ export function DriverHome() {
 
       {webAlerts && <DriverOemPushGuide />}
 
-      {!webAlerts && (actives.length > 0 || isOnline) && (
-        <div className={`flex items-start gap-2 rounded-2xl border px-3.5 py-3 text-sm ${
-          gpsOn
-            ? 'border-sky-200 bg-sky-50 text-sky-950'
-            : 'border-amber-200 bg-amber-50 text-amber-950'
-        }`}
-        >
-          <span className="mt-0.5 text-base">📍</span>
-          <div>
-            <p className="font-bold">{gpsOn ? (actives.length ? 'Ubicación en vivo' : 'En línea · GPS activo') : 'Activa la ubicación'}</p>
-            <p className="text-xs opacity-90">
-              {gpsOn
-                ? (actives.length
-                  ? 'Admin y cajeras siguen tu ruta hasta Entregado. En la app nativa sigue con pantalla apagada; no detengas la notificación de “En ruta”.'
-                  : 'El mapa ve que estás Disponible. Con pantalla apagada no detengas la notificación “En línea”.')
-                : (gpsError || 'Permite ubicación Siempre para que el GPS siga con la pantalla apagada.')}
-            </p>
-            {!gpsOn && (
-              <button
-                type="button"
-                onClick={() => { void startGps(true, { idle: actives.length === 0 }); }}
-                className="mt-1 text-xs font-bold underline"
-              >
-                Permitir ubicación ahora
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
       {!webAlerts && (
-      <div className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-        <div className="min-w-0">
-          <p className="text-xs text-gray-500">Estado</p>
-          <p className="text-lg font-bold text-gray-900">{isOnline ? 'En línea' : 'Desconectado'}</p>
-          <p className="text-sm font-semibold text-emerald-600">
-            Avisos de bandeja activos
-          </p>
-          <p className="mt-0.5 text-sm font-semibold text-pollon-orange">
-            Pedidos activos: {actives.length}/{maxOrders}
-          </p>
+      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <div className="flex items-center justify-between gap-3 px-4 py-3.5">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Estado</p>
+            <p className="text-lg font-bold text-gray-900">{isOnline ? 'En línea' : 'Desconectado'}</p>
+            <p className="mt-0.5 text-sm font-semibold text-pollon-orange">
+              Pedidos {actives.length}/{maxOrders}
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={busy || loading || (!isOnline && !canGoOnline)}
+            onClick={toggleOnline}
+            title={!isOnline && !permsReady ? 'Completa permisos arriba primero' : undefined}
+            className={`shrink-0 rounded-full px-5 py-2.5 text-sm font-bold shadow-sm transition active:scale-95 disabled:opacity-50 ${
+              isOnline ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-700'
+            }`}
+          >
+            {isOnline ? 'Disponible' : 'Conectarme'}
+          </button>
         </div>
-        <button
-          type="button"
-          disabled={busy || loading || (!isOnline && !canGoOnline)}
-          onClick={toggleOnline}
-          title={!isOnline && !permsReady ? 'Completa permisos arriba primero' : undefined}
-          className={`shrink-0 rounded-full px-5 py-2.5 text-sm font-bold shadow-sm transition active:scale-95 disabled:opacity-50 ${
-            isOnline ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-700'
+        {(actives.length > 0 || isOnline) && (
+          <div className={`flex items-start gap-2 border-t px-4 py-2.5 text-xs ${
+            gpsOn ? 'border-sky-100 bg-sky-50 text-sky-950' : 'border-amber-100 bg-amber-50 text-amber-950'
           }`}
-        >
-          {isOnline ? 'Disponible' : 'Conectarme'}
-        </button>
+          >
+            {actives.length ? <Radio className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
+            <div>
+              <p className="font-bold">
+                {gpsOn
+                  ? (actives.length ? 'En vivo · admin y caja te ven' : 'GPS en línea')
+                  : 'Falta ubicación Siempre'}
+              </p>
+              <p className="opacity-90">
+                {gpsOn
+                  ? (actives.length
+                    ? 'Pantalla apagada u otra app: no detengas la notificación “En ruta”.'
+                    : 'Al aceptar, tu avance se ve en el mapa.')
+                  : (gpsError || 'Permite ubicación Siempre para seguir con la pantalla apagada.')}
+              </p>
+              {!gpsOn && (
+                <button
+                  type="button"
+                  onClick={() => { void startGps(true, { idle: actives.length === 0 }); }}
+                  className="mt-1 font-bold underline"
+                >
+                  Permitir ubicación ahora
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       )}
 

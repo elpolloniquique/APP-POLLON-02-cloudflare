@@ -75,15 +75,22 @@ export function resolveTrackingMode(order, liveMeta = null) {
   return TRACKING_MODE.STATUS_LINE;
 }
 
+export function orderPickedUpForCustomer(order, liveMeta = null) {
+  const estado = String(order?.estado || '').toLowerCase();
+  if (estado === 'en_delivery') return true;
+  const phase = String(liveMeta?.phase || '').toLowerCase();
+  return phase === 'to_customer' || phase === 'at_customer' || phase === 'delivering';
+}
+
 /**
- * Mapa al cliente si hay pedido delivery, aceptación por app y al menos
- * una coordenada del repartidor. No se oculta el pin por GPS “stale”:
- * se muestra la última ubicación conocida.
+ * Mapa al cliente solo después de “Pedido recogido”.
+ * Admin y cajera ven la ruta desde que el repartidor acepta.
  */
 export function shouldShowLiveMap(order, liveMeta = null) {
   if (order?.orderType && order.orderType !== 'delivery') return false;
   if (order?.estado === 'entregado' || order?.estado === 'cancelado') return false;
   if (!wasAcceptedViaDriverApp(order, liveMeta)) return false;
+  if (!orderPickedUpForCustomer(order, liveMeta)) return false;
   if (!liveMeta?.has_driver) return false;
   const lat = liveMeta?.driver?.lat;
   const lng = liveMeta?.driver?.lng;
@@ -96,6 +103,9 @@ export function liveMapFallbackReason(order, liveMeta = null) {
   if (order?.estado === 'cancelado') return null;
   if (!wasAcceptedViaDriverApp(order, liveMeta)) {
     return 'Seguimiento por estados: tu pedido fue gestionado en local (sin ubicación en vivo del repartidor).';
+  }
+  if (wasAcceptedViaDriverApp(order, liveMeta) && !orderPickedUpForCustomer(order, liveMeta)) {
+    return 'El repartidor ya tomó tu pedido. El mapa en vivo aparece cuando retire el pedido en sucursal.';
   }
   if (liveMeta?.has_driver && !shouldShowLiveMap(order, liveMeta)) {
     return 'Esperando la ubicación del repartidor. El mapa aparece en cuanto el GPS envíe el primer punto.';

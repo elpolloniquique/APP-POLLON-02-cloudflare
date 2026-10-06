@@ -136,7 +136,7 @@ export function DriverOfferCard({
             className="inline-flex touch-manipulation items-center justify-center gap-1.5 rounded-xl bg-pollon-red py-3 text-sm font-bold text-white active:scale-95 disabled:opacity-50"
           >
             <Check className="h-4 w-4" />
-            {canAccept ? 'Aceptar' : 'Cupo lleno'}
+            {loading ? 'Aceptando…' : (canAccept ? 'Aceptar' : 'Cupo lleno')}
           </button>
         </div>
         )}

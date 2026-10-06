@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { unlockDriverAudio } from '../../utils/orderAlertSound';
 import { APP_BUILD_ID } from '../../utils/buildStamp';
 import { DriverLiveTrackingOnboarding } from './DriverLiveTrackingOnboarding';
-import { getMyDriverSummary, ensureMyDriverProfile, setMyOperationalStatus } from '../../services/driverService';
+import { getMyDriverSummary, ensureMyDriverProfile } from '../../services/driverService';
 import { subscribeDispatch } from '../../services/dispatchService';
 import {
   setDriverAppBadge,
@@ -136,9 +136,8 @@ export function DriverLayout() {
           const idle = (s?.activeAssignments || []).length === 0;
           return startDriverBackgroundGps({ idle, quiet: true });
         })
-        .catch(() => startDriverBackgroundGps({ idle: true, quiet: true }).catch(() => {}));
+        .catch(() => {});
     }, 1600);
-    if (native) setMyOperationalStatus('available').catch(() => {});
     const unsub = subscribeDispatch(() => refreshBadge());
     const t = setInterval(refreshBadge, 15000);
     const onMsg = (event) => {
@@ -170,7 +169,7 @@ export function DriverLayout() {
     await stopDriverBackgroundGps();
     await clearDriverAppBadge();
     await signOut();
-    navigate('/', { replace: true });
+    navigate('/repartidor', { replace: true });
   };
 
   if (!native && /^\/repartidor\/(mapa|historial|ingresos)/.test(location.pathname)) {
@@ -189,7 +188,7 @@ export function DriverLayout() {
     <div className={`driver-shell flex min-h-[100dvh] flex-col bg-[#f3f3f3] text-gray-900 ${native ? 'is-native' : ''}`} data-build={APP_BUILD_ID}>
       <header className="driver-topbar sticky top-0 z-40 flex items-center justify-between border-b border-black/10 bg-black px-4 py-3 text-white shadow-sm">
         <div className="flex items-center gap-2.5">
-          <img src="/img/logo pollon.png" alt="" className="h-10 w-10 rounded-full border border-white/20 bg-white object-contain" />
+          <img src="/img/logo%20pollon.png" alt="" className="h-10 w-10 rounded-full border border-white/20 bg-white object-contain" />
           <div>
             <p className="font-display text-lg leading-none tracking-wide text-white">EL POLLÓN</p>
             <p className="mt-0.5 text-[11px] font-semibold text-white/55">{native ? 'Repartidor' : 'Avisos de pedidos'}</p>
@@ -217,7 +216,7 @@ export function DriverLayout() {
         <Outlet context={outletContext} />
       </main>
 
-      <nav className="driver-tabbar fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white shadow-[0_-4px_20px_rgba(0,0,0,.08)]">
+      <nav className="driver-tabbar fixed bottom-0 left-0 right-0 z-50">
         <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-1.5">
           {tabs.map(({ to, end, icon: Icon, label, badgeKey }) => (
             <NavLink
@@ -228,7 +227,7 @@ export function DriverLayout() {
                 const offerTab = to === '/repartidor' && location.pathname.startsWith('/repartidor/oferta');
                 const on = isActive || offerTab;
                 return `relative flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-bold ${
-                  on ? 'is-active text-[#c00000]' : 'text-gray-500'
+                  on ? 'is-active text-white' : 'text-white/45'
                 }`;
               }}
             >

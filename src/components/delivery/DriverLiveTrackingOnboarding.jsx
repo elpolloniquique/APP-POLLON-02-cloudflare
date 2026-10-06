@@ -139,7 +139,7 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
   return (
     <div className="driver-native-gate" role="dialog" aria-labelledby="driver-notify-title">
       <div className="driver-native-gate__card">
-        <img src="/img/logo pollon.png" alt="" className="driver-native-gate__logo driver-native-gate__logo--sm" />
+        <img src="/img/logo%20pollon.png" alt="" className="driver-native-gate__logo driver-native-gate__logo--sm" />
         <p className="driver-native-gate__brand">EL POLLÓN</p>
         <p className="driver-native-gate__badge">Repartidor</p>
         <h1 id="driver-notify-title" className="driver-native-gate__title">

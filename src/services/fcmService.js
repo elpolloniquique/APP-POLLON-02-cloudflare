@@ -139,8 +139,22 @@ export async function registerNativePushHandlers({ onOffer } = {}) {
         } catch {
           /* ignore */
         }
-        // App abierta: el pedido se ve en la lista, sin alarma ni bandeja extra.
-        // App cerrada / otra app: FCM (notification+tag) pinta la bandeja.
+        if (data.type === 'driver_offer' || data.offerId) {
+          import('./driverTrayNotification.js')
+            .then((m) => m.showDriverOfferTray({
+              offerId: data.offerId,
+              jobId: data.jobId,
+              title: notification?.title || data.title,
+              body: notification?.body || data.body,
+              ticket: data.ticket,
+              customerName: data.customerName,
+              address: data.address,
+              fee: data.fee,
+              badgeCount: Number(data.badgeCount) || 1,
+              deepLink: data.deepLink || data.url,
+            }))
+            .catch(() => {});
+        }
       }),
     ).catch(() => {});
 
