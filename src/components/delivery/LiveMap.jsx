@@ -256,8 +256,8 @@ export function LiveMap({
                   smoothFactor={1.15}
                   pathOptions={{
                     color: '#ffffff',
-                    weight: trail ? 4 : 5,
-                    opacity: trail ? 0.35 : 0.72,
+                    weight: trail ? 5 : 7,
+                    opacity: trail ? 0.4 : 0.8,
                     lineCap: 'round',
                     lineJoin: 'round',
                     interactive: false,
@@ -268,8 +268,8 @@ export function LiveMap({
                   smoothFactor={1.15}
                   pathOptions={{
                     color: route.color,
-                    weight: trail ? 1.75 : 2.5,
-                    opacity: trail ? 0.42 : 0.96,
+                    weight: trail ? 2.25 : 4,
+                    opacity: trail ? 0.5 : 0.96,
                     dashArray: trail ? '2 7' : null,
                     lineCap: 'round',
                     lineJoin: 'round',
