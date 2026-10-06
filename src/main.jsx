@@ -19,6 +19,19 @@ const isNativeCapacitor = (() => {
 const isLocalHost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
 const isViteDev = Boolean(import.meta.hot) || import.meta.env.MODE === 'development';
 
+if (isLocalHost) {
+  try {
+    const q = new URLSearchParams(window.location.search).get('native');
+    if (q === '1' || q === 'preview') sessionStorage.setItem('pollon_native_preview', '1');
+    if (q === '0' || q === 'off') sessionStorage.removeItem('pollon_native_preview');
+    if (sessionStorage.getItem('pollon_native_preview') === '1') {
+      document.documentElement.classList.add('is-native-app');
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 function unregisterServiceWorkers() {
   if (!('serviceWorker' in navigator)) return;
   navigator.serviceWorker.getRegistrations?.()

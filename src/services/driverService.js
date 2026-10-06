@@ -183,6 +183,47 @@ export async function setMyOperationalStatus(status) {
   return data;
 }
 
+/** Tras entregar (o al pasar a Disponible): vuelve a poner pending las ofertas de pedidos nuevos. */
+export async function refreshMyOpenOffers() {
+  if (!isSupabaseConfigured()) return { ok: true, skipped: true };
+  const sb = getSupabase();
+  const { data, error } = await sb.rpc('ep_refresh_my_open_offers');
+  if (!error) return data || { ok: true };
+
+  const { data: sessionData } = await sb.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) return { ok: false, error: rpcError(error, 'No se pudieron recargar ofertas') };
+
+  try {
+    const res = await fetch('/api/driver-refresh-offers', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ afterDelivery: true }),
+    });
+    if (res.ok) return await res.json().catch(() => ({ ok: true }));
+  } catch {
+    /* localhost sin middleware o API vieja */
+  }
+
+  try {
+    const res = await fetch('/api/notify-driver-offers', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ afterDelivery: true }),
+    });
+    if (!res.ok) return { ok: false, error: rpcError(error, 'No se pudieron recargar ofertas') };
+    return await res.json().catch(() => ({ ok: true }));
+  } catch {
+    return { ok: false, error: rpcError(error, 'No se pudieron recargar ofertas') };
+  }
+}
+
 export async function getMyDriverSummary() {
   if (!isSupabaseConfigured()) {
     return {
@@ -235,13 +276,18 @@ export async function getMyDriverSummary() {
 
   const orderIds = [...new Set(pendingOffers.map((o) => o.ep_delivery_jobs?.source_order_id).filter(Boolean))];
   if (orderIds.length) {
-    const { data: peds } = await sb.from('pedidos').select('id, estado').in('id', orderIds);
-    const nuevo = new Set(
-      (peds || [])
-        .filter((p) => ['pendiente', 'nuevo'].includes(String(p.estado || '').toLowerCase()))
-        .map((p) => p.id),
-    );
-    pendingOffers = pendingOffers.filter((o) => nuevo.has(o.ep_delivery_jobs?.source_order_id));
+    const { data: peds, error: pedErr } = await sb.from('pedidos').select('id, estado').in('id', orderIds);
+    if (!pedErr && peds?.length) {
+      const byId = Object.fromEntries((peds || []).map((p) => [String(p.id), p]));
+      pendingOffers = pendingOffers.filter((o) => {
+        const oid = o.ep_delivery_jobs?.source_order_id;
+        if (!oid) return true;
+        const ped = byId[String(oid)];
+        if (!ped) return true;
+        const est = String(ped.estado || '').toLowerCase();
+        return ['pendiente', 'nuevo'].includes(est);
+      });
+    }
   }
 
   const done = doneRes.data || [];

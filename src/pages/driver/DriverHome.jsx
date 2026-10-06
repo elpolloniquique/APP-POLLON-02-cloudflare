@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Bell, MapPin, Radio } from 'lucide-react';
+import { useOutletContext, useParams } from 'react-router-dom';
+import { Bell } from 'lucide-react';
 import { DriverOfferCard } from '../../components/delivery/DriverOfferCard';
 import { DriverActiveOrderCard } from '../../components/delivery/DriverActiveOrderCard';
 import { DriverOemPushGuide } from '../../components/delivery/DriverOemPushGuide';
@@ -8,6 +8,7 @@ import {
   ensureMyDriverProfile,
   getMyDriverSummary,
   setMyOperationalStatus,
+  refreshMyOpenOffers,
 } from '../../services/driverService';
 import {
   acceptOffer,
@@ -25,6 +26,7 @@ import {
 } from '../../services/pushService';
 import {
   isNativeDriverApp,
+  isNativeDriverPreview,
   openNativeLocationSettings,
   startDriverBackgroundGps,
   stopDriverBackgroundGps,
@@ -52,6 +54,7 @@ function offerAlarmKey(o) {
 
 export function DriverHome() {
   const { offerId: focusOfferId } = useParams();
+  const { registerChrome } = useOutletContext() || {};
   const { user, profile } = useAuth();
   const userId = user?.id || profile?.id;
   const webAlerts = !isNativeDriverApp();
@@ -76,6 +79,7 @@ export function DriverHome() {
   const stopAlarmRef = useRef(null);
   const loadTimerRef = useRef(null);
   const loadingRef = useRef(false);
+  const loadGenRef = useRef(0);
   /** null | 'idle' | 'active' — evita reiniciar GPS en cada poll */
   const gpsModeRef = useRef(null);
   const stopGpsFnRef = useRef(null);
@@ -115,14 +119,20 @@ export function DriverHome() {
     setSummary({ ...s, pendingOffers: pending, activeAssignments: actives });
   }, []);
 
-  const load = useCallback(async () => {
-    if (loadingRef.current) return;
+  const load = useCallback(async (opts = {}) => {
+    const force = Boolean(opts.force);
+    if (loadingRef.current && !force) return;
+    const gen = ++loadGenRef.current;
     loadingRef.current = true;
     try {
       await ensureMyDriverProfile();
       const s = await getMyDriverSummary();
+      if (gen !== loadGenRef.current) return;
       applyServerSummary(s);
       setError('');
+      if (s?.driver?.id) {
+        try { localStorage.setItem('pollon_driver_id', s.driver.id); } catch { /* ignore */ }
+      }
 
       const hasActive = (s?.activeAssignments || []).length > 0;
       const onlineNow = ['available', 'heading_to_branch', 'delivering', 'carrying_orders', 'offered']
@@ -140,6 +150,7 @@ export function DriverHome() {
             .select('lat,lng,name,address,city')
             .eq('id', branchId)
             .maybeSingle();
+          if (gen !== loadGenRef.current) return;
           if (data) {
             setBranch({
               lat: data.lat != null ? Number(data.lat) : null,
@@ -152,10 +163,13 @@ export function DriverHome() {
         }
       }
     } catch (err) {
+      if (gen !== loadGenRef.current) return;
       setError(err.message || 'Error al cargar. ¿Ejecutaste la migración SQL?');
     } finally {
-      setLoading(false);
-      loadingRef.current = false;
+      if (gen === loadGenRef.current) {
+        setLoading(false);
+        loadingRef.current = false;
+      }
     }
   }, [applyServerSummary]);
 
@@ -338,7 +352,7 @@ export function DriverHome() {
     await load();
   }, [load, clearGps, summary?.activeAssignments]);
 
-  const startGps = useCallback(async (publish, { idle = false } = {}) => {
+  const startGps = useCallback(async (publish, { idle = false, quiet = true } = {}) => {
     if (!isNativeDriverApp()) return { ok: true };
     publishRef.current = !!publish;
     if (!publish) {
@@ -349,8 +363,10 @@ export function DriverHome() {
     const switchFromIdle = gpsModeRef.current === 'idle' && !idle;
     const res = await startDriverBackgroundGps({
       idle,
-      quiet: true,
-      forceRestart: switchFromIdle,
+      quiet,
+      forceRestart: switchFromIdle || !idle,
+      fallbackLat: branch?.lat,
+      fallbackLng: branch?.lng,
     });
     if (!res.ok) {
       setGpsError(res.error || 'No se pudo compartir la ubicación.');
@@ -360,10 +376,12 @@ export function DriverHome() {
     }
     if (res.position) setGpsPos(res.position);
     setGpsOn(true);
-    setGpsError('');
+    setGpsError(res.fallback
+      ? 'Este PC no tiene GPS. Admin te ve en la sucursal. En el celular será tu ubicación real.'
+      : '');
     gpsModeRef.current = idle ? 'idle' : 'active';
     return res;
-  }, []);
+  }, [branch?.lat, branch?.lng]);
 
   // GPS en KV: solo app nativa. La PWA de clientes no comparte ubicación ni acepta.
   useEffect(() => {
@@ -382,21 +400,33 @@ export function DriverHome() {
         void (isNativeDriverApp()
           ? startDriverBackgroundGps({
             idle,
-            quiet: true,
-            forceRestart: Boolean(gpsModeRef.current && gpsModeRef.current !== wantMode),
+            quiet: idle,
+            forceRestart: Boolean(gpsModeRef.current && gpsModeRef.current !== wantMode) || !idle,
+            fallbackLat: branch?.lat,
+            fallbackLng: branch?.lng,
           }).then((res) => {
             if (res?.ok) {
               setGpsOn(true);
               gpsModeRef.current = wantMode;
               if (res.position) setGpsPos(res.position);
+              if (res.fallback) {
+                setGpsError('Este PC no tiene GPS. Admin te ve en la sucursal. En el celular será tu ubicación real.');
+              } else {
+                setGpsError('');
+              }
               const hasRealJob = (summary.activeAssignments || []).some(
                 (a) => a?.id && !String(a.id).startsWith('opt-'),
               );
               if (hasRealJob) {
-                void getAndPublishCurrentFix({ timeoutMs: 3500, force: true }).then((pos) => {
-                  if (pos) setGpsPos(pos);
+                void getAndPublishCurrentFix({ timeoutMs: 8000, force: true }).then((pos) => {
+                  if (pos) {
+                    setGpsPos(pos);
+                    setGpsError('');
+                  }
                 });
               }
+            } else if (res?.error && !idle && !gpsOn) {
+              setGpsError(res.error);
             }
           })
           : startGps(true, { idle }));
@@ -407,7 +437,7 @@ export function DriverHome() {
       void clearGps();
     }
     return undefined;
-  }, [summary, clearGps, startGps, webAlerts]);
+  }, [summary, clearGps, startGps, webAlerts, branch?.lat, branch?.lng]);
 
   // ~5 min de la sucursal → estado "En cocina" (preparando)
   useEffect(() => {
@@ -439,7 +469,7 @@ export function DriverHome() {
     };
   }, [gpsPos, branch?.lat, branch?.lng, summary?.activeAssignments]);
 
-  const toggleOnline = async () => {
+  const toggleOnline = useCallback(async () => {
     if (webAlerts) return;
     const currentlyOnline = ['available', 'heading_to_branch', 'delivering', 'carrying_orders', 'offered'].includes(
       summary?.driver?.operational_status
@@ -462,16 +492,19 @@ export function DriverHome() {
       }
 
       await setMyOperationalStatus(next);
+      if (next === 'available') {
+        await refreshMyOpenOffers().catch(() => {});
+      }
       if (next !== 'available' && !(summary?.activeAssignments || []).length) {
         await clearGps();
       }
-      await load();
+      await load({ force: true });
     } catch (err) {
       setError(err.message);
     } finally {
       setBusy(false);
     }
-  };
+  }, [webAlerts, summary, permsReady, userId, clearGps, load]);
 
   const hushOfferUi = (offer) => {
     const offerId = offer?.id || offer;
@@ -509,7 +542,11 @@ export function DriverHome() {
     };
     optimisticAssignRef.current = optimistic;
     publishRef.current = true;
-    void startGps(true, { idle: false });
+    void startGps(true, { idle: false, quiet: false }).then((res) => {
+      if (!res?.ok) {
+        setGpsError(res?.error || 'Permite la ubicación para que admin y caja te vean.');
+      }
+    });
     setSummary((prev) => {
       if (!prev) return prev;
       return {
@@ -529,8 +566,12 @@ export function DriverHome() {
         if (orderId) void syncAfterDriverAccept(orderId);
         offerBusyRef.current = null;
         setOfferBusyId(null);
-        void getAndPublishCurrentFix({ timeoutMs: 3500, force: true }).then((pos) => {
-          if (pos) setGpsPos(pos);
+        void getAndPublishCurrentFix({ timeoutMs: 8000, force: true }).then((pos) => {
+          if (pos) {
+            setGpsPos(pos);
+            setGpsOn(true);
+            setGpsError('');
+          }
         });
         void load();
       })
@@ -605,8 +646,11 @@ export function DriverHome() {
       const leftover = (summary?.activeAssignments || []).filter((a) => a.id !== assignment.id);
       if (!leftover.length) {
         await setMyOperationalStatus('available').catch(() => {});
+        await refreshMyOpenOffers().catch(() => {});
       }
-      await load();
+      await load({ force: true });
+      window.setTimeout(() => { void load({ force: true }); }, 400);
+      window.setTimeout(() => { void load({ force: true }); }, 1400);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -632,10 +676,22 @@ export function DriverHome() {
     || summary?.driver?.profiles?.nombre
     || 'repartidor';
   const branchCity = branch?.city || 'Iquique';
-  const canGoOnline = permsReady && !busy && !loading;
+  useEffect(() => {
+    if (webAlerts || typeof registerChrome !== 'function') return undefined;
+    registerChrome({
+      toggleOnline,
+      state: {
+        online: isOnline,
+        gpsOn,
+        live: actives.length > 0,
+        busy,
+      },
+    });
+    return undefined;
+  }, [webAlerts, registerChrome, toggleOnline, isOnline, gpsOn, actives.length, busy]);
 
   return (
-    <div className="mx-auto max-w-lg space-y-3 p-3 sm:p-4">
+    <div className="mx-auto max-w-lg space-y-2 p-2 sm:p-3">
       {webAlerts && (
         <div className="flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-900">
           <Bell className="mt-0.5 h-4 w-4 shrink-0" />
@@ -674,62 +730,6 @@ export function DriverHome() {
 
       {webAlerts && <DriverOemPushGuide />}
 
-      {!webAlerts && (
-      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Estado</p>
-            <p className="text-lg font-bold text-gray-900">{isOnline ? 'En línea' : 'Desconectado'}</p>
-            <p className="mt-0.5 text-sm font-semibold text-pollon-orange">
-              Pedidos {actives.length}/{maxOrders}
-            </p>
-          </div>
-          <button
-            type="button"
-            disabled={busy || loading || (!isOnline && !canGoOnline)}
-            onClick={toggleOnline}
-            title={!isOnline && !permsReady ? 'Completa permisos arriba primero' : undefined}
-            className={`shrink-0 rounded-full px-5 py-2.5 text-sm font-bold shadow-sm transition active:scale-95 disabled:opacity-50 ${
-              isOnline ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-700'
-            }`}
-          >
-            {isOnline ? 'Disponible' : 'Conectarme'}
-          </button>
-        </div>
-        {(actives.length > 0 || isOnline) && (
-          <div className={`flex items-start gap-2 border-t px-4 py-2.5 text-xs ${
-            gpsOn ? 'border-sky-100 bg-sky-50 text-sky-950' : 'border-amber-100 bg-amber-50 text-amber-950'
-          }`}
-          >
-            {actives.length ? <Radio className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
-            <div>
-              <p className="font-bold">
-                {gpsOn
-                  ? (actives.length ? 'En vivo · admin y caja te ven' : 'GPS en línea')
-                  : 'Falta ubicación Siempre'}
-              </p>
-              <p className="opacity-90">
-                {gpsOn
-                  ? (actives.length
-                    ? 'Pantalla apagada u otra app: no detengas la notificación “En ruta”.'
-                    : 'Al aceptar, tu avance se ve en el mapa.')
-                  : (gpsError || 'Permite ubicación Siempre para seguir con la pantalla apagada.')}
-              </p>
-              {!gpsOn && (
-                <button
-                  type="button"
-                  onClick={() => { void startGps(true, { idle: actives.length === 0 }); }}
-                  className="mt-1 font-bold underline"
-                >
-                  Permitir ubicación ahora
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-      )}
-
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           <p>{error}</p>
@@ -742,6 +742,22 @@ export function DriverHome() {
               Abrir ajustes de ubicación
             </button>
           )}
+        </div>
+      )}
+      {gpsError && !error && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <p className="font-semibold">Admin y caja no te ven aún</p>
+          <p className="mt-0.5 text-xs">{gpsError}</p>
+          <button
+            type="button"
+            className="mt-2 text-xs font-bold underline"
+            onClick={() => {
+              setGpsError('');
+              void startGps(true, { idle: (summary?.activeAssignments || []).length === 0, quiet: false });
+            }}
+          >
+            Compartir ubicación ahora
+          </button>
         </div>
       )}
 
@@ -783,8 +799,8 @@ export function DriverHome() {
           {webAlerts
             ? 'Cuando haya un pedido nuevo te llega el aviso a la bandeja. Ábrelo y acéptalo en la app nativa.'
             : (isOnline
-              ? `Esperando pedidos… Puedes llevar hasta ${maxOrders} a la vez antes del recojo. Al marcar pedido recogido no llegan más ofertas hasta entregar todos.`
-              : 'Pulsa Conectarme para recibir pedidos nuevos.')}
+              ? `Esperando pedidos… Puedes llevar hasta ${maxOrders} a la vez antes del recojo.`
+              : 'Pulsa En línea arriba para recibir pedidos nuevos.')}
         </div>
       )}
     </div>

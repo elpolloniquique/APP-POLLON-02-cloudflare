@@ -12,7 +12,7 @@ import {
   getDriverActiveOrdersDetail,
   getDispatchSettings,
 } from '../../services/trackingService';
-import { subscribeDispatch } from '../../services/dispatchService';
+import { subscribeDispatch, healOpenOffersForAvailableDrivers } from '../../services/dispatchService';
 import { fetchOsrmRoute } from '../../utils/osrm';
 import {
   colorForDriver,
@@ -136,6 +136,7 @@ export function AdminLiveMap() {
 
   const load = useCallback(async () => {
     try {
+      await healOpenOffersForAvailableDrivers().catch(() => {});
       const [locs, asgs] = await Promise.all([
         listLiveLocations(),
         listLiveAssignments(filterBranch),

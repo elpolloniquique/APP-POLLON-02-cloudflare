@@ -22,7 +22,7 @@ export async function jobIsNuevoUnassigned(admin, jobId) {
   if (!admin || !jobId) return { ok: false, reason: 'missing' };
   const { data: job } = await admin
     .from('ep_delivery_jobs')
-    .select('id, status, assigned_driver_id, source_order_id, ticket_code, customer_address, delivery_fee')
+    .select('id, status, assigned_driver_id, source_order_id, ticket_code, customer_address, delivery_fee, branch_id')
     .eq('id', jobId)
     .maybeSingle();
   if (!job) return { ok: false, reason: 'job_missing' };
@@ -81,13 +81,44 @@ export async function ensureNotifyEligibleOffers(admin, jobId) {
 
   const { data: existing } = await admin
     .from('ep_delivery_offers')
-    .select('driver_id, status')
+    .select('id, driver_id, status')
     .eq('job_id', jobId);
-  const already = new Set((existing || []).map((o) => o.driver_id).filter(Boolean));
+
+  const skip = new Set();
+  const toRevive = [];
+  for (const row of existing || []) {
+    if (!row?.driver_id) continue;
+    if (row.status === 'rejected' || row.status === 'accepted' || row.status === 'pending') {
+      skip.add(row.driver_id);
+    } else if (row.status === 'expired' || row.status === 'taken_by_other') {
+      toRevive.push(row);
+    } else {
+      skip.add(row.driver_id);
+    }
+  }
 
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  const eligibleIds = new Set(eligible.map((d) => d.id));
+  const reviveRows = toRevive.filter((row) => eligibleIds.has(row.driver_id));
+  let revived = 0;
+  if (reviveRows.length) {
+    const { error: upErr } = await admin
+      .from('ep_delivery_offers')
+      .update({
+        status: 'pending',
+        offered_fee: job.delivery_fee || 0,
+        expires_at: expiresAt,
+        responded_at: null,
+      })
+      .in('id', reviveRows.map((r) => r.id));
+    if (!upErr) {
+      revived = reviveRows.length;
+      reviveRows.forEach((r) => skip.add(r.driver_id));
+    }
+  }
+
   const rows = eligible
-    .filter((d) => !already.has(d.id))
+    .filter((d) => !skip.has(d.id))
     .map((d) => ({
       job_id: jobId,
       driver_id: d.id,
@@ -97,13 +128,15 @@ export async function ensureNotifyEligibleOffers(admin, jobId) {
       responded_at: null,
     }));
 
-  if (!rows.length) {
-    return { added: 0, reason: already.size ? 'ya_existentes' : 'ya_aceptado', existing: already.size };
+  if (!rows.length && !revived) {
+    return { added: 0, revived: 0, reason: skip.size ? 'ya_existentes' : 'ya_aceptado', existing: skip.size };
   }
 
-  const { error: insErr } = await admin.from('ep_delivery_offers').insert(rows);
-  if (insErr && !String(insErr.message || '').toLowerCase().includes('duplicate')) {
-    return { added: 0, reason: insErr.message };
+  if (rows.length) {
+    const { error: insErr } = await admin.from('ep_delivery_offers').insert(rows);
+    if (insErr && !String(insErr.message || '').toLowerCase().includes('duplicate')) {
+      return { added: 0, revived, reason: insErr.message };
+    }
   }
 
   if (job.status !== 'offered') {
@@ -117,7 +150,7 @@ export async function ensureNotifyEligibleOffers(admin, jobId) {
       .eq('id', jobId);
   }
 
-  return { added: rows.length, reason: 'ok' };
+  return { added: rows.length, revived, reason: 'ok' };
 }
 
 export async function listOpenNotifyJobIds(admin, { hours = 18, limit = 40 } = {}) {
@@ -206,4 +239,111 @@ export async function findDriverIdForAuthUser(admin, authUserId) {
     .eq('profile_id', profile.id)
     .maybeSingle();
   return byProfile?.id || null;
+}
+
+/** Tras entregar: ofertas pending de este chofer para pedidos nuevos sin asignar. */
+export async function refreshOffersForDriver(admin, driverId) {
+  if (!admin || !driverId) return { ok: false, revived: 0, inserted: 0, reason: 'missing' };
+
+  const rpc = await admin.rpc('ep_refresh_open_offers_for_driver', { p_driver_id: driverId });
+  if (!rpc.error && rpc.data) {
+    return { ok: true, ...(typeof rpc.data === 'object' ? rpc.data : { revived: 0 }), via: 'rpc' };
+  }
+
+  const { data: driver } = await admin
+    .from('ep_driver_profiles')
+    .select('id, preferred_branch_id, operational_status, admin_status')
+    .eq('id', driverId)
+    .maybeSingle();
+  if (!driver || driver.admin_status !== 'approved') {
+    return { ok: false, revived: 0, inserted: 0, reason: 'driver' };
+  }
+  if (['offline', 'blocked', 'paused', 'delivering'].includes(driver.operational_status)) {
+    return { ok: true, revived: 0, inserted: 0, reason: 'not_eligible' };
+  }
+
+  const { count: activeCount } = await admin
+    .from('ep_delivery_assignments')
+    .select('id', { count: 'exact', head: true })
+    .eq('driver_id', driverId)
+    .eq('status', 'active');
+  if ((Number(activeCount) || 0) > 0) {
+    const { count: picked } = await admin
+      .from('ep_delivery_assignments')
+      .select('id', { count: 'exact', head: true })
+      .eq('driver_id', driverId)
+      .eq('status', 'active')
+      .in('phase', ['to_customer', 'done']);
+    if ((Number(picked) || 0) > 0) {
+      return { ok: true, revived: 0, inserted: 0, reason: 'carrying' };
+    }
+  }
+
+  const fromPedidos = await ensureJobsFromPendingPedidos(admin, { hours: 18, limit: 12 }).catch(() => []);
+  const listed = await listOpenNotifyJobIds(admin, { hours: 18, limit: 40 }).catch(() => []);
+  const jobIds = [...new Set([
+    ...(fromPedidos || []).map((id) => unwrapJobId(id)),
+    ...(listed || []).map((id) => unwrapJobId(id)),
+  ].filter(Boolean))];
+
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  let revived = 0;
+  let inserted = 0;
+
+  for (const jobId of jobIds) {
+    const gate = await jobIsNuevoUnassigned(admin, jobId);
+    if (!gate.ok) continue;
+    const job = gate.job;
+    if (job.branch_id && driver.preferred_branch_id && job.branch_id !== driver.preferred_branch_id) {
+      continue;
+    }
+
+    const { data: existing } = await admin
+      .from('ep_delivery_offers')
+      .select('id, status')
+      .eq('job_id', jobId)
+      .eq('driver_id', driverId)
+      .maybeSingle();
+
+    if (existing?.status === 'rejected' || existing?.status === 'accepted') continue;
+
+    if (existing) {
+      if (existing.status !== 'pending') {
+        const { error } = await admin
+          .from('ep_delivery_offers')
+          .update({
+            status: 'pending',
+            offered_fee: job.delivery_fee || 0,
+            expires_at: expiresAt,
+            responded_at: null,
+          })
+          .eq('id', existing.id);
+        if (!error) revived += 1;
+      }
+    } else {
+      const { error } = await admin.from('ep_delivery_offers').insert({
+        job_id: jobId,
+        driver_id: driverId,
+        status: 'pending',
+        offered_fee: job.delivery_fee || 0,
+        expires_at: expiresAt,
+        responded_at: null,
+      });
+      if (!error) inserted += 1;
+    }
+
+    if (job.status !== 'offered') {
+      await admin
+        .from('ep_delivery_jobs')
+        .update({
+          status: 'offered',
+          offered_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', jobId)
+        .is('assigned_driver_id', null);
+    }
+  }
+
+  return { ok: true, revived, inserted, jobs: jobIds.length, via: 'js' };
 }

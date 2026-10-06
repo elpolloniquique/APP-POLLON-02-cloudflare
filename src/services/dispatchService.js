@@ -260,6 +260,7 @@ function ensureDispatchChannel() {
     .channel('ep-dispatch-live')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ep_delivery_jobs' }, fanOut)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ep_delivery_offers' }, fanOut)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'ep_delivery_assignments' }, fanOut)
     .subscribe((status) => {
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
         console.warn('[Pollón] dispatch realtime:', status);
@@ -302,4 +303,84 @@ export function subscribeDispatch(callback) {
       dispatchChannel = null;
     }
   };
+}
+
+const CLOSED_JOB = new Set([
+  'delivered',
+  'cancelled',
+  'assigned',
+  'heading_to_branch',
+  'picked_up',
+  'delivering',
+]);
+
+let lastOfferHealAt = 0;
+
+/** Staff: si un chofer quedó disponible, revivir ofertas de pedidos nuevos (tras Entregado). */
+export async function healOpenOffersForAvailableDrivers() {
+  if (!isSupabaseConfigured()) return { skipped: true };
+  const now = Date.now();
+  if (now - lastOfferHealAt < 2000) return { skipped: true, reason: 'throttle' };
+  lastOfferHealAt = now;
+
+  const sb = getSupabase();
+  const { data: isStaff } = await sb.rpc('ep_is_dispatch_staff');
+  if (!isStaff) return { skipped: true, reason: 'not_staff' };
+
+  const { data: peds, error: pedErr } = await sb
+    .from('pedidos')
+    .select('id')
+    .eq('tipo_entrega', 'delivery')
+    .in('estado', ['pendiente', 'nuevo'])
+    .order('creado_en', { ascending: false })
+    .limit(40);
+  if (pedErr) return { ok: false, error: pedErr.message };
+  const orderIds = (peds || []).map((p) => p.id).filter(Boolean);
+  if (!orderIds.length) return { ok: true, revived: 0 };
+
+  const { data: jobs } = await sb
+    .from('ep_delivery_jobs')
+    .select('id, status, assigned_driver_id')
+    .in('source_order_id', orderIds);
+  const openIds = (jobs || [])
+    .filter((j) => !j.assigned_driver_id && !CLOSED_JOB.has(j.status))
+    .map((j) => j.id);
+  if (!openIds.length) return { ok: true, revived: 0 };
+
+  const { data: offers } = await sb
+    .from('ep_delivery_offers')
+    .select('id, driver_id, status')
+    .in('job_id', openIds);
+  const toRevive = (offers || []).filter((o) => o.status === 'expired' || o.status === 'taken_by_other');
+  if (!toRevive.length) return { ok: true, revived: 0 };
+
+  const driverIds = [...new Set(toRevive.map((o) => o.driver_id).filter(Boolean))];
+  const [{ data: drivers }, { data: actives }] = await Promise.all([
+    sb.from('ep_driver_profiles').select('id, operational_status').in('id', driverIds),
+    sb.from('ep_delivery_assignments').select('driver_id, phase').in('driver_id', driverIds).eq('status', 'active'),
+  ]);
+  const blocking = new Set(
+    (actives || [])
+      .filter((a) => a.phase === 'to_customer' || a.phase === 'done')
+      .map((a) => a.driver_id),
+  );
+  const eligible = new Set(
+    (drivers || [])
+      .filter((d) => !['offline', 'blocked', 'paused', 'delivering'].includes(d.operational_status) && !blocking.has(d.id))
+      .map((d) => d.id),
+  );
+  const ids = toRevive.filter((o) => eligible.has(o.driver_id)).map((o) => o.id);
+  if (!ids.length) return { ok: true, revived: 0 };
+
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  const { error: upErr } = await sb
+    .from('ep_delivery_offers')
+    .update({
+      status: 'pending',
+      responded_at: null,
+      expires_at: expiresAt,
+    })
+    .in('id', ids);
+  if (upErr) return { ok: false, error: upErr.message };
+  return { ok: true, revived: ids.length };
 }

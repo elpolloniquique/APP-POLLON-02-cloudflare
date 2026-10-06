@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import {
-  Check, ChevronDown, ShoppingBag, Bike, Banknote, X, User,
-} from 'lucide-react';
+import { ChevronDown, User } from 'lucide-react';
 import { money } from '../../utils/format';
 import {
   OrderDetailModal,
@@ -54,64 +52,56 @@ export function DriverOfferCard({
 
   return (
     <>
-      <div className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${
-        focused ? 'border-pollon-red ring-2 ring-pollon-red/40' : 'border-gray-200'
-      }`}>
-        <div className="flex items-center justify-between gap-2 px-3.5 pt-3.5">
-          <span className="rounded-full bg-pollon-red px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
-            Nuevo pedido
-          </span>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-semibold text-emerald-700">Hasta que alguien acepte</span>
+      <div className={`drv-offer drv-offer--compact ${focused ? 'is-focus' : ''}`}>
+        <div className="flex items-center justify-between gap-2 px-2.5 pt-1.5">
+          <span className="drv-badge-new">Nuevo pedido</span>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate text-[9px] font-semibold text-gray-500">Hasta que alguien acepte</span>
             <button
               type="button"
               onClick={openDetail}
-              className="inline-flex items-center gap-1 rounded-lg border border-pollon-red bg-white px-2.5 py-1 text-[11px] font-bold text-pollon-red"
+              className="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-bold text-gray-800"
             >
               Ver
-              <ChevronDown className="h-3.5 w-3.5" />
+              <ChevronDown className="h-3 w-3" />
             </button>
           </div>
         </div>
 
-        <div className="flex items-start gap-2.5 px-3.5 py-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-pollon-red text-white">
-            <User className="h-5 w-5" />
+        <div className="flex items-center gap-2 px-2.5 pt-1">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500">
+            <User className="h-3.5 w-3.5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[15px] font-bold text-gray-900">{job.customer_name || 'Cliente'}</p>
-            <p className="mt-0.5 line-clamp-2 text-xs font-medium leading-snug text-pollon-red">
+            <p className="truncate text-[13px] font-bold leading-tight text-gray-900">{job.customer_name || 'Cliente'}</p>
+            <p className="truncate text-[10px] font-medium leading-tight text-pollon-red">
               {job.customer_address || 'Sin dirección'}
             </p>
           </div>
+          <DriverContactButtons phone={phone} message={waMessage} variant="pills" className="shrink-0" />
         </div>
 
-        <DriverContactButtons phone={phone} message={waMessage} className="px-3.5 pb-2" />
-
-        <div className="mx-3.5 mb-3 grid grid-cols-3 gap-0 overflow-hidden rounded-xl border border-gray-200">
-          <div className="border-r border-gray-200 px-2 py-2.5 text-center">
-            <ShoppingBag className="mx-auto h-4 w-4 text-pollon-red" />
-            <p className="mt-1 text-[9px] font-medium uppercase text-gray-400">Monto pedido</p>
-            <p className="text-xs font-bold text-gray-900">{money(orderTotal)}</p>
+        <div className="drv-offer-money mx-2.5 mt-1 grid grid-cols-3 overflow-hidden rounded-md border border-gray-200">
+          <div className="border-r border-gray-200 px-1 py-0.5 text-center">
+            <p className="text-[8px] font-medium uppercase leading-none text-gray-400">Monto pedido</p>
+            <p className="text-[11px] font-bold leading-tight text-gray-900">{money(orderTotal)}</p>
           </div>
-          <div className="border-r border-gray-200 px-2 py-2.5 text-center">
-            <Bike className="mx-auto h-4 w-4 text-pollon-red" />
-            <p className="mt-1 text-[9px] font-medium uppercase text-gray-400">Delivery</p>
-            <p className="text-xs font-bold text-gray-900">{money(fee)}</p>
+          <div className="border-r border-gray-200 px-1 py-0.5 text-center">
+            <p className="text-[8px] font-medium uppercase leading-none text-gray-400">Delivery</p>
+            <p className="text-[11px] font-bold leading-tight text-gray-900">{money(fee)}</p>
           </div>
-          <div className="px-2 py-2.5 text-center">
-            <Banknote className="mx-auto h-4 w-4 text-pollon-red" />
-            <p className="mt-1 text-[9px] font-medium uppercase text-gray-400">Total a cobrar</p>
-            <p className="text-xs font-bold text-pollon-red">{money(charge)}</p>
+          <div className="px-1 py-0.5 text-center">
+            <p className="text-[8px] font-medium uppercase leading-none text-gray-400">Total a cobrar</p>
+            <p className="text-[11px] font-bold leading-tight text-gray-900">{money(charge)}</p>
           </div>
         </div>
 
         {alertsOnly ? (
-          <p className="px-3.5 pb-3.5 text-center text-xs font-semibold text-pollon-red">
+          <p className="px-2.5 py-1 text-center text-[11px] font-semibold text-pollon-red">
             Este aviso es solo para que sepas que hay pedido nuevo. Acepta en la app nativa de repartidor.
           </p>
         ) : (
-        <div className="grid grid-cols-2 gap-2.5 px-3.5 pb-3.5">
+        <div className="grid grid-cols-2 gap-1.5 px-2.5 py-1.5">
           <button
             type="button"
             disabled={loading}
@@ -120,9 +110,8 @@ export function DriverOfferCard({
               e.preventDefault();
               onReject?.(offer);
             }}
-            className="inline-flex touch-manipulation items-center justify-center gap-1.5 rounded-xl border-2 border-pollon-red bg-white py-3 text-sm font-bold text-pollon-red active:scale-95 disabled:opacity-50"
+            className="drv-btn-rej touch-manipulation active:scale-95"
           >
-            <X className="h-4 w-4" />
             Rechazar
           </button>
           <button
@@ -133,9 +122,8 @@ export function DriverOfferCard({
               e.preventDefault();
               onAccept?.(offer);
             }}
-            className="inline-flex touch-manipulation items-center justify-center gap-1.5 rounded-xl bg-pollon-red py-3 text-sm font-bold text-white active:scale-95 disabled:opacity-50"
+            className="drv-btn-ok touch-manipulation active:scale-95"
           >
-            <Check className="h-4 w-4" />
             {loading ? 'Aceptando…' : (canAccept ? 'Aceptar' : 'Cupo lleno')}
           </button>
         </div>

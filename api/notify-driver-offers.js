@@ -16,7 +16,7 @@ import {
 } from './_lib/fcmSend.js';
 import { handleGpsPing, isGpsPingRequest } from './_lib/gpsPing.js';
 import { setWebPushVapid, sendWebPushNotification, cleanVapidKey } from './_lib/webPushSend.js';
-import { listOpenNotifyJobIds, unwrapJobId, findDriverIdForAuthUser } from './_lib/ensureNotifyOffers.js';
+import { listOpenNotifyJobIds, unwrapJobId, findDriverIdForAuthUser, refreshOffersForDriver } from './_lib/ensureNotifyOffers.js';
 import { sendPushesForJob, remindDriverWebPush } from './_lib/sendJobPushes.js';
 import { retryAndNotifyOffers } from './_lib/retryAndNotify.js';
 
@@ -224,10 +224,17 @@ export default async function handler(req, res) {
     });
   }
 
-  if (body.remindMe) {
+  if (body.remindMe || body.afterDelivery) {
     const driverId = await findDriverIdForAuthUser(admin, userData.user.id);
     if (!driverId) {
       return res.status(403).json({ error: 'No eres repartidor' });
+    }
+    if (body.afterDelivery) {
+      const refreshed = await refreshOffersForDriver(admin, driverId).catch((err) => ({
+        ok: false,
+        error: err?.message || String(err),
+      }));
+      return res.status(200).json({ ...refreshed, afterDelivery: true });
     }
     // Un pollito abierto mantiene el reloj de 1 min para TODOS los repartidores.
     const global = await retryAndNotifyOffers(admin, { force: false }).catch(() => null);

@@ -43,3 +43,7 @@ android/app/google-services.json
 .dev.vars
 .env*
 !.env.example
+.local-driver-live.json
+.local-driver-live.json.*.tmp
+.local-staff-jwt.json
+.local-staff-jwt.json.*.tmp

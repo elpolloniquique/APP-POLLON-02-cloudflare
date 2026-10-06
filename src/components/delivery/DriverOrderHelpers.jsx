@@ -88,34 +88,47 @@ export function dialCustomer(phone) {
   return true;
 }
 
-export function DriverContactButtons({ phone, message, className = '' }) {
+export function DriverContactButtons({ phone, message, className = '', variant = 'default' }) {
   if (!phone) return null;
   const wa = normalizeWhatsappPhone(phone);
+  const pills = variant === 'pills';
 
   return (
-    <div className={`flex flex-wrap items-center gap-3 ${className}`}>
+    <div className={`flex flex-wrap items-center ${pills ? 'drv-contact-pills gap-2' : 'gap-3'} ${className}`}>
       {wa && (
         <button
           type="button"
           onClick={() => openDriverWhatsapp(phone, message)}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-gray-800"
+          className={pills
+            ? 'inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800'
+            : 'inline-flex items-center gap-2 text-sm font-semibold text-gray-800'}
           aria-label="WhatsApp al cliente"
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-pollon-red text-white shadow-sm transition active:scale-95">
-            <WhatsAppIcon className="h-4 w-4" />
-          </span>
+          {pills ? (
+            <WhatsAppIcon className="h-4 w-4 text-emerald-600" />
+          ) : (
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-pollon-red text-white shadow-sm transition active:scale-95">
+              <WhatsAppIcon className="h-4 w-4" />
+            </span>
+          )}
           <span>{phone}</span>
         </button>
       )}
       <button
         type="button"
         onClick={() => dialCustomer(phone)}
-        className="inline-flex items-center gap-2 text-sm font-semibold text-gray-800"
+        className={pills
+          ? 'inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-800'
+          : 'inline-flex items-center gap-2 text-sm font-semibold text-gray-800'}
         aria-label="Llamar al cliente"
       >
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-pollon-red text-white shadow-sm transition active:scale-95">
-          <Phone className="h-4 w-4" />
-        </span>
+        {pills ? (
+          <Phone className="h-4 w-4 text-gray-500" />
+        ) : (
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-pollon-red text-white shadow-sm transition active:scale-95">
+            <Phone className="h-4 w-4" />
+          </span>
+        )}
         {!wa && <span>{phone}</span>}
       </button>
     </div>

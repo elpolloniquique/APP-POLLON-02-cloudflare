@@ -1,11 +1,11 @@
 import { NavLink, Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bike, Map, History, Wallet, User, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { unlockDriverAudio } from '../../utils/orderAlertSound';
 import { APP_BUILD_ID } from '../../utils/buildStamp';
 import { DriverLiveTrackingOnboarding } from './DriverLiveTrackingOnboarding';
-import { getMyDriverSummary, ensureMyDriverProfile } from '../../services/driverService';
+import { getMyDriverSummary, ensureMyDriverProfile, setMyOperationalStatus } from '../../services/driverService';
 import { subscribeDispatch } from '../../services/dispatchService';
 import {
   setDriverAppBadge,
@@ -16,6 +16,7 @@ import {
 import { ensureNativePushRegistration, registerNativePushHandlers } from '../../services/fcmService';
 import {
   isNativeDriverApp,
+  isNativeDriverPreview,
   stopDriverBackgroundGps,
   startDriverBackgroundGps,
   driverShouldShareGps,
@@ -38,6 +39,7 @@ export function DriverLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const native = isNativeDriverApp();
+  const previewPc = isNativeDriverPreview();
   const tabs = native
     ? TABS
     : TABS
@@ -48,6 +50,13 @@ export function DriverLayout() {
     return Boolean(rec?.completedAt);
   });
   const [pendingOffers, setPendingOffers] = useState(0);
+  const [chrome, setChrome] = useState({
+    online: false,
+    gpsOn: false,
+    live: false,
+    busy: false,
+  });
+  const toggleOnlineRef = useRef(null);
 
   const onReadyChange = useCallback((ready) => {
     if (ready) {
@@ -64,6 +73,10 @@ export function DriverLayout() {
       const s = await getMyDriverSummary();
       const n = (s?.pendingOffers || []).length;
       setPendingOffers((prev) => (prev === n ? prev : n));
+      const st = String(s?.driver?.operational_status || '');
+      const online = ['available', 'heading_to_branch', 'delivering', 'carrying_orders', 'offered'].includes(st);
+      const live = (s?.activeAssignments || []).length > 0;
+      setChrome((prev) => ({ ...prev, online, live }));
       if (n > 0) await setDriverAppBadge(n);
       else await clearDriverAppBadge();
     } catch {
@@ -71,9 +84,30 @@ export function DriverLayout() {
     }
   }, []);
 
+  const registerChrome = useCallback((api) => {
+    if (api?.toggleOnline) toggleOnlineRef.current = api.toggleOnline;
+    if (api?.state) setChrome((prev) => ({ ...prev, ...api.state }));
+  }, []);
+
+  const handleToggleOnline = async () => {
+    if (toggleOnlineRef.current) {
+      await toggleOnlineRef.current();
+      return;
+    }
+    const next = chrome.online ? 'offline' : 'available';
+    await setMyOperationalStatus(next).catch(() => {});
+    if (next === 'available') {
+      startDriverBackgroundGps({ idle: !chrome.live, quiet: true }).catch(() => {});
+    } else if (!chrome.live) {
+      stopDriverBackgroundGps().catch(() => {});
+    }
+    setChrome((prev) => ({ ...prev, online: next === 'available' }));
+    void refreshBadge();
+  };
+
   const outletContext = useMemo(
-    () => ({ trackingReady, pendingOffers, refreshBadge }),
-    [trackingReady, pendingOffers, refreshBadge]
+    () => ({ trackingReady, pendingOffers, refreshBadge, registerChrome }),
+    [trackingReady, pendingOffers, refreshBadge, registerChrome]
   );
 
   useEffect(() => {
@@ -134,7 +168,7 @@ export function DriverLayout() {
         .then((s) => {
           if (!driverShouldShareGps(s)) return;
           const idle = (s?.activeAssignments || []).length === 0;
-          return startDriverBackgroundGps({ idle, quiet: true });
+          return startDriverBackgroundGps({ idle, quiet: idle });
         })
         .catch(() => {});
     }, 1600);
@@ -185,31 +219,55 @@ export function DriverLayout() {
   }
 
   return (
-    <div className={`driver-shell flex min-h-[100dvh] flex-col bg-[#f3f3f3] text-gray-900 ${native ? 'is-native' : ''}`} data-build={APP_BUILD_ID}>
-      <header className="driver-topbar sticky top-0 z-40 flex items-center justify-between border-b border-black/10 bg-black px-4 py-3 text-white shadow-sm">
-        <div className="flex items-center gap-2.5">
-          <img src="/img/logo%20pollon.png" alt="" className="h-10 w-10 rounded-full border border-white/20 bg-white object-contain" />
-          <div>
-            <p className="font-display text-lg leading-none tracking-wide text-white">EL POLLÓN</p>
-            <p className="mt-0.5 text-[11px] font-semibold text-white/55">{native ? 'Repartidor' : 'Avisos de pedidos'}</p>
+    <div className={`driver-shell flex min-h-[100dvh] flex-col bg-white text-gray-900 ${native ? 'is-native' : ''}`} data-build={APP_BUILD_ID}>
+      <header className={`driver-topbar drv-top sticky top-0 z-40 text-white ${native ? '' : 'bg-black'}`}>
+        <div className="flex items-center justify-between gap-2 px-3 pb-2.5 pt-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <img src="/img/logo%20pollon.png" alt="" className="h-9 w-9 rounded-full border border-white/30 bg-white object-contain" />
+            <div className="min-w-0">
+              <p className="font-display text-[17px] leading-none tracking-wide">EL POLLÓN</p>
+              <p className="mt-0.5 text-[11px] font-semibold text-white/80">{native ? 'Repartidor' : 'Avisos de pedidos'}</p>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {pendingOffers > 0 && (
-            <span className="rounded-full bg-[#c00000] px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">
-              {pendingOffers} nuevo{pendingOffers === 1 ? '' : 's'}
-            </span>
+          {native && (
+            <button
+              type="button"
+              disabled={chrome.busy}
+              onClick={() => { void handleToggleOnline(); }}
+              className={`drv-online-pill ${chrome.online ? '' : 'is-off'}`}
+            >
+              {chrome.online ? 'En línea' : 'Conectarme'}
+            </button>
           )}
           <button
             type="button"
             onClick={handleLogout}
-            className="rounded-lg p-2 text-white/80 hover:bg-white/10 hover:text-white"
+            className="inline-flex shrink-0 items-center gap-1 text-[13px] font-bold text-white"
             aria-label="Salir"
             title={profile?.fullName || profile?.email || 'Salir'}
           >
-            <LogOut className="h-5 w-5" />
+            <LogOut className="h-4 w-4" />
+            Salir
           </button>
         </div>
+        {native && (
+          <div className="drv-gpsbar">
+            <p>
+              <span className={`drv-gpsbar__dot ${chrome.gpsOn || chrome.live ? '' : 'is-off'}`} />
+              {chrome.live
+                ? (chrome.gpsOn ? 'GPS Activo en ruta' : 'GPS pendiente')
+                : (chrome.online ? 'GPS Activo en línea' : 'GPS inactivo')}
+            </p>
+            <p className={chrome.gpsOn ? 'drv-gpsbar__ok' : 'drv-gpsbar__warn'}>
+              {chrome.gpsOn ? (chrome.live ? 'En vivo' : 'Conectado') : (chrome.live ? 'Sin ubicación' : 'Desconectado')}
+            </p>
+          </div>
+        )}
+        {previewPc && (
+          <p className="drv-preview-note">
+            Prueba en este PC · avisos FCM y GPS con pantalla apagada solo en el celular
+          </p>
+        )}
       </header>
 
       <main className="relative flex-1 overflow-y-auto pb-24">

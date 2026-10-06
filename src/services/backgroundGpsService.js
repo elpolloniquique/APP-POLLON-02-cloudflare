@@ -7,7 +7,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
-import { getDriverGpsPingUrl } from '../utils/driverNativeConstants';
+import { DRIVER_SITE_ORIGIN, getDriverGpsPingUrl, isLocalDevHost, syncNativePreviewFlag } from '../utils/driverNativeConstants';
 
 const DriverBadge = registerPlugin('DriverBadge', {
   web: {
@@ -102,7 +102,7 @@ function startHeartbeat() {
 }
 
 async function persistOnlineSession(pingUrl, wantOnline) {
-  if (!isNativeDriverApp()) return;
+  if (!isCapacitorNativePlatform()) return;
   try {
     if (wantOnline && pingUrl) {
       await DriverBadge.setOnlineSession({ pingUrl, wantOnline: true });
@@ -114,7 +114,8 @@ async function persistOnlineSession(pingUrl, wantOnline) {
   }
 }
 
-export function isNativeDriverApp() {
+/** Capacitor real (APK). No incluye la prueba en el PC. */
+export function isCapacitorNativePlatform() {
   try {
     return Capacitor.isNativePlatform();
   } catch {
@@ -122,7 +123,20 @@ export function isNativeDriverApp() {
   }
 }
 
+/**
+ * Solo localhost: `?native=1` abre la UI nativa en el navegador.
+ * `?native=0` la apaga. Queda en esta pestaña (sessionStorage).
+ */
+export function isNativeDriverPreview() {
+  return isLocalDevHost() && !isCapacitorNativePlatform() && syncNativePreviewFlag();
+}
+
+export function isNativeDriverApp() {
+  return isCapacitorNativePlatform() || isNativeDriverPreview();
+}
+
 export function getNativePlatform() {
+  if (isNativeDriverPreview() && !isCapacitorNativePlatform()) return 'web-preview';
   try {
     return Capacitor.getPlatform();
   } catch {
@@ -147,7 +161,7 @@ function withTimeout(promise, ms, fallback) {
 
 /** Solo lectura del estado de permisos (sin prompts). */
 export async function checkLocationPermissionSnapshot() {
-  if (!isNativeDriverApp()) {
+  if (!isCapacitorNativePlatform()) {
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
         resolve({ ok: false, locationOk: false, alwaysOk: false, mode: 'web' });
@@ -218,7 +232,7 @@ export async function checkLocationPermissionSnapshot() {
  * Solicita ubicación (When In Use) y, en nativo, “Siempre” / background.
  */
 export async function requestAlwaysLocationPermission() { // quiet callers should use checkLocationPermissionSnapshot
-  if (!isNativeDriverApp()) {
+  if (!isCapacitorNativePlatform()) {
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
         resolve({ ok: false, error: 'Sin GPS en este dispositivo' });
@@ -227,7 +241,7 @@ export async function requestAlwaysLocationPermission() { // quiet callers shoul
       navigator.geolocation.getCurrentPosition(
         () => resolve({ ok: true, mode: 'web', locationOk: true, alwaysOk: true }),
         (err) => resolve({ ok: false, error: err.message || 'GPS denegado' }),
-        { enableHighAccuracy: true, timeout: 12000 }
+        { enableHighAccuracy: true, timeout: 4000, maximumAge: 10000 }
       );
     });
   }
@@ -315,7 +329,7 @@ export async function requestAlwaysLocationPermission() { // quiet callers shoul
 }
 
 export async function openNativeLocationSettings() {
-  if (!isNativeDriverApp()) return;
+  if (!isCapacitorNativePlatform()) return;
   try {
     await BackgroundGeolocation.openSettings();
   } catch {
@@ -328,6 +342,29 @@ export async function openNativeAppSettings() {
   return openNativeLocationSettings();
 }
 
+function driverLivePostUrl() {
+  if (typeof window === 'undefined') return `${DRIVER_SITE_ORIGIN}/api/driver-live`;
+  const origin = String(window.location.origin || '');
+  if (/capacitor|ionic/i.test(origin)) {
+    return `${DRIVER_SITE_ORIGIN}/api/driver-live`;
+  }
+  return '/api/driver-live';
+}
+
+function getBrowserPosition(timeoutMs = 12000) {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve(pos),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 4000 },
+    );
+  });
+}
+
 async function publishNativeFix(location, { force = false } = {}) {
   if (!location) return null;
   const lat = Number(location.latitude ?? location.lat);
@@ -337,56 +374,77 @@ async function publishNativeFix(location, { force = false } = {}) {
   if (!force && lastPublishAt && now - lastPublishAt < 8_000) {
     return { lat, lng, accuracy: location.accuracy ?? null };
   }
-  lastPublishAt = now;
   try {
     const sb = getSupabase();
     const { data } = sb ? await sb.auth.getSession() : { data: null };
     const jwt = data?.session?.access_token;
-    if (jwt) {
-      await fetch('/api/driver-live', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          lat,
-          lng,
-          heading: location.bearing ?? location.heading ?? null,
-          speed: location.speed ?? null,
-          accuracy: location.accuracy ?? null,
-        }),
-      });
+    if (!jwt) {
+      console.warn('[Pollón] GPS publish: sin sesión');
+      return null;
     }
-    return { lat, lng, accuracy: location.accuracy ?? null };
+    let driverId = '';
+    try { driverId = localStorage.getItem('pollon_driver_id') || ''; } catch { /* ignore */ }
+    const res = await fetch(driverLivePostUrl(), {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        lat,
+        lng,
+        heading: location.bearing ?? location.heading ?? null,
+        speed: location.speed ?? null,
+        accuracy: location.accuracy ?? null,
+        driver_id: driverId || undefined,
+      }),
+    });
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.warn('[Pollón] GPS publish:', res.status, payload.error || payload);
+      return null;
+    }
+    lastPublishAt = now;
+    return { lat, lng, accuracy: location.accuracy ?? null, followUrl: payload.follow_url || null };
   } catch (err) {
     console.warn('[Pollón] GPS background publish:', err?.message || err);
-    return { lat, lng, accuracy: location.accuracy ?? null };
+    return null;
   }
+}
+
+function coordsFromPosition(pos) {
+  if (!pos?.coords) return null;
+  return {
+    latitude: pos.coords.latitude,
+    longitude: pos.coords.longitude,
+    lat: pos.coords.latitude,
+    lng: pos.coords.longitude,
+    heading: pos.coords.heading,
+    speed: pos.coords.speed,
+    accuracy: pos.coords.accuracy,
+    bearing: pos.coords.heading,
+  };
 }
 
 /** Primer punto GPS inmediato (sin esperar a moverse 18 m). Obligatorio para ofertas. */
 export async function getAndPublishCurrentFix({ timeoutMs = 12000, force = true } = {}) {
   try {
-    const pos = await withTimeout(
-      Geolocation.getCurrentPosition({
-        enableHighAccuracy: true,
-        timeout: timeoutMs,
-        maximumAge: 20000,
-      }),
-      timeoutMs + 500,
-      null,
-    );
-    if (!pos?.coords) return null;
-    const payload = {
-      latitude: pos.coords.latitude,
-      longitude: pos.coords.longitude,
-      lat: pos.coords.latitude,
-      lng: pos.coords.longitude,
-      heading: pos.coords.heading,
-      speed: pos.coords.speed,
-      accuracy: pos.coords.accuracy,
-    };
+    let pos = null;
+    if (!isCapacitorNativePlatform()) {
+      pos = await withTimeout(getBrowserPosition(timeoutMs), timeoutMs + 400, null);
+    } else {
+      pos = await withTimeout(
+        Geolocation.getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: timeoutMs,
+          maximumAge: 20000,
+        }),
+        timeoutMs + 500,
+        null,
+      );
+    }
+    const payload = coordsFromPosition(pos);
+    if (!payload) return null;
     const published = await publishNativeFix(payload, { force });
     return published ? { lat: payload.lat, lng: payload.lng, accuracy: payload.accuracy } : null;
   } catch (err) {
@@ -395,13 +453,114 @@ export async function getAndPublishCurrentFix({ timeoutMs = 12000, force = true 
   }
 }
 
+async function startPreviewWebGps({
+  idle = false,
+  forceRestart = false,
+  fallbackLat = null,
+  fallbackLng = null,
+} = {}) {
+  const fallbackPos = () => {
+    const lat = Number(fallbackLat);
+    const lng = Number(fallbackLng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { lat, lng, latitude: lat, longitude: lng, accuracy: 70 };
+  };
+
+  const publishFallback = async () => {
+    const loc = fallbackPos();
+    if (!loc) return null;
+    notifyGps({ lat: loc.lat, lng: loc.lng, accuracy: loc.accuracy }, null);
+    return publishNativeFix(loc, { force: true });
+  };
+
+  if (webStop && !forceRestart && startedIdle === Boolean(idle)) {
+    const again = await getAndPublishCurrentFix({ timeoutMs: 8000, force: true }).catch(() => null)
+      || await publishFallback();
+    if (again) notifyGps(again, null);
+    return { ok: Boolean(again), mode: 'preview', alreadyRunning: true, idle, position: again || null, fallback: !again ? false : undefined };
+  }
+  if (webStop) {
+    try { webStop(); } catch { /* ignore */ }
+    webStop = null;
+  }
+
+  const startFallbackLoop = () => {
+    const interval = window.setInterval(() => { void publishFallback(); }, idle ? 20_000 : 8_000);
+    webStop = () => {
+      try { window.clearInterval(interval); } catch { /* ignore */ }
+    };
+    startedIdle = Boolean(idle);
+    nativeRunning = false;
+  };
+
+  const pushPos = (pos, force = false) => {
+    const location = coordsFromPosition(pos);
+    if (!location) return null;
+    notifyGps({ lat: location.lat, lng: location.lng, accuracy: location.accuracy }, null);
+    return publishNativeFix(location, { force });
+  };
+
+  if (!navigator.geolocation) {
+    const pos = await publishFallback();
+    if (!pos) {
+      return {
+        ok: false,
+        error: 'Este PC no tiene GPS. En Chrome: F12 → Más herramientas → Sensores → Location (Iquique).',
+      };
+    }
+    startFallbackLoop();
+    return { ok: true, mode: 'preview', fallback: true, idle, position: pos };
+  }
+
+  const quick = await withTimeout(getBrowserPosition(3500), 4000, null);
+  if (quick?.coords) {
+    const first = await pushPos(quick, true);
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => { void pushPos(pos, false); },
+      (err) => notifyGps(null, err),
+      { enableHighAccuracy: true, maximumAge: idle ? 30_000 : 3_000, timeout: 12_000 },
+    );
+    const interval = window.setInterval(() => {
+      void getBrowserPosition(idle ? 8000 : 6000).then((pos) => {
+        if (pos) void pushPos(pos, false);
+      });
+    }, idle ? 20_000 : 8_000);
+    webStop = () => {
+      try { window.clearInterval(interval); } catch { /* ignore */ }
+      try { navigator.geolocation.clearWatch(watchId); } catch { /* ignore */ }
+    };
+    startedIdle = Boolean(idle);
+    nativeRunning = false;
+    if (first) return { ok: true, mode: 'preview', idle, position: first };
+  }
+
+  const pos = await publishFallback();
+  if (!pos) {
+    return {
+      ok: false,
+      error: 'Permite la ubicación en Chrome para que admin y caja te vean.',
+    };
+  }
+  startFallbackLoop();
+  return { ok: true, mode: 'preview', fallback: true, idle, position: pos };
+}
+
 /**
  * GPS nativo en segundo plano → Cloudflare KV (no Supabase).
  * El POST a /api/driver-gps-ping sigue con pantalla apagada / otra app.
  */
-export async function startDriverBackgroundGps({ forceRestart = false, idle = false, quiet = false } = {}) {
+export async function startDriverBackgroundGps({
+  forceRestart = false,
+  idle = false,
+  quiet = false,
+  fallbackLat = null,
+  fallbackLng = null,
+} = {}) {
   if (!isNativeDriverApp()) {
     return { ok: true, mode: 'web', skipped: true };
+  }
+  if (!isCapacitorNativePlatform()) {
+    return startPreviewWebGps({ idle, forceRestart, fallbackLat, fallbackLng });
   }
 
   if (nativeRunning && !forceRestart && startedIdle === Boolean(idle)) {
@@ -513,7 +672,7 @@ export async function stopDriverBackgroundGps({ keepSession = false } = {}) {
     try { webStop(); } catch { /* ignore */ }
     webStop = null;
   }
-  if (nativeRunning || isNativeDriverApp()) {
+  if (nativeRunning || isCapacitorNativePlatform()) {
     try {
       await BackgroundGeolocation.stop();
     } catch {

@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { localDriverLivePlugin } from './scripts/local-driver-live-middleware.mjs';
 
 // Si el sistema tiene NODE_ENV=production, `vite` (dev) se comporta como prod
 // y la app puede quedar en blanco. El build/preview sí deben ser production.
@@ -29,6 +30,7 @@ function stripApkFromDist() {
 
 export default defineConfig({
   plugins: [
+    localDriverLivePlugin(),
     react(),
     tailwindcss(),
     stripApkFromDist(),
@@ -88,7 +90,22 @@ export default defineConfig({
       },
     }),
   ],
-  server: { port: 5173, open: true },
+  server: {
+    port: 5173,
+    open: '/repartidor?native=1',
+    proxy: {
+      '/api': {
+        target: 'https://www.el-pollon.cl',
+        changeOrigin: true,
+        secure: true,
+        bypass(req) {
+          const path = String(req.url || '').split('?')[0];
+          if (path === '/api/driver-live') return '/api/driver-live';
+          if (path === '/api/driver-refresh-offers') return '/api/driver-refresh-offers';
+        },
+      },
+    },
+  },
   build: { outDir: 'dist', sourcemap: false },
   // MapLibre trae workers; el prebundle de Vite a veces rompe el worker en dev
   optimizeDeps: {

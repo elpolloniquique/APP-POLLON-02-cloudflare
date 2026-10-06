@@ -28,9 +28,6 @@ export function DriverActiveOrderCard({
   const fee = job.delivery_fee || 0;
   const charge = (job.order_total || 0) + fee;
   const phone = job.customer_phone || '';
-  const accent = toStore ? 'text-pollon-red' : 'text-pollon-orange';
-  const border = toStore ? 'border-red-200' : 'border-orange-200';
-  const iconBg = toStore ? 'bg-pollon-red' : 'bg-pollon-orange';
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [items, setItems] = useState([]);
@@ -56,15 +53,15 @@ export function DriverActiveOrderCard({
 
   return (
     <>
-      <div className={`overflow-hidden rounded-2xl border ${border} bg-white shadow-sm`}>
-        <div className="flex items-center justify-between gap-2 px-3.5 pt-3.5">
-          <p className={`text-[10px] font-bold uppercase tracking-wide ${accent}`}>
-            {toStore ? 'Hacia sucursal · recojo' : 'Hacia cliente · entrega'}
-          </p>
+      <div className="drv-offer">
+        <div className="flex items-center justify-between gap-2 px-3.5 pt-3">
+          <span className="drv-badge-new">
+            {toStore ? 'Hacia sucursal' : 'En ruta al cliente'}
+          </span>
           <button
             type="button"
             onClick={openDetail}
-            className="inline-flex items-center gap-1 rounded-lg border border-pollon-red bg-white px-2.5 py-1 text-[11px] font-bold text-pollon-red"
+            className="inline-flex items-center gap-0.5 text-[12px] font-bold text-gray-800"
           >
             Ver
             <ChevronDown className="h-3.5 w-3.5" />
@@ -72,14 +69,14 @@ export function DriverActiveOrderCard({
         </div>
 
         <div className="flex items-start gap-2.5 px-3.5 py-3">
-          <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${iconBg} text-white`}>
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500">
             <User className="h-5 w-5" />
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-[15px] font-bold text-gray-900">
               #{job.ticket_code || '—'} · {job.customer_name || 'Cliente'}
             </p>
-            <p className={`mt-0.5 line-clamp-2 text-xs font-medium leading-snug ${accent}`}>
+            <p className="mt-0.5 line-clamp-2 text-xs font-medium leading-snug text-pollon-red">
               {toStore
                 ? (branch?.address || branch?.name || 'Sucursal El Pollón')
                 : (job.customer_address || 'Sin dirección')}
@@ -94,6 +91,7 @@ export function DriverActiveOrderCard({
         <DriverContactButtons
           phone={phone}
           message={waMessage}
+          variant="pills"
           className="px-3.5 pb-2"
         />
 
@@ -101,7 +99,7 @@ export function DriverActiveOrderCard({
           {toStore && branch?.lat != null && (
             <button
               type="button"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white"
+              className="drv-btn-ok inline-flex items-center justify-center gap-2"
               onClick={() => openExternalNavigation(branch.lat, branch.lng, branch.name || 'Sucursal')}
             >
               <Navigation className="h-4 w-4" />
@@ -111,7 +109,7 @@ export function DriverActiveOrderCard({
           {!toStore && job.customer_lat != null && (
             <button
               type="button"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white"
+              className="drv-btn-ok inline-flex items-center justify-center gap-2"
               onClick={() => openExternalNavigation(job.customer_lat, job.customer_lng, job.customer_name)}
             >
               <Navigation className="h-4 w-4" />
@@ -127,7 +125,7 @@ export function DriverActiveOrderCard({
             <button
               type="button"
               disabled={loading}
-              className="rounded-xl bg-pollon-red py-3 text-sm font-bold text-white disabled:opacity-50"
+              className="drv-btn-rej disabled:opacity-50"
               onClick={() => onPickup?.(assignment)}
             >
               Pedido recogido
@@ -142,7 +140,7 @@ export function DriverActiveOrderCard({
             <button
               type="button"
               disabled={loading}
-              className="rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white disabled:opacity-50"
+              className="inline-flex min-h-[46px] items-center justify-center rounded-full bg-emerald-600 text-[15px] font-extrabold text-white disabled:opacity-50"
               onClick={() => onDelivered?.(assignment)}
             >
               Entregado
