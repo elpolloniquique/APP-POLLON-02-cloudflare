@@ -45,7 +45,7 @@ export function AdminDrivers() {
   const [error, setError] = useState('');
   const [flash, setFlash] = useState('');
   const [busyId, setBusyId] = useState(null);
-  const [commissionDraft, setCommissionDraft] = useState({});
+  const [drafts, setDrafts] = useState({});
 
   const filterId = isSuperAdmin ? selectedBranchId || null : staffBranchId;
 
@@ -59,7 +59,7 @@ export function AdminDrivers() {
       ]);
       setDrivers(data);
       setAllBranches(br?.length ? br : filterBranches);
-      setCommissionDraft({});
+      setDrafts({});
     } catch (err) {
       setError(err.message || 'Error al cargar repartidores. ¿Ejecutaste migration-repartidores-delivery.sql?');
     } finally {
@@ -82,88 +82,75 @@ export function AdminDrivers() {
     }
   };
 
-  const setBranch = async (id, preferredBranchId) => {
-    setBusyId(id);
+  const patchDraft = (id, patch) => {
+    setDrafts((m) => ({ ...m, [id]: { ...(m[id] || {}), ...patch } }));
     setFlash('');
-    try {
-      await updateDriverProfile(id, { preferred_branch_id: preferredBranchId || null });
-      await load();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusyId(null);
-    }
+    setError('');
   };
 
-  const setMaxOrders = async (id, maxOrders) => {
-    const next = normalizeMaxOrders(maxOrders);
+  const rowDraft = (d) => {
+    const draft = drafts[d.id] || {};
+    return {
+      max_orders: draft.max_orders ?? normalizeMaxOrders(d.max_orders),
+      commission_percent: Object.prototype.hasOwnProperty.call(draft, 'commission_percent')
+        ? draft.commission_percent
+        : String(normalizeCommissionPercent(d.commission_percent, 5)),
+      preferred_branch_id: Object.prototype.hasOwnProperty.call(draft, 'preferred_branch_id')
+        ? draft.preferred_branch_id
+        : (d.preferred_branch_id || ''),
+    };
+  };
+
+  const isDirty = (d) => {
+    if (!drafts[d.id]) return false;
+    const cur = rowDraft(d);
+    return (
+      cur.max_orders !== normalizeMaxOrders(d.max_orders)
+      || normalizeCommissionPercent(cur.commission_percent, 5) !== normalizeCommissionPercent(d.commission_percent, 5)
+      || String(cur.preferred_branch_id || '') !== String(d.preferred_branch_id || '')
+    );
+  };
+
+  const saveRow = async (id) => {
     const prev = drivers.find((d) => d.id === id);
-    if (prev && normalizeMaxOrders(prev.max_orders) === next) return;
+    if (!prev || !isDirty(prev)) return;
+    const cur = rowDraft(prev);
+    const nextMax = normalizeMaxOrders(cur.max_orders);
+    const nextComm = normalizeCommissionPercent(cur.commission_percent, 5);
+    const nextBranch = cur.preferred_branch_id || null;
 
     setBusyId(id);
     setError('');
     setFlash('');
-    setDrivers((list) => list.map((d) => (d.id === id ? { ...d, max_orders: next } : d)));
     try {
-      await updateDriverMaxOrders(id, next);
-      const email = prev?.profiles?.email ? ` (${prev.profiles.email})` : '';
-      setFlash(`Cupo de ${prev?.profiles?.full_name || 'este repartidor'}${email}: máximo ${next} pedido${next === 1 ? '' : 's'} a la vez.`);
-    } catch (err) {
-      const msg = String(err.message || '');
-      setError(
-        /ep_admin_set_driver_max_orders|schema cache|cupo no/i.test(msg)
-          ? 'Para que el cupo quede por cada correo, ejecuta en Supabase: supabase/fix-driver-max-orders-per-account.sql'
-          : msg,
-      );
-      await load();
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const commissionValue = (d) => {
-    if (Object.prototype.hasOwnProperty.call(commissionDraft, d.id)) {
-      return commissionDraft[d.id];
-    }
-    return String(normalizeCommissionPercent(d.commission_percent, 5));
-  };
-
-  const setCommission = async (id) => {
-    const prev = drivers.find((d) => d.id === id);
-    const raw = Object.prototype.hasOwnProperty.call(commissionDraft, id)
-      ? commissionDraft[id]
-      : prev?.commission_percent;
-    const next = normalizeCommissionPercent(raw, 5);
-    const prevN = normalizeCommissionPercent(prev?.commission_percent, 5);
-    if (prev && prevN === next) {
-      setCommissionDraft((m) => {
+      const ops = [];
+      if (nextMax !== normalizeMaxOrders(prev.max_orders)) {
+        ops.push(updateDriverMaxOrders(id, nextMax));
+      }
+      if (nextComm !== normalizeCommissionPercent(prev.commission_percent, 5)) {
+        ops.push(updateDriverCommission(id, nextComm));
+      }
+      if (String(nextBranch || '') !== String(prev.preferred_branch_id || '')) {
+        ops.push(updateDriverProfile(id, { preferred_branch_id: nextBranch }));
+      }
+      await Promise.all(ops);
+      setDrafts((m) => {
         const copy = { ...m };
         delete copy[id];
         return copy;
       });
-      return;
-    }
-
-    setBusyId(id);
-    setError('');
-    setFlash('');
-    setDrivers((list) => list.map((d) => (d.id === id ? { ...d, commission_percent: next } : d)));
-    setCommissionDraft((m) => {
-      const copy = { ...m };
-      delete copy[id];
-      return copy;
-    });
-    try {
-      await updateDriverCommission(id, next);
-      setFlash(`Comisión actualizada: ${next}% sobre el delivery.`);
+      const email = prev?.profiles?.email ? ` (${prev.profiles.email})` : '';
+      setFlash(`Guardado: ${prev?.profiles?.full_name || 'repartidor'}${email} · cupo ${nextMax} · comisión ${nextComm}%.`);
+      await load();
     } catch (err) {
       const msg = String(err.message || '');
-      if (/commission_percent|column/i.test(msg)) {
+      if (/ep_admin_set_driver_max_orders|schema cache|cupo no/i.test(msg)) {
+        setError('Para que el cupo quede por cada correo, ejecuta en Supabase: supabase/fix-driver-max-orders-per-account.sql');
+      } else if (/commission_percent|column/i.test(msg)) {
         setError('Falta la columna de comisión. Ejecuta en Supabase: supabase/fix-driver-commission-percent.sql');
       } else {
         setError(err.message);
       }
-      await load();
     } finally {
       setBusyId(null);
     }
@@ -182,7 +169,8 @@ export function AdminDrivers() {
       <div className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm text-slate-700">
         <p className="font-semibold text-slate-900">Cómo funciona el cupo máximo</p>
         <ul className="mt-1.5 list-disc space-y-1 pl-5 text-xs sm:text-sm">
-          <li>El número es <strong>solo de esa cuenta</strong> (ese correo). Si a un repartidor le pones 3, él puede llevar 3; los demás siguen con el suyo.</li>
+          <li>Cambia el cupo (2, 3 o 4), la comisión o la sucursal y pulsa <strong>Guardar</strong> en esa fila. Si no guardas, no se aplica.</li>
+          <li>El número es <strong>solo de esa cuenta</strong> (ese correo). Si a un repartidor le pones 3, él puede aceptar y llevar 3; los demás siguen con el suyo.</li>
           <li>Mientras va a la sucursal (pedidos aún no recogidos), puede aceptar hasta su máximo (2, 3 o 4).</li>
           <li>En cuanto marca <strong>pedido recogido</strong>, ya no recibe ofertas nuevas.</li>
           <li>Solo cuando entrega <strong>todos</strong> sus pedidos activos vuelve a recibir ofertas.</li>
@@ -225,9 +213,10 @@ export function AdminDrivers() {
                 {drivers.map((d) => {
                   const st = STATUS_LABELS[d.admin_status] || STATUS_LABELS.pending;
                   const name = d.profiles?.full_name || d.profiles?.email || 'Sin nombre';
-                  const maxOrders = normalizeMaxOrders(d.max_orders);
+                  const draft = rowDraft(d);
+                  const dirty = isDirty(d);
                   return (
-                    <tr key={d.id} className="border-t">
+                    <tr key={d.id} className={`border-t ${dirty ? 'bg-amber-50/60' : ''}`}>
                       <td className="px-4 py-3">
                         <p className="font-semibold">{name}</p>
                         <p className="text-xs text-gray-500">{d.profiles?.email || d.phone}</p>
@@ -242,11 +231,11 @@ export function AdminDrivers() {
                       <td className="px-4 py-3">
                         <select
                           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 shadow-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100"
-                          value={maxOrders}
+                          value={draft.max_orders}
                           disabled={busyId === d.id}
                           aria-label={`Máximo de pedidos para ${name}`}
-                          title={`Máximo de pedidos simultáneos para ${d.profiles?.email || name}. No aplica a otros repartidores.`}
-                          onChange={(e) => setMaxOrders(d.id, e.target.value)}
+                          title={`Máximo de pedidos simultáneos para ${d.profiles?.email || name}. Pulsa Guardar para aplicar.`}
+                          onChange={(e) => patchDraft(d.id, { max_orders: normalizeMaxOrders(e.target.value) })}
                         >
                           {MAX_ORDER_OPTIONS.map((n) => (
                             <option key={n} value={n}>
@@ -265,18 +254,13 @@ export function AdminDrivers() {
                             step={0.5}
                             inputMode="decimal"
                             className="w-14 border-0 bg-transparent p-0 text-xs font-semibold text-slate-800 outline-none"
-                            value={commissionValue(d)}
+                            value={draft.commission_percent}
                             disabled={busyId === d.id}
                             aria-label={`Comisión % de ${name}`}
-                            title="Porcentaje de comisión sobre el delivery"
-                            onChange={(e) => {
-                              setCommissionDraft((m) => ({ ...m, [d.id]: e.target.value }));
-                            }}
-                            onBlur={() => setCommission(d.id)}
+                            title="Porcentaje de comisión sobre el delivery. Pulsa Guardar para aplicar."
+                            onChange={(e) => patchDraft(d.id, { commission_percent: e.target.value })}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.currentTarget.blur();
-                              }
+                              if (e.key === 'Enter' && dirty) saveRow(d.id);
                             }}
                           />
                           <span className="text-xs font-bold text-slate-500">%</span>
@@ -285,9 +269,9 @@ export function AdminDrivers() {
                       <td className="px-4 py-3">
                         <select
                           className="rounded-lg border px-2 py-1 text-xs"
-                          value={d.preferred_branch_id || ''}
+                          value={draft.preferred_branch_id}
                           disabled={busyId === d.id}
-                          onChange={(e) => setBranch(d.id, e.target.value)}
+                          onChange={(e) => patchDraft(d.id, { preferred_branch_id: e.target.value })}
                         >
                           <option value="">Sin preferencia</option>
                           {allBranches.map((b) => (
@@ -297,6 +281,13 @@ export function AdminDrivers() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap justify-end gap-1">
+                          <Button
+                            className="!px-3 !py-1.5 text-xs"
+                            disabled={busyId === d.id || !dirty}
+                            onClick={() => saveRow(d.id)}
+                          >
+                            {busyId === d.id ? 'Guardando…' : 'Guardar'}
+                          </Button>
                           {d.admin_status !== 'approved' && (
                             <Button className="!px-3 !py-1.5 text-xs" disabled={busyId === d.id} onClick={() => setStatus(d.id, 'approved')}>Aprobar</Button>
                           )}
