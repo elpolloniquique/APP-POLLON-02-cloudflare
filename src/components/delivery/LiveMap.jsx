@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import L from 'leaflet';
 import { MapContainer, Marker, Popup, Polyline, TileLayer, useMap, Pane } from 'react-leaflet';
 import { Maximize2, Minimize2 } from 'lucide-react';
@@ -247,20 +247,37 @@ export function LiveMap({
         )}
 
         <Pane name="routesPane" style={{ zIndex: 450 }}>
-          {resolvedRoutes.map((route) => (
-            <Polyline
-              key={route.id}
-              positions={route.positions}
-              pathOptions={{
-                color: route.color,
-                weight: 6,
-                opacity: 0.92,
-                dashArray: route.dashed ? '8 10' : null,
-                lineCap: 'round',
-                lineJoin: 'round',
-              }}
-            />
-          ))}
+          {resolvedRoutes.map((route) => {
+            const trail = Boolean(route.dashed);
+            return (
+              <Fragment key={route.id}>
+                <Polyline
+                  positions={route.positions}
+                  smoothFactor={1.15}
+                  pathOptions={{
+                    color: '#ffffff',
+                    weight: trail ? 4 : 5,
+                    opacity: trail ? 0.35 : 0.72,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                    interactive: false,
+                  }}
+                />
+                <Polyline
+                  positions={route.positions}
+                  smoothFactor={1.15}
+                  pathOptions={{
+                    color: route.color,
+                    weight: trail ? 1.75 : 2.5,
+                    opacity: trail ? 0.42 : 0.96,
+                    dashArray: trail ? '2 7' : null,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                  }}
+                />
+              </Fragment>
+            );
+          })}
         </Pane>
 
         {markerNodes.map((m) => (

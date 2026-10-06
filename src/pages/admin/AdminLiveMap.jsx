@@ -407,14 +407,6 @@ export function AdminLiveMap() {
   const routes = useMemo(() => {
     const list = [];
     for (const d of driverGroups) {
-      if (Array.isArray(d.trail) && d.trail.length >= 2) {
-        list.push({
-          id: `t-${d.driverId}`,
-          positions: d.trail.map((p) => [Number(p.lat), Number(p.lng)]),
-          color: d.color,
-          dashed: true,
-        });
-      }
       if (!d.hasGps) continue;
       if (isPickupPhase(d.phase)) {
         list.push({

@@ -188,6 +188,10 @@
   box-shadow: none;
 }
 
+.live-map-stage .leaflet-overlay-pane svg path.leaflet-interactive {
+  shape-rendering: geometricPrecision;
+}
+
 body.live-map-expanded {
   overflow: hidden;
 }
