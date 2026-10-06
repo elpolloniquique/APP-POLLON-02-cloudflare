@@ -4,7 +4,7 @@
  */
 import { sendFcm, isFcmConfigured, env } from './fcmSend.js';
 import { setWebPushVapid, sendWebPushNotification, cleanVapidKey } from './webPushSend.js';
-import { ensureNotifyEligibleOffers, unwrapJobId, ensureJobsFromPendingPedidos, jobIsNuevoUnassigned, NUEVO_PEDIDO_ESTADOS } from './ensureNotifyOffers.js';
+import { ensureNotifyEligibleOffers, unwrapJobId, ensureJobsFromPendingPedidos, jobIsNuevoUnassigned, NUEVO_PEDIDO_ESTADOS, expireCrossBranchPendingOffers } from './ensureNotifyOffers.js';
 
 function ticketLabel(code) {
   const s = String(code || '').trim();
@@ -68,6 +68,7 @@ export async function sendPushesForJob(admin, jobId) {
   } catch (err) {
     ensured = { added: 0, reason: err?.message || 'ensure_failed' };
   }
+  await expireCrossBranchPendingOffers(admin, { jobId }).catch(() => 0);
 
   const { data: offers, error: offersErr } = await admin
     .from('ep_delivery_offers')

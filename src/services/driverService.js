@@ -274,9 +274,10 @@ export async function getMyDriverSummary() {
   let pendingOffers = [...byJob.values()]
     .sort((a, b) => new Date(b.expires_at || 0) - new Date(a.expires_at || 0));
 
+  const myBranch = driver.preferred_branch_id || driver.profiles?.branch_id || null;
   const orderIds = [...new Set(pendingOffers.map((o) => o.ep_delivery_jobs?.source_order_id).filter(Boolean))];
   if (orderIds.length) {
-    const { data: peds, error: pedErr } = await sb.from('pedidos').select('id, estado').in('id', orderIds);
+    const { data: peds, error: pedErr } = await sb.from('pedidos').select('id, estado, branch_id').in('id', orderIds);
     if (!pedErr && peds?.length) {
       const byId = Object.fromEntries((peds || []).map((p) => [String(p.id), p]));
       pendingOffers = pendingOffers.filter((o) => {
@@ -285,9 +286,17 @@ export async function getMyDriverSummary() {
         const ped = byId[String(oid)];
         if (!ped) return true;
         const est = String(ped.estado || '').toLowerCase();
-        return ['pendiente', 'nuevo'].includes(est);
+        if (!['pendiente', 'nuevo'].includes(est)) return false;
+        const jobBranch = o.ep_delivery_jobs?.branch_id || ped.branch_id || null;
+        if (!myBranch || !jobBranch) return false;
+        return String(myBranch) === String(jobBranch);
       });
     }
+  } else if (myBranch) {
+    pendingOffers = pendingOffers.filter((o) => {
+      const jobBranch = o.ep_delivery_jobs?.branch_id;
+      return jobBranch && String(jobBranch) === String(myBranch);
+    });
   }
 
   const done = doneRes.data || [];

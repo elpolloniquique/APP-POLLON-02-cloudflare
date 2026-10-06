@@ -340,23 +340,23 @@ export async function healOpenOffersForAvailableDrivers() {
 
   const { data: jobs } = await sb
     .from('ep_delivery_jobs')
-    .select('id, status, assigned_driver_id')
+    .select('id, status, assigned_driver_id, branch_id')
     .in('source_order_id', orderIds);
-  const openIds = (jobs || [])
-    .filter((j) => !j.assigned_driver_id && !CLOSED_JOB.has(j.status))
-    .map((j) => j.id);
+  const openJobs = (jobs || []).filter((j) => !j.assigned_driver_id && !CLOSED_JOB.has(j.status));
+  const openIds = openJobs.map((j) => j.id);
+  const branchByJob = Object.fromEntries(openJobs.map((j) => [j.id, j.branch_id || null]));
   if (!openIds.length) return { ok: true, revived: 0 };
 
   const { data: offers } = await sb
     .from('ep_delivery_offers')
-    .select('id, driver_id, status')
+    .select('id, driver_id, status, job_id')
     .in('job_id', openIds);
   const toRevive = (offers || []).filter((o) => o.status === 'expired' || o.status === 'taken_by_other');
   if (!toRevive.length) return { ok: true, revived: 0 };
 
   const driverIds = [...new Set(toRevive.map((o) => o.driver_id).filter(Boolean))];
   const [{ data: drivers }, { data: actives }] = await Promise.all([
-    sb.from('ep_driver_profiles').select('id, operational_status').in('id', driverIds),
+    sb.from('ep_driver_profiles').select('id, operational_status, preferred_branch_id').in('id', driverIds),
     sb.from('ep_delivery_assignments').select('driver_id, phase').in('driver_id', driverIds).eq('status', 'active'),
   ]);
   const blocking = new Set(
@@ -364,12 +364,18 @@ export async function healOpenOffersForAvailableDrivers() {
       .filter((a) => a.phase === 'to_customer' || a.phase === 'done')
       .map((a) => a.driver_id),
   );
+  const driverById = new Map((drivers || []).map((d) => [d.id, d]));
   const eligible = new Set(
     (drivers || [])
       .filter((d) => !['offline', 'blocked', 'paused', 'delivering'].includes(d.operational_status) && !blocking.has(d.id))
       .map((d) => d.id),
   );
-  const ids = toRevive.filter((o) => eligible.has(o.driver_id)).map((o) => o.id);
+  const ids = toRevive.filter((o) => {
+    if (!eligible.has(o.driver_id)) return false;
+    const jobBranch = branchByJob[o.job_id];
+    const drvBranch = driverById.get(o.driver_id)?.preferred_branch_id;
+    return jobBranch && drvBranch && String(jobBranch) === String(drvBranch);
+  }).map((o) => o.id);
   if (!ids.length) return { ok: true, revived: 0 };
 
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();

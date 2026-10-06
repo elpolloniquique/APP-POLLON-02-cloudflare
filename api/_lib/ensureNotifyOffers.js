@@ -18,6 +18,81 @@ const BLOCKED_STATUS = new Set(['blocked', 'paused']);
 /** En el panel, "Nuevo" es pedidos.estado = pendiente. */
 export const NUEVO_PEDIDO_ESTADOS = new Set(['pendiente', 'nuevo']);
 
+export function sameBranchId(a, b) {
+  if (a == null || b == null || a === '' || b === '') return false;
+  return String(a) === String(b);
+}
+
+export async function resolveJobBranchId(admin, job) {
+  if (job?.branch_id) return job.branch_id;
+  const oid = job?.source_order_id;
+  if (!admin || !oid) return null;
+  const { data } = await admin
+    .from('pedidos')
+    .select('branch_id')
+    .eq('id', String(oid))
+    .maybeSingle();
+  return data?.branch_id || null;
+}
+
+export async function mapDriverBranchIds(admin, drivers) {
+  const list = drivers || [];
+  const missing = [...new Set(list.filter((d) => !d.preferred_branch_id && d.profile_id).map((d) => d.profile_id))];
+  let byProfile = {};
+  if (missing.length) {
+    const { data } = await admin.from('profiles').select('id, branch_id').in('id', missing);
+    byProfile = Object.fromEntries((data || []).map((p) => [p.id, p.branch_id || null]));
+  }
+  return new Map(list.map((d) => [d.id, d.preferred_branch_id || byProfile[d.profile_id] || null]));
+}
+
+export async function expireCrossBranchPendingOffers(admin, { jobId } = {}) {
+  if (!admin) return 0;
+  let q = admin
+    .from('ep_delivery_offers')
+    .select('id, driver_id, ep_delivery_jobs(branch_id, source_order_id)')
+    .eq('status', 'pending')
+    .limit(500);
+  if (jobId) q = q.eq('job_id', jobId);
+  const { data: offers } = await q;
+  if (!offers?.length) return 0;
+
+  const driverIds = [...new Set(offers.map((o) => o.driver_id).filter(Boolean))];
+  const { data: drivers } = await admin
+    .from('ep_driver_profiles')
+    .select('id, preferred_branch_id, profile_id')
+    .in('id', driverIds);
+  const branchByDriver = await mapDriverBranchIds(admin, drivers || []);
+
+  const needPedido = [...new Set(
+    offers
+      .filter((o) => !o.ep_delivery_jobs?.branch_id)
+      .map((o) => o.ep_delivery_jobs?.source_order_id)
+      .filter(Boolean)
+      .map(String),
+  )];
+  let pedidoBranch = {};
+  if (needPedido.length) {
+    const { data } = await admin.from('pedidos').select('id, branch_id').in('id', needPedido);
+    pedidoBranch = Object.fromEntries((data || []).map((p) => [String(p.id), p.branch_id || null]));
+  }
+
+  const wrong = [];
+  for (const o of offers) {
+    const jobBranch = o.ep_delivery_jobs?.branch_id
+      || pedidoBranch[String(o.ep_delivery_jobs?.source_order_id || '')]
+      || null;
+    const drvBranch = branchByDriver.get(o.driver_id) || null;
+    if (!sameBranchId(jobBranch, drvBranch)) wrong.push(o.id);
+  }
+  if (!wrong.length) return 0;
+  const { error } = await admin
+    .from('ep_delivery_offers')
+    .update({ status: 'expired', responded_at: new Date().toISOString() })
+    .in('id', wrong);
+  return error ? 0 : wrong.length;
+}
+
 export async function jobIsNuevoUnassigned(admin, jobId) {
   if (!admin || !jobId) return { ok: false, reason: 'missing' };
   const { data: job } = await admin
@@ -51,6 +126,14 @@ export async function ensureNotifyEligibleOffers(admin, jobId) {
   const gate = await jobIsNuevoUnassigned(admin, jobId);
   if (!gate.ok) return { added: 0, reason: gate.reason, status: gate.status, estado: gate.estado };
   const job = gate.job;
+  const jobBranch = await resolveJobBranchId(admin, job);
+  if (job.branch_id == null && jobBranch) {
+    await admin.from('ep_delivery_jobs').update({ branch_id: jobBranch }).eq('id', jobId).is('branch_id', null);
+    job.branch_id = jobBranch;
+  }
+  if (!jobBranch) {
+    return { added: 0, reason: 'sin_sucursal' };
+  }
 
   const [{ data: subs }, { data: fcmRows }] = await Promise.all([
     admin.from('ep_driver_push_subscriptions').select('driver_id'),
@@ -66,17 +149,19 @@ export async function ensureNotifyEligibleOffers(admin, jobId) {
 
   const { data: drivers, error: drvErr } = await admin
     .from('ep_driver_profiles')
-    .select('id, admin_status, operational_status, preferred_branch_id')
+    .select('id, admin_status, operational_status, preferred_branch_id, profile_id')
     .in('id', driverIds)
     .eq('admin_status', 'approved');
   if (drvErr) return { added: 0, reason: drvErr.message };
 
+  const branchByDriver = await mapDriverBranchIds(admin, drivers || []);
   const eligible = (drivers || []).filter((d) => {
     if (BLOCKED_STATUS.has(d.operational_status)) return false;
-    return true;
+    return sameBranchId(branchByDriver.get(d.id), jobBranch);
   });
+  await expireCrossBranchPendingOffers(admin, { jobId });
   if (!eligible.length) {
-    return { added: 0, reason: 'ningun_repartidor_avisos', scanned: driverIds.length };
+    return { added: 0, reason: 'otra_sucursal', scanned: driverIds.length, branch_id: jobBranch };
   }
 
   const { data: existing } = await admin
@@ -246,13 +331,14 @@ export async function refreshOffersForDriver(admin, driverId) {
   if (!admin || !driverId) return { ok: false, revived: 0, inserted: 0, reason: 'missing' };
 
   const rpc = await admin.rpc('ep_refresh_open_offers_for_driver', { p_driver_id: driverId });
+  await expireCrossBranchPendingOffers(admin).catch(() => 0);
   if (!rpc.error && rpc.data) {
     return { ok: true, ...(typeof rpc.data === 'object' ? rpc.data : { revived: 0 }), via: 'rpc' };
   }
 
   const { data: driver } = await admin
     .from('ep_driver_profiles')
-    .select('id, preferred_branch_id, operational_status, admin_status')
+    .select('id, preferred_branch_id, operational_status, admin_status, profile_id')
     .eq('id', driverId)
     .maybeSingle();
   if (!driver || driver.admin_status !== 'approved') {
@@ -261,6 +347,8 @@ export async function refreshOffersForDriver(admin, driverId) {
   if (['offline', 'blocked', 'paused', 'delivering'].includes(driver.operational_status)) {
     return { ok: true, revived: 0, inserted: 0, reason: 'not_eligible' };
   }
+  const branchMap = await mapDriverBranchIds(admin, [driver]);
+  const driverBranch = branchMap.get(driver.id);
 
   const { count: activeCount } = await admin
     .from('ep_delivery_assignments')
@@ -294,7 +382,8 @@ export async function refreshOffersForDriver(admin, driverId) {
     const gate = await jobIsNuevoUnassigned(admin, jobId);
     if (!gate.ok) continue;
     const job = gate.job;
-    if (job.branch_id && driver.preferred_branch_id && job.branch_id !== driver.preferred_branch_id) {
+    const jobBranch = await resolveJobBranchId(admin, job);
+    if (!sameBranchId(jobBranch, driverBranch)) {
       continue;
     }
 

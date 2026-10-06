@@ -2,7 +2,7 @@
  * Reaviso de pedidos en estado Nuevo sin repartidor.
  * Cada ~1 min: Web Push a todos los pollitos hasta que alguien acepte.
  */
-import { ensureNotifyEligibleOffers, ensureJobsFromPendingPedidos, unwrapJobId } from './ensureNotifyOffers.js';
+import { ensureNotifyEligibleOffers, ensureJobsFromPendingPedidos, unwrapJobId, expireCrossBranchPendingOffers } from './ensureNotifyOffers.js';
 import { sendPushesForJob } from './sendJobPushes.js';
 
 let lastRunAt = 0;
@@ -32,6 +32,7 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
   } catch {
     /* no bloquear el aviso del pollito */
   }
+  await expireCrossBranchPendingOffers(admin).catch(() => 0);
 
   const fromPedidos = await ensureJobsFromPendingPedidos(admin, { hours: 18, limit: 8 }).catch(() => []);
   const jobIds = [...new Set((fromPedidos || []).map((id) => unwrapJobId(id)).filter(Boolean))];

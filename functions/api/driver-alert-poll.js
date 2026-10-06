@@ -4,7 +4,7 @@
  */
 import { applyCloudflareEnv } from '../_lib/vercelAdapter.js';
 import { supabaseClients, adminClient } from '../_lib/driverLiveAuth.js';
-import { jobIsNuevoUnassigned } from '../../api/_lib/ensureNotifyOffers.js';
+import { jobIsNuevoUnassigned, sameBranchId, resolveJobBranchId, mapDriverBranchIds } from '../../api/_lib/ensureNotifyOffers.js';
 
 function corsHeaders() {
   return {
@@ -96,10 +96,18 @@ export async function onRequest(context) {
 
   const { data: offers } = await admin
     .from('ep_delivery_offers')
-    .select('id, job_id, offered_fee, ep_delivery_jobs(ticket_code, customer_address, delivery_fee)')
+    .select('id, job_id, offered_fee, ep_delivery_jobs(ticket_code, customer_address, delivery_fee, branch_id, source_order_id)')
     .eq('driver_id', sub.driver_id)
     .eq('status', 'pending')
     .limit(8);
+
+  const { data: driverRow } = await admin
+    .from('ep_driver_profiles')
+    .select('id, preferred_branch_id, profile_id')
+    .eq('id', sub.driver_id)
+    .maybeSingle();
+  const branchMap = await mapDriverBranchIds(admin, driverRow ? [driverRow] : []);
+  const driverBranch = branchMap.get(sub.driver_id);
 
   const out = [];
   for (const offer of offers || []) {
@@ -107,6 +115,8 @@ export async function onRequest(context) {
     if (!jobId) continue;
     const gate = await jobIsNuevoUnassigned(admin, jobId);
     if (!gate.ok) continue;
+    const jobBranch = await resolveJobBranchId(admin, gate.job || offer.ep_delivery_jobs);
+    if (!sameBranchId(jobBranch, driverBranch)) continue;
     const job = offer.ep_delivery_jobs || gate.job || {};
     const notice = offerNoticeText(job, { jobId, offerId: offer.id, fee: offer.offered_fee ?? job.delivery_fee });
     out.push({
