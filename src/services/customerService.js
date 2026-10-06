@@ -130,13 +130,22 @@ export async function getCustomerOrderLiveTracking(orderId) {
 
   try {
     const { getAccessToken } = await import('./driverLiveShareService');
+    const { DRIVER_SITE_ORIGIN, isLocalDevHost } = await import('../utils/driverNativeConstants');
     const token = await getAccessToken();
     if (!token) return data;
-    const res = await fetch(`/api/driver-live?orderId=${encodeURIComponent(String(orderId))}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const live = await res.json().catch(() => null);
-    if (!res.ok || !live?.active || live.lat == null || live.lng == null) return data;
+    const urls = isLocalDevHost()
+      ? [`${DRIVER_SITE_ORIGIN}/api/driver-live?orderId=${encodeURIComponent(String(orderId))}`, `/api/driver-live?orderId=${encodeURIComponent(String(orderId))}`]
+      : [`/api/driver-live?orderId=${encodeURIComponent(String(orderId))}`];
+    let live = null;
+    for (const url of urls) {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const payload = await res.json().catch(() => null);
+      if (res.ok && payload?.active && payload.lat != null && payload.lng != null) {
+        live = payload;
+        break;
+      }
+    }
+    if (!live) return data;
     return {
       ...(data || {}),
       has_driver: true,

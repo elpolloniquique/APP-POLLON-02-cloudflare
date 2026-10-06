@@ -101,11 +101,11 @@ function startHeartbeat() {
   }, NATIVE_GPS_INTERVAL_MS);
 }
 
-async function persistOnlineSession(pingUrl, wantOnline) {
+async function persistOnlineSession(pingUrl, wantOnline, { active = false } = {}) {
   if (!isCapacitorNativePlatform()) return;
   try {
     if (wantOnline && pingUrl) {
-      await DriverBadge.setOnlineSession({ pingUrl, wantOnline: true });
+      await DriverBadge.setOnlineSession({ pingUrl, wantOnline: true, active: Boolean(active) });
     } else {
       await DriverBadge.clearOnlineSession();
     }
@@ -342,13 +342,12 @@ export async function openNativeAppSettings() {
   return openNativeLocationSettings();
 }
 
-function driverLivePostUrl() {
-  if (typeof window === 'undefined') return `${DRIVER_SITE_ORIGIN}/api/driver-live`;
-  const origin = String(window.location.origin || '');
-  if (/capacitor|ionic/i.test(origin)) {
-    return `${DRIVER_SITE_ORIGIN}/api/driver-live`;
-  }
-  return '/api/driver-live';
+function driverLivePostUrls() {
+  const prod = `${DRIVER_SITE_ORIGIN}/api/driver-live`;
+  if (typeof window === 'undefined') return [prod];
+  if (isCapacitorNativePlatform()) return [prod];
+  if (isLocalDevHost()) return [prod, '/api/driver-live'];
+  return ['/api/driver-live'];
 }
 
 function getBrowserPosition(timeoutMs = 12000) {
@@ -370,6 +369,7 @@ async function publishNativeFix(location, { force = false } = {}) {
   const lat = Number(location.latitude ?? location.lat);
   const lng = Number(location.longitude ?? location.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (Math.abs(lat) < 0.001 && Math.abs(lng) < 0.001) return null;
   const now = Date.now();
   if (!force && lastPublishAt && now - lastPublishAt < 8_000) {
     return { lat, lng, accuracy: location.accuracy ?? null };
@@ -384,28 +384,37 @@ async function publishNativeFix(location, { force = false } = {}) {
     }
     let driverId = '';
     try { driverId = localStorage.getItem('pollon_driver_id') || ''; } catch { /* ignore */ }
-    const res = await fetch(driverLivePostUrl(), {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${jwt}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        lat,
-        lng,
-        heading: location.bearing ?? location.heading ?? null,
-        speed: location.speed ?? null,
-        accuracy: location.accuracy ?? null,
-        driver_id: driverId || undefined,
-      }),
+    const body = JSON.stringify({
+      lat,
+      lng,
+      heading: location.bearing ?? location.heading ?? null,
+      speed: location.speed ?? null,
+      accuracy: location.accuracy ?? null,
+      driver_id: driverId || undefined,
     });
-    const payload = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      console.warn('[Pollón] GPS publish:', res.status, payload.error || payload);
-      return null;
+    const headers = {
+      Authorization: `Bearer ${jwt}`,
+      'Content-Type': 'application/json',
+    };
+    let ok = false;
+    let followUrl = null;
+    for (const url of driverLivePostUrls()) {
+      try {
+        const res = await fetch(url, { method: 'POST', headers, body });
+        const payload = await res.json().catch(() => ({}));
+        if (res.ok) {
+          ok = true;
+          if (payload.follow_url) followUrl = payload.follow_url;
+        } else {
+          console.warn('[Pollón] GPS publish:', url, res.status, payload.error || payload);
+        }
+      } catch (err) {
+        console.warn('[Pollón] GPS publish:', url, err?.message || err);
+      }
     }
+    if (!ok) return null;
     lastPublishAt = now;
-    return { lat, lng, accuracy: location.accuracy ?? null, followUrl: payload.follow_url || null };
+    return { lat, lng, accuracy: location.accuracy ?? null, followUrl };
   } catch (err) {
     console.warn('[Pollón] GPS background publish:', err?.message || err);
     return null;
@@ -565,6 +574,10 @@ export async function startDriverBackgroundGps({
 
   if (nativeRunning && !forceRestart && startedIdle === Boolean(idle)) {
     startHeartbeat();
+    void ensureGpsPingToken().then((tok) => {
+      const url = tok ? getDriverGpsPingUrl(tok) : null;
+      if (url) return persistOnlineSession(url, true, { active: !idle });
+    }).catch(() => {});
     return {
       ok: true,
       mode: 'native',
@@ -595,7 +608,7 @@ export async function startDriverBackgroundGps({
 
   if (nativeRunning && !forceRestart && !needUrlRestart && !needModeRestart) {
     startHeartbeat();
-    void persistOnlineSession(pingUrl, true);
+    void persistOnlineSession(pingUrl, true, { active: !idle });
     return {
       ok: true,
       mode: 'native',
@@ -648,7 +661,7 @@ export async function startDriverBackgroundGps({
     startedWithNativeUrl = Boolean(pingUrl);
     startedIdle = Boolean(idle);
     startHeartbeat();
-    void persistOnlineSession(pingUrl, true);
+    void persistOnlineSession(pingUrl, true, { active: !idle });
     return {
       ok: true,
       mode: 'native',
@@ -682,7 +695,23 @@ export async function stopDriverBackgroundGps({ keepSession = false } = {}) {
     startedWithNativeUrl = false;
     startedIdle = false;
   }
-  if (!keepSession) await persistOnlineSession(null, false);
+  if (!keepSession) {
+    try {
+      const sb = getSupabase();
+      const { data } = sb ? await sb.auth.getSession() : { data: null };
+      const jwt = data?.session?.access_token;
+      if (jwt) {
+        await Promise.all(driverLivePostUrls().map((url) => fetch(url, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${jwt}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ done: true, lat: 0, lng: 0 }),
+        }).catch(() => null)));
+      }
+    } catch {
+      /* ignore */
+    }
+    await persistOnlineSession(null, false);
+  }
 }
 
 export function isDriverBackgroundGpsRunning() {

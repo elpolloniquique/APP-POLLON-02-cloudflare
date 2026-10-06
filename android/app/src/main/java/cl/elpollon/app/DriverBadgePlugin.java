@@ -45,9 +45,10 @@ public class DriverBadgePlugin extends Plugin {
         String pingUrl = call.getString("pingUrl", "");
         boolean want = call.getBoolean("wantOnline", true);
         if (want && pingUrl != null && !pingUrl.isEmpty()) {
-            PollonPrefs.setOnlineSession(getContext(), pingUrl);
+            boolean active = Boolean.TRUE.equals(call.getBoolean("active", false));
+            PollonPrefs.setOnlineSession(getContext(), pingUrl, active);
             PollonOnlineWorker.schedule(getContext());
-            PollonOnlineService.stop(getContext());
+            PollonOnlineService.start(getContext());
         } else {
             PollonPrefs.clearOnlineSession(getContext());
             PollonOnlineWorker.cancel(getContext());

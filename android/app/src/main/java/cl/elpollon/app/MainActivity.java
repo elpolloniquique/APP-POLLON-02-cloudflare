@@ -51,6 +51,22 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    public void onPause() {
+        super.onPause();
+        if (PollonPrefs.wantOnline(this)) {
+            PollonOnlineService.start(this);
+        }
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        if (PollonPrefs.wantOnline(this)) {
+            PollonOnlineService.start(this);
+        }
+    }
+
+    @Override
     public void onResume() {
         super.onResume();
         resumeWebView();

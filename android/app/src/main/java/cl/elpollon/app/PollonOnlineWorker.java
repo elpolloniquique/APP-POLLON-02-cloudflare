@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit;
 /** Watchdog 15 min: si el conductor sigue Disponible y el JS/Capgo calló, relanza el FGS. */
 public class PollonOnlineWorker extends Worker {
     public static final String UNIQUE = "pollon_online_watchdog";
-    private static final long JS_FRESH_MS = 3L * 60L * 1000L;
+    private static final long JS_FRESH_MS = 20L * 1000L;
 
     public PollonOnlineWorker(@NonNull Context context, @NonNull WorkerParameters params) {
         super(context, params);

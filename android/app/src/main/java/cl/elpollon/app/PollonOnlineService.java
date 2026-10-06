@@ -17,6 +17,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.PowerManager;
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
 import java.io.OutputStream;
@@ -25,18 +26,21 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
 /**
- * FGS de respaldo: GPS → Cloudflare KV mientras el conductor está Disponible.
- * Lo usa boot / watchdog. Con la app abierta Capgo toma el relevo.
+ * FGS nativo: GPS → Cloudflare (el-pollon.cl) con pantalla apagada u otra app.
+ * Se mantiene desde que acepta un pedido hasta Pedido entregado.
  */
 public class PollonOnlineService extends Service implements LocationListener {
     public static final String CHANNEL_ID = "pollon_online_v1";
     public static final int NOTIF_ID = 73001;
-    private static final long MIN_INTERVAL_MS = 75_000L;
-    private static final float MIN_DISTANCE_M = 80f;
+    private static final long ACTIVE_INTERVAL_MS = 8_000L;
+    private static final float ACTIVE_DISTANCE_M = 8f;
+    private static final long IDLE_INTERVAL_MS = 45_000L;
+    private static final float IDLE_DISTANCE_M = 40f;
 
     private LocationManager locationManager;
     private HandlerThread ioThread;
     private Handler ioHandler;
+    private PowerManager.WakeLock wakeLock;
     private long lastPingAt;
 
     public static void start(Context context) {
@@ -68,6 +72,14 @@ public class PollonOnlineService extends Service implements LocationListener {
         ioThread.start();
         ioHandler = new Handler(ioThread.getLooper());
         locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+        try {
+            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+            if (pm != null && (wakeLock == null || !wakeLock.isHeld())) {
+                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "pollon:gps");
+                wakeLock.setReferenceCounted(false);
+                wakeLock.acquire(12L * 60L * 60L * 1000L);
+            }
+        } catch (Exception ignored) {}
     }
 
     @Override
@@ -93,6 +105,10 @@ public class PollonOnlineService extends Service implements LocationListener {
             ioThread.quitSafely();
             ioThread = null;
             ioHandler = null;
+        }
+        if (wakeLock != null && wakeLock.isHeld()) {
+            try { wakeLock.release(); } catch (Exception ignored) {}
+            wakeLock = null;
         }
         super.onDestroy();
     }
@@ -135,10 +151,13 @@ public class PollonOnlineService extends Service implements LocationListener {
             builder = new Notification.Builder(this);
             builder.setPriority(Notification.PRIORITY_LOW);
         }
+        boolean active = PollonPrefs.activeTracking(this);
         builder
             .setSmallIcon(R.drawable.ic_stat_pollon)
-            .setContentTitle("El Pollón · En línea")
-            .setContentText("Disponible para pedidos. No detengas esta notificación.")
+            .setContentTitle(active ? "El Pollón · En ruta" : "El Pollón · En línea")
+            .setContentText(active
+                ? "Entrega en curso. Admin y caja te ven aunque apagues la pantalla."
+                : "Disponible para pedidos. No detengas esta notificación.")
             .setContentIntent(content)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -158,17 +177,19 @@ public class PollonOnlineService extends Service implements LocationListener {
             != PackageManager.PERMISSION_GRANTED) {
             return;
         }
+        long interval = PollonPrefs.activeTracking(this) ? ACTIVE_INTERVAL_MS : IDLE_INTERVAL_MS;
+        float distance = PollonPrefs.activeTracking(this) ? ACTIVE_DISTANCE_M : IDLE_DISTANCE_M;
         try {
             locationManager.removeUpdates(this);
         } catch (Exception ignored) {}
         try {
             locationManager.requestLocationUpdates(
-                LocationManager.GPS_PROVIDER, MIN_INTERVAL_MS, MIN_DISTANCE_M, this
+                LocationManager.GPS_PROVIDER, interval, distance, this
             );
         } catch (Exception ignored) {}
         try {
             locationManager.requestLocationUpdates(
-                LocationManager.NETWORK_PROVIDER, MIN_INTERVAL_MS, MIN_DISTANCE_M, this
+                LocationManager.NETWORK_PROVIDER, interval, distance, this
             );
         } catch (Exception ignored) {}
     }
@@ -193,8 +214,10 @@ public class PollonOnlineService extends Service implements LocationListener {
 
     private void enqueuePing(Location location) {
         if (location == null || ioHandler == null) return;
+        if (Math.abs(location.getLatitude()) < 0.001 && Math.abs(location.getLongitude()) < 0.001) return;
         long now = System.currentTimeMillis();
-        if (lastPingAt > 0 && now - lastPingAt < MIN_INTERVAL_MS) return;
+        long minInterval = PollonPrefs.activeTracking(this) ? ACTIVE_INTERVAL_MS : IDLE_INTERVAL_MS;
+        if (lastPingAt > 0 && now - lastPingAt < minInterval) return;
         lastPingAt = now;
         final double lat = location.getLatitude();
         final double lng = location.getLongitude();

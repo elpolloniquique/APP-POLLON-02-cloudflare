@@ -1,16 +1,21 @@
 /**
- * Crea (si falta) el KV de GPS en vivo y lo vincula al proyecto Pages el-pollon.
- * Usa CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID.
+ * Crea (si falta) el KV de GPS en vivo, lo escribe en wrangler.toml
+ * y lo vincula al proyecto Pages. wrangler pages deploy lee el binding
+ * desde wrangler.toml — el PATCH al dashboard no basta.
  */
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 const ACCOUNT = process.env.CLOUDFLARE_ACCOUNT_ID || '';
 const TOKEN = process.env.CLOUDFLARE_API_TOKEN || '';
 const PROJECT = process.env.CF_PAGES_PROJECT || 'el-pollon';
 const TITLE = 'el-pollon-driver-live';
 const BINDING = 'DRIVER_LIVE_KV';
+const WRANGLER = join(process.cwd(), 'wrangler.toml');
 
-function fail(msg) {
+function fail(msg, { fatal = false } = {}) {
   console.error(`[driver-live-kv] ${msg}`);
-  process.exitCode = 0;
+  process.exitCode = fatal ? 1 : 0;
 }
 
 async function cf(path, { method = 'GET', body } = {}) {
@@ -28,6 +33,21 @@ async function cf(path, { method = 'GET', body } = {}) {
     throw new Error(err);
   }
   return data;
+}
+
+function writeWranglerKvId(id) {
+  let text = readFileSync(WRANGLER, 'utf8');
+  const block = `[[kv_namespaces]]\nbinding = "${BINDING}"\nid = "${id}"`;
+  if (/\[\[kv_namespaces\]\][\s\S]*?binding\s*=\s*"DRIVER_LIVE_KV"/.test(text)) {
+    text = text.replace(
+      /\[\[kv_namespaces\]\]\s*\n\s*binding\s*=\s*"DRIVER_LIVE_KV"\s*\n\s*id\s*=\s*"[^"]*"/,
+      block,
+    );
+  } else {
+    text = `${text.trimEnd()}\n\n# GPS en vivo (rellenado por scripts/ensure-driver-live-kv.mjs)\n${block}\n`;
+  }
+  writeFileSync(WRANGLER, text);
+  console.log(`[driver-live-kv] wrangler.toml ← ${BINDING}=${id}`);
 }
 
 async function main() {
@@ -49,6 +69,9 @@ async function main() {
   } else {
     console.log(`[driver-live-kv] existe ${TITLE} ${ns.id}`);
   }
+  if (!ns?.id) throw new Error('KV sin id');
+
+  writeWranglerKvId(ns.id);
 
   const project = await cf(`/accounts/${ACCOUNT}/pages/projects/${PROJECT}`);
   const current = project.result || {};
@@ -82,5 +105,5 @@ async function main() {
 }
 
 main().catch((err) => {
-  fail(err.message || String(err));
+  fail(err.message || String(err), { fatal: true });
 });

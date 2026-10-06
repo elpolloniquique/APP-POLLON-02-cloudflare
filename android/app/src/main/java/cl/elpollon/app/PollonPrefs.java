@@ -10,6 +10,7 @@ final class PollonPrefs {
     static final String PING_URL = "ping_url";
     static final String LAST_JS_GPS_AT = "last_js_gps_at";
     static final String ASKED_BATTERY = "asked_battery";
+    static final String ACTIVE_TRACKING = "active_tracking";
 
     private PollonPrefs() {}
 
@@ -34,12 +35,17 @@ final class PollonPrefs {
         return at > 0 && (System.currentTimeMillis() - at) < maxAgeMs;
     }
 
-    static void setOnlineSession(Context context, String pingUrl) {
+    static void setOnlineSession(Context context, String pingUrl, boolean active) {
         prefs(context).edit()
             .putBoolean(WANT_ONLINE, true)
+            .putBoolean(ACTIVE_TRACKING, active)
             .putString(PING_URL, pingUrl == null ? "" : pingUrl)
             .putLong(LAST_JS_GPS_AT, System.currentTimeMillis())
             .apply();
+    }
+
+    static boolean activeTracking(Context context) {
+        return prefs(context).getBoolean(ACTIVE_TRACKING, false);
     }
 
     static void touchJsGps(Context context) {
@@ -57,6 +63,7 @@ final class PollonPrefs {
     static void clearOnlineSession(Context context) {
         prefs(context).edit()
             .putBoolean(WANT_ONLINE, false)
+            .putBoolean(ACTIVE_TRACKING, false)
             .remove(PING_URL)
             .remove(LAST_JS_GPS_AT)
             .apply();

@@ -1,5 +1,6 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 import { getAccessToken } from './driverLiveShareService';
+import { DRIVER_SITE_ORIGIN, isLocalDevHost } from '../utils/driverNativeConstants';
 
 /** Mínimo entre publicaciones GPS. El mapa ya refresca cada 8–10 s. */
 export const GPS_PUBLISH_INTERVAL_MS = 8000;
@@ -58,13 +59,27 @@ export async function listLiveLocations() {
   if (!isSupabaseConfigured()) return DEMO_LOCATIONS;
   const token = await getAccessToken();
   if (!token) return [];
-  const res = await fetch('/api/driver-live?view=staff', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const payload = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(payload.error || 'Error GPS en vivo');
-
-  const data = payload.locations || [];
+  const urls = isLocalDevHost()
+    ? [`${DRIVER_SITE_ORIGIN}/api/driver-live?view=staff`, '/api/driver-live?view=staff']
+    : ['/api/driver-live?view=staff'];
+  const payloads = await Promise.all(urls.map(async (url) => {
+    try {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const payload = await res.json().catch(() => ({}));
+      return res.ok ? (payload.locations || []) : [];
+    } catch {
+      return [];
+    }
+  }));
+  const byId = new Map();
+  for (const row of payloads.flat()) {
+    if (!row?.driver_id) continue;
+    const prev = byId.get(row.driver_id);
+    const t = Date.parse(row.updated_at || '') || 0;
+    const pt = Date.parse(prev?.updated_at || '') || 0;
+    if (!prev || t >= pt) byId.set(row.driver_id, row);
+  }
+  const data = [...byId.values()];
   const byDriver = await loadDriverCards(data.map((r) => r.driver_id));
   return data.map((row) => ({
     ...row,
