@@ -165,11 +165,66 @@ export async function rejectOffer(offerId) {
   return data;
 }
 
+async function confirmPickupAsStaff(assignmentId) {
+  const sb = getSupabase();
+  const now = new Date().toISOString();
+  const { data: asg, error: asgErr } = await sb
+    .from('ep_delivery_assignments')
+    .select('id, driver_id, job_id, status, ep_delivery_jobs(id, source_order_id)')
+    .eq('id', assignmentId)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (asgErr) throw new Error(asgErr.message || 'No se pudo leer la asignación');
+  if (!asg) throw new Error('Asignación no encontrada');
+
+  const { error: upAsg } = await sb
+    .from('ep_delivery_assignments')
+    .update({ phase: 'to_customer', picked_up_at: now, updated_at: now })
+    .eq('id', assignmentId)
+    .eq('status', 'active');
+  if (upAsg) throw new Error(upAsg.message || 'No se pudo marcar recogido');
+
+  if (asg.job_id) {
+    await sb
+      .from('ep_delivery_jobs')
+      .update({ status: 'picked_up', picked_up_at: now, updated_at: now })
+      .eq('id', asg.job_id);
+  }
+  if (asg.driver_id) {
+    await sb
+      .from('ep_driver_profiles')
+      .update({ operational_status: 'delivering', updated_at: now })
+      .eq('id', asg.driver_id);
+    await sb
+      .from('ep_delivery_offers')
+      .update({ status: 'expired', responded_at: now })
+      .eq('driver_id', asg.driver_id)
+      .eq('status', 'pending');
+  }
+
+  const orderId = asg.ep_delivery_jobs?.source_order_id || null;
+  if (orderId) {
+    try {
+      await syncAfterDriverPickup(orderId);
+    } catch (e) {
+      console.warn('[Pollón] sync pickup staff:', e?.message || e);
+    }
+  }
+  return { ok: true, driver_id: asg.driver_id, order_id: orderId, via: 'staff' };
+}
+
 export async function confirmPickup(assignmentId) {
   if (!isSupabaseConfigured()) return { ok: true };
+  if (!assignmentId) throw new Error('Falta la asignación del pedido');
   const sb = getSupabase();
   const { data, error } = await sb.rpc('ep_confirm_pickup', { p_assignment_id: assignmentId });
-  if (error) throw error;
+  if (error) {
+    const msg = String(error.message || '');
+    if (/asignaci[oó]n no encontrada|no autorizado/i.test(msg)) {
+      return confirmPickupAsStaff(assignmentId);
+    }
+    throw new Error(msg || 'No se pudo marcar recogido');
+  }
 
   // Refuerzo: asegurar pedido → en_delivery aunque el SQL viejo no lo haga
   let orderId = data?.order_id || null;

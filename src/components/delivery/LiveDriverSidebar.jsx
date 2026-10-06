@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Eye, X, Link2 } from 'lucide-react';
 import { money } from '../../utils/format';
 import { confirmPickup } from '../../services/dispatchService';
@@ -15,6 +15,22 @@ function OrderDetailPanel({
   const orders = detail?.orders || [];
   const grandTotal = detail?.grandTotal || 0;
   const panelRef = useRef(null);
+  const [busyAsg, setBusyAsg] = useState(null);
+  const [pickupError, setPickupError] = useState('');
+
+  const markPickedUp = async (assignmentId) => {
+    if (!assignmentId || busyAsg) return;
+    setBusyAsg(assignmentId);
+    setPickupError('');
+    try {
+      await confirmPickup(assignmentId);
+      await onPickupDone?.(assignmentId);
+    } catch (err) {
+      setPickupError(err.message || 'No se pudo marcar recogido');
+    } finally {
+      setBusyAsg(null);
+    }
+  };
 
   useEffect(() => {
     panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -85,24 +101,25 @@ function OrderDetailPanel({
               {canMarkPickup && (o.phase === 'to_store' || o.phase === 'at_store') && (
                 <button
                   type="button"
-                  className="mt-1 w-full rounded-lg bg-pollon-red py-1.5 text-[11px] font-bold text-white transition hover:brightness-95"
-                  onClick={async (e) => {
+                  disabled={busyAsg === o.assignmentId}
+                  className="mt-1 w-full rounded-lg bg-pollon-red py-1.5 text-[11px] font-bold text-white transition hover:brightness-95 disabled:opacity-60"
+                  onClick={(e) => {
+                    e.preventDefault();
                     e.stopPropagation();
-                    try {
-                      await confirmPickup(o.assignmentId);
-                      onPickupDone?.();
-                    } catch (err) {
-                      alert(err.message || 'No se pudo marcar recogido');
-                    }
+                    markPickedUp(o.assignmentId);
                   }}
                 >
-                  Marcar pedido recogido
+                  {busyAsg === o.assignmentId ? 'Marcando…' : 'Marcar pedido recogido'}
                 </button>
               )}
             </div>
           </div>
         ))}
       </div>
+
+      {pickupError && (
+        <p className="px-3 pb-1 text-[11px] font-semibold text-red-600">{pickupError}</p>
+      )}
 
       {!loading && orders.length > 0 && (
         <footer className="border-t border-gray-100 p-3">

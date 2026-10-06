@@ -511,9 +511,23 @@ export function AdminLiveMap() {
     onView: openDetail,
     onCloseDetail: closeDetail,
     canMarkPickup: true,
-    onPickupDone: () => {
-      load();
-      if (viewDriverId) loadDetail(viewDriverId);
+    onPickupDone: async (assignmentId) => {
+      if (assignmentId) {
+        setAssignments((list) =>
+          list.map((a) => (a.id === assignmentId ? { ...a, phase: 'to_customer' } : a)),
+        );
+        setDetail((cur) => {
+          if (!cur) return cur;
+          return {
+            ...cur,
+            orders: (cur.orders || []).map((o) => (
+              o.assignmentId === assignmentId ? { ...o, phase: 'to_customer' } : o
+            )),
+          };
+        });
+      }
+      await load();
+      if (viewDriverId) await loadDetail(viewDriverId);
     },
   };
 
