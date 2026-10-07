@@ -236,6 +236,32 @@ export async function fetchDriverNamesForFilter() {
   })).filter((d) => d.name);
 }
 
+/** Job + asignación activa de un pedido (para actualizar desde Pedidos). */
+export async function getActiveAssignmentForOrder(orderId) {
+  if (!isSupabaseConfigured() || !orderId) return { job: null, assignment: null };
+  const sb = getSupabase();
+  const { data: job, error } = await sb
+    .from('ep_delivery_jobs')
+    .select('id, status, assigned_driver_id, source_order_id')
+    .eq('source_order_id', String(orderId))
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message || 'No se pudo leer el despacho');
+  if (!job) return { job: null, assignment: null };
+
+  const { data: assignment } = await sb
+    .from('ep_delivery_assignments')
+    .select('id, phase, status, driver_id')
+    .eq('job_id', job.id)
+    .eq('status', 'active')
+    .order('accepted_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return { job, assignment: assignment || null };
+}
+
 export function clearCache() {
   jobCache = {};
   driverCache = {};

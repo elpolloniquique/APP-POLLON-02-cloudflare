@@ -28,7 +28,9 @@ import {
   fetchDriverNamesForFilter,
   clearCache as clearDeliveryCache,
   retryStaleDriverSearches,
+  getActiveAssignmentForOrder,
 } from '../../services/orderDeliveryService';
+import { confirmPickup } from '../../services/dispatchService';
 import '../../styles/orders-panel.css';
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => h);
@@ -162,6 +164,7 @@ export function AdminOrders() {
   const [deliveryMap, setDeliveryMap] = useState({});
   const [driverNames, setDriverNames] = useState([]);
   const [searchingDriver, setSearchingDriver] = useState({});
+  const [updatingOrder, setUpdatingOrder] = useState({});
   const autoDispatchedRef = useRef(new Set());
 
   const today = todayISO();
@@ -397,13 +400,48 @@ export function AdminOrders() {
       updated = withCashierStatusLineMode(updated, next);
     }
     await updateOrder(updated);
-    refresh();
+    await refresh();
     if (viewOrder?.id === order.id) setViewOrder(updated);
+    return updated;
   };
 
-  const changeEstado = async (order) => {
-    if (!canAdvanceOrderEstado(order.estado)) return;
-    await applyEstado(order, getNextOrderEstado(order.estado));
+  const handleUpdateOrder = async (order) => {
+    if (!order?.id || updatingOrder[order.id]) return;
+    setUpdatingOrder((s) => ({ ...s, [order.id]: true }));
+    try {
+      const { job, assignment } = await getActiveAssignmentForOrder(order.id);
+      const phase = String(assignment?.phase || '');
+      let jobStatus = String(job?.status || '');
+
+      if (assignment?.id && (phase === 'to_store' || phase === 'at_store')) {
+        await confirmPickup(assignment.id);
+        jobStatus = 'picked_up';
+      }
+
+      let next = null;
+      if (jobStatus === 'delivered' || phase === 'done') {
+        next = 'entregado';
+      } else if (jobStatus === 'picked_up' || phase === 'to_customer') {
+        next = 'en_delivery';
+      } else if (assignment && order.estado === 'pendiente') {
+        next = 'aceptado';
+      }
+
+      if (next && next !== order.estado && order.estado !== 'cancelado') {
+        await applyEstado(order, next);
+      } else if (!next && canAdvanceOrderEstado(order.estado)) {
+        await applyEstado(order, getNextOrderEstado(order.estado));
+      } else {
+        await refresh();
+      }
+
+      clearDeliveryCache();
+      await refreshDelivery();
+    } catch (err) {
+      alert(err.message || 'No se pudo actualizar el pedido');
+    } finally {
+      setUpdatingOrder((s) => ({ ...s, [order.id]: false }));
+    }
   };
 
   const cancelOrder = async (order) => {
@@ -734,12 +772,12 @@ export function AdminOrders() {
                     <button
                       type="button"
                       className="orders-panel__icon-btn orders-panel__icon-btn--status"
-                      onClick={() => changeEstado(o)}
-                      disabled={!canAdvanceOrderEstado(o.estado)}
-                      title="Avanzar estado"
-                      aria-label="Avanzar estado"
+                      onClick={() => handleUpdateOrder(o)}
+                      disabled={Boolean(updatingOrder[o.id])}
+                      title="Actualizar este pedido"
+                      aria-label="Actualizar pedido"
                     >
-                      <RefreshCw className="orders-panel__icon-svg" />
+                      <RefreshCw className={`orders-panel__icon-svg ${updatingOrder[o.id] ? 'animate-spin' : ''}`} />
                     </button>
                     {canSearch ? (
                       <button
@@ -886,16 +924,12 @@ export function AdminOrders() {
                           <button
                             type="button"
                             className="orders-panel__icon-btn orders-panel__icon-btn--status"
-                            onClick={() => changeEstado(o)}
-                            disabled={!canAdvanceOrderEstado(o.estado)}
-                            title={
-                              canAdvanceOrderEstado(o.estado)
-                                ? `Avanzar a ${estadoLabel(getNextOrderEstado(o.estado))}`
-                                : 'Pedido finalizado'
-                            }
-                            aria-label="Avanzar estado"
+                            onClick={() => handleUpdateOrder(o)}
+                            disabled={Boolean(updatingOrder[o.id])}
+                            title="Actualizar este pedido"
+                            aria-label="Actualizar pedido"
                           >
-                            <RefreshCw className="orders-panel__icon-svg" />
+                            <RefreshCw className={`orders-panel__icon-svg ${updatingOrder[o.id] ? 'animate-spin' : ''}`} />
                           </button>
                           {canSearch ? (
                             <button
@@ -945,7 +979,7 @@ export function AdminOrders() {
           order={viewOrder}
           branch={branchFor(viewOrder)}
           onClose={() => setViewOrder(null)}
-          onChangeEstado={changeEstado}
+          onChangeEstado={handleUpdateOrder}
           onCancelOrder={cancelOrder}
           cajaPagoSlot={(
             <CajaPagoControl
