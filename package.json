@@ -64,5 +64,22 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "description": "Sistema web profesional multi-sucursal: tienda online, delivery, reservas, panel admin, cocina digital, caja, stock y reportes.",
+  "main": "eslint.config.js",
+  "directories": {
+    "doc": "docs",
+    "lib": "lib"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elpolloniquique/APP-POLLON-02-cloudflare.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/elpolloniquique/APP-POLLON-02-cloudflare/issues"
+  },
+  "homepage": "https://github.com/elpolloniquique/APP-POLLON-02-cloudflare#readme"
 }
