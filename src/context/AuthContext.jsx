@@ -14,8 +14,10 @@ import {
   isStaffRole,
   isCustomerRole,
   isDriverRole,
+  isBranchScopedStaff,
   normalizeRole,
   canAccessBranch,
+  attachBranchFromUser,
 } from '../services/authService';
 import { CUSTOMER_SESSION_KEY } from '../utils/constants';
 
@@ -164,14 +166,18 @@ export function AuthProvider({ children }) {
       writeStaffProfileCache(null);
       return null;
     }
+    const cachedNow = profileCacheRef.current;
+    const cachedHasBranch = Boolean(cachedNow?.branchId || cachedNow?.branch_id);
+    const cachedNeedsBranch = isBranchScopedStaff(roleOf(cachedNow));
     if (
       !force
       && profileUserIdRef.current === user.id
-      && profileCacheRef.current
-      && (isStaffRole(roleOf(profileCacheRef.current)) || isDriverRole(roleOf(profileCacheRef.current)))
+      && cachedNow
+      && (isStaffRole(roleOf(cachedNow)) || isDriverRole(roleOf(cachedNow)))
+      && (cachedHasBranch || !cachedNeedsBranch)
     ) {
-      setProfile(profileCacheRef.current);
-      return profileCacheRef.current;
+      setProfile(cachedNow);
+      return cachedNow;
     }
 
     const existing = profileCacheRef.current || readStaffProfileCache();
@@ -185,9 +191,10 @@ export function AuthProvider({ children }) {
     let resolved = (p?.role && p.role !== 'cliente')
       ? p
       : (p || profileFromAuthUser(user));
+    resolved = attachBranchFromUser(resolved, user);
 
     if (!force && shouldKeepCachedStaff(existing, resolved)) {
-      resolved = existing;
+      resolved = attachBranchFromUser(existing, user) || existing;
     }
 
     profileUserIdRef.current = user.id;
@@ -358,9 +365,12 @@ export function AuthProvider({ children }) {
     profileCacheRef.current = null;
     const p = await getProfileByAuthIdSafe(user.id, user);
     const existing = readStaffProfileCache();
-    const resolved = (shouldKeepCachedStaff(existing, p) && isDriverRole(roleOf(existing)))
-      ? existing
-      : p;
+    const resolved = attachBranchFromUser(
+      (shouldKeepCachedStaff(existing, p) && isDriverRole(roleOf(existing)))
+        ? existing
+        : p,
+      user,
+    );
     setProfile(resolved);
     writeStaffProfileCache(resolved);
     profileUserIdRef.current = user.id;

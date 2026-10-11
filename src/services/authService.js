@@ -116,6 +116,7 @@ export function profileFromAuthUser(user) {
   if (!user) return null;
   const meta = user.user_metadata || {};
   const role = normalizeRole(meta.role);
+  const branchId = meta.branch_id || meta.sucursal_id || null;
   return {
     id: user.id,
     authUserId: user.id,
@@ -124,9 +125,21 @@ export function profileFromAuthUser(user) {
     nombre: meta.full_name || meta.nombre || user.email || '',
     rol: role,
     role,
+    branchId,
+    branch_id: branchId,
     isActive: true,
     activo: true,
   };
+}
+
+/** Completa sucursal desde el JWT si el perfil llegó sin branch_id. */
+export function attachBranchFromUser(profile, user) {
+  if (!profile) return profile;
+  const fromMeta = user?.user_metadata?.branch_id || user?.user_metadata?.sucursal_id || null;
+  const bid = profile.branchId || profile.branch_id || fromMeta || null;
+  if (!bid) return profile;
+  if (profile.branchId === bid && profile.branch_id === bid) return profile;
+  return { ...profile, branchId: bid, branch_id: bid };
 }
 
 /** Combina profiles + administradores; prioriza rol de personal si hay conflicto */
@@ -192,12 +205,11 @@ export async function getProfileByAuthIdSafe(authUserId, userFallback, timeoutMs
         setTimeout(() => reject(new Error('timeout')), timeoutMs);
       }),
     ]);
-    if (p) return p;
+    if (p) return attachBranchFromUser(p, userFallback);
   } catch (e) {
     console.warn('[Pollón] getProfileByAuthIdSafe:', e.message);
   }
-  const fallback = profileFromAuthUser(userFallback);
-  return fallback;
+  return attachBranchFromUser(profileFromAuthUser(userFallback), userFallback);
 }
 
 export async function signIn(email, password) {
@@ -359,7 +371,7 @@ export function filterByStaffBranch(items, profile, getBranchId = (item) => item
   if (role === ROLES.SUPER_ADMIN) return items;
   if (!isBranchScopedStaff(role)) return items;
   const bid = getProfileBranchId(profile);
-  if (!bid) return items;
+  if (!bid) return [];
   return items.filter((item) => {
     const itemBranch = getBranchId(item);
     return itemBranch === bid;

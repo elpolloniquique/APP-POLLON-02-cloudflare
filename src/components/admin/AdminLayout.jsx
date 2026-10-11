@@ -250,7 +250,7 @@ export function AdminLayout() {
         <main className="admin-shell__main">
           {isBranchScoped && !branchId && (
             <div className="admin-shell__alert">
-              Tu cuenta no tiene sucursal asignada. Solo verás datos vacíos hasta que el super admin configure tu <code>branch_id</code>.
+              Tu cuenta no tiene sucursal asignada. Pídele al super admin que te asigne un local en Usuarios.
             </div>
           )}
           <Outlet />
