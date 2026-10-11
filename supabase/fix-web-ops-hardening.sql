@@ -64,6 +64,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.auth_user_profile_id() TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.auth_user_branch_id() TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.ep_my_role() TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.ep_is_catalog_admin() TO authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.ep_is_branch_staff()
 RETURNS BOOLEAN
@@ -78,6 +79,8 @@ AS $$
     'admin_repartidores', 'delivery', 'repartidor'
   );
 $$;
+
+GRANT EXECUTE ON FUNCTION public.ep_is_branch_staff() TO authenticated, service_role;
 
 -- ── Caja / stock compartidos por sucursal ───────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.ep_caja_sesiones (
@@ -293,20 +296,38 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.ep_bestsellers_for_branch(UUID, INT) TO anon, authenticated, service_role;
 
--- ── Catálogo: lectura pública, escritura solo admin ─────────────────────────
+-- ── Catálogo: el público sigue LEYENDO el menú; solo admin escribe ──────────
 DO $$
 BEGIN
   IF to_regclass('public.products') IS NOT NULL THEN
     DROP POLICY IF EXISTS products_auth_all ON public.products;
     DROP POLICY IF EXISTS products_staff_write ON public.products;
+    DROP POLICY IF EXISTS products_staff_update ON public.products;
+    DROP POLICY IF EXISTS products_staff_delete ON public.products;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'products' AND policyname = 'products_public_read'
+    ) THEN
+      CREATE POLICY products_public_read ON public.products FOR SELECT USING (true);
+    END IF;
     CREATE POLICY products_staff_write ON public.products
-      FOR ALL TO authenticated
+      FOR INSERT TO authenticated
+      WITH CHECK (public.ep_is_catalog_admin());
+    CREATE POLICY products_staff_update ON public.products
+      FOR UPDATE TO authenticated
       USING (public.ep_is_catalog_admin())
       WITH CHECK (public.ep_is_catalog_admin());
+    CREATE POLICY products_staff_delete ON public.products
+      FOR DELETE TO authenticated
+      USING (public.ep_is_catalog_admin());
   END IF;
   IF to_regclass('public.categories') IS NOT NULL THEN
     DROP POLICY IF EXISTS categories_auth_all ON public.categories;
     DROP POLICY IF EXISTS categories_staff_write ON public.categories;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'categories' AND policyname = 'categories_public_read'
+    ) THEN
+      CREATE POLICY categories_public_read ON public.categories FOR SELECT USING (true);
+    END IF;
     CREATE POLICY categories_staff_write ON public.categories
       FOR ALL TO authenticated
       USING (public.ep_is_catalog_admin())
@@ -315,6 +336,11 @@ BEGIN
   IF to_regclass('public.branches') IS NOT NULL THEN
     DROP POLICY IF EXISTS branches_auth_all ON public.branches;
     DROP POLICY IF EXISTS branches_staff_write ON public.branches;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'branches' AND policyname = 'branches_public_read'
+    ) THEN
+      CREATE POLICY branches_public_read ON public.branches FOR SELECT USING (true);
+    END IF;
     CREATE POLICY branches_staff_write ON public.branches
       FOR ALL TO authenticated
       USING (public.ep_is_catalog_admin())
@@ -323,6 +349,11 @@ BEGIN
   IF to_regclass('public.settings') IS NOT NULL THEN
     DROP POLICY IF EXISTS settings_auth_all ON public.settings;
     DROP POLICY IF EXISTS settings_staff_write ON public.settings;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'settings' AND policyname = 'settings_public_read'
+    ) THEN
+      CREATE POLICY settings_public_read ON public.settings FOR SELECT USING (true);
+    END IF;
     CREATE POLICY settings_staff_write ON public.settings
       FOR ALL TO authenticated
       USING (public.ep_is_catalog_admin())
@@ -335,6 +366,7 @@ ALTER TABLE public.pedidos ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS pedidos_anon_select ON public.pedidos;
 DROP POLICY IF EXISTS pedidos_auth_update ON public.pedidos;
+DROP POLICY IF EXISTS pedidos_staff_all ON public.pedidos;
 DROP POLICY IF EXISTS pedidos_staff_select ON public.pedidos;
 DROP POLICY IF EXISTS pedidos_customer_select ON public.pedidos;
 DROP POLICY IF EXISTS pedidos_staff_update ON public.pedidos;

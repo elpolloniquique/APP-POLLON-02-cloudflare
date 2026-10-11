@@ -527,6 +527,7 @@ export async function saveOrder(order) {
         estado: order.estado || 'pendiente',
       });
       pingDriverNotifyNow(order);
+      pingCashierNotifyNow(order);
       return order;
     }
 
@@ -562,6 +563,19 @@ function pingWaOrderNotify(payload) {
     run().catch(() => {});
   } catch {
     /* no bloquear pedidos si el bot falla */
+  }
+}
+
+function pingCashierNotifyNow(order) {
+  if (!order?.id) return;
+  try {
+    fetch('/api/notify-cashier-orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId: order.id }),
+    }).catch(() => {});
+  } catch {
+    /* no bloquear checkout */
   }
 }
 

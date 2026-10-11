@@ -147,6 +147,26 @@ export function GuestOrderTracking() {
               <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">Este pedido fue cancelado.</p>
             )}
             {order.estado !== 'cancelado' && <StatusTimeline current={order.estado} />}
+            {(order.items || []).length > 0 && (
+              <div className="mt-4 rounded-xl bg-pollon-cream p-3">
+                <p className="text-sm font-bold">Resumen</p>
+                <ul className="mt-2 space-y-1 text-sm text-gray-700">
+                  {order.items.map((it, i) => (
+                    <li key={i}>{it.qty || it.quantity || 1}× {it.name || it.nombre}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {(result.history || []).length > 0 && (
+              <ul className="mt-4 space-y-1 text-xs text-gray-500">
+                {result.history.map((h, i) => (
+                  <li key={i} className="flex justify-between gap-3">
+                    <span>{ORDER_STATUS_LABELS[h.status]?.label || h.status}</span>
+                    <span>{h.createdAt ? formatDateTime(h.createdAt) : ''}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
