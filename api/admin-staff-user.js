@@ -15,6 +15,7 @@ const STAFF_ROLES = new Set([
   'super_admin', 'admin_sucursal', 'administrador',
   'cajera', 'cajero', 'despachador',
   'cocina', 'cocinero', 'delivery', 'repartidor',
+  'admin_repartidores',
 ]);
 
 const BRANCH_ROLES = new Set([
@@ -100,6 +101,9 @@ export default async function handler(req, res) {
     if (r === 'admin_sucursal' && !isSuper) {
       throw new Error('Solo el super admin puede crear admin de sucursal');
     }
+    if (r === 'admin_repartidores' && !isSuper) {
+      throw new Error('Solo el super admin puede crear jefe de repartidores');
+    }
     if (!isSuper) {
       if (!BRANCH_ROLES.has(r) && !BRANCH_ROLES.has(role)) {
         throw new Error('Rol no permitido para admin de sucursal');
@@ -183,6 +187,20 @@ export default async function handler(req, res) {
           admin_status: 'approved',
           preferred_branch_id: branchId,
         }, { onConflict: 'profile_id' }).then(() => null).catch(() => null);
+      }
+
+      if (role === 'admin_repartidores') {
+        const fleetName = String(body.fleetName || body.fleet_name || '').trim() || `Flota ${fullName}`;
+        const { error: fleetErr } = await admin.rpc('ep_ensure_fleet_for_boss', {
+          p_profile_id: profile.id,
+          p_branch_id: branchId,
+          p_fleet_name: fleetName,
+        });
+        if (fleetErr) {
+          return res.status(400).json({
+            error: fleetErr.message || 'Usuario creado, pero faltó crear la flota. Ejecuta supabase/fix-admin-repartidores-fleets.sql',
+          });
+        }
       }
 
       return res.status(200).json({ ok: true, profile });

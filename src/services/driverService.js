@@ -49,7 +49,7 @@ async function attachProfiles(rows) {
   return Array.isArray(rows) ? merged : merged[0];
 }
 
-export async function listDrivers({ branchId } = {}) {
+export async function listDrivers({ branchId, fleetId } = {}) {
   if (!isSupabaseConfigured()) {
     return DEMO_DRIVERS.filter((d) => !branchId || !d.preferred_branch_id || d.preferred_branch_id === branchId);
   }
@@ -59,6 +59,7 @@ export async function listDrivers({ branchId } = {}) {
     .select('*')
     .order('created_at', { ascending: false });
   if (branchId) q = q.eq('preferred_branch_id', branchId);
+  if (fleetId) q = q.eq('fleet_id', fleetId);
   const { data, error } = await q;
   if (error) throw new Error(rpcError(error, 'Error al listar repartidores'));
   return attachProfiles(data || []);

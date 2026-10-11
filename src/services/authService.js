@@ -37,9 +37,21 @@ export function isStaffRole(role) {
   return STAFF_ROLES.includes(r);
 }
 
+export function isFleetBossRole(role) {
+  return normalizeRole(role) === ROLES.ADMIN_REPARTIDORES || normalizeRole(role) === 'admin_repartidores';
+}
+
 export function isDriverRole(role) {
   const r = normalizeRole(role);
-  return r === ROLES.DELIVERY || r === 'repartidor';
+  return r === ROLES.DELIVERY || r === 'repartidor' || isFleetBossRole(r);
+}
+
+function isNativeCapacitor() {
+  try {
+    return typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.() === true;
+  } catch {
+    return false;
+  }
 }
 
 export function isCashierRole(role) {
@@ -54,6 +66,7 @@ export function isCustomerRole(role) {
 /** Ruta home post-login según rol */
 export function getHomePathForRole(role) {
   const r = normalizeRole(role);
+  if (isFleetBossRole(r)) return isNativeCapacitor() ? '/repartidor' : '/admin/repartidores';
   if (isDriverRole(r)) return '/repartidor';
   if (isStaffRole(r)) return getDefaultAdminPath(r);
   return '/cuenta';
@@ -297,6 +310,7 @@ export function getDefaultAdminPath(role) {
     [ROLES.CAJERA]: '/admin',
     [ROLES.COCINA]: '/admin/cocina',
     [ROLES.DELIVERY]: '/repartidor',
+    [ROLES.ADMIN_REPARTIDORES]: '/admin/repartidores',
     repartidor: '/repartidor',
   };
   if (defaults[r]) return defaults[r];

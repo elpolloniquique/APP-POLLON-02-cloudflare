@@ -27,6 +27,9 @@ import {
 } from '../../utils/liveRouteHelpers';
 import { Loader } from '../../components/ui/Loader';
 import { adminListAllBranches } from '../../services/branchService';
+import { useAuth } from '../../context/AuthContext';
+import { isFleetBossRole } from '../../services/authService';
+import { listFleetTeam } from '../../services/fleetService';
 import { useLiveVoiceAlerts } from '../../hooks/useLiveVoiceAlerts';
 import {
   loadVoiceAlertEnabled,
@@ -60,7 +63,10 @@ export function AdminLiveMap() {
     branchId: staffBranchId,
     isSuperAdmin,
   } = useAdminBranchFilter();
+  const { profile } = useAuth();
+  const isBoss = isFleetBossRole(profile?.role || profile?.rol);
   const filterBranch = isSuperAdmin ? selectedBranchId || null : staffBranchId;
+  const [fleetDriverIds, setFleetDriverIds] = useState(null);
 
   const [allBranches, setAllBranches] = useState([]);
   const [locations, setLocations] = useState([]);
@@ -105,6 +111,22 @@ export function AdminLiveMap() {
       .catch(() => setAllBranches(filterBranches || []));
   }, [filterBranches]);
 
+  useEffect(() => {
+    if (!isBoss) {
+      setFleetDriverIds(null);
+      return undefined;
+    }
+    let cancelled = false;
+    listFleetTeam()
+      .then((team) => {
+        if (!cancelled) setFleetDriverIds(new Set((team || []).map((d) => d.id)));
+      })
+      .catch(() => {
+        if (!cancelled) setFleetDriverIds(new Set());
+      });
+    return () => { cancelled = true; };
+  }, [isBoss]);
+
   // Config despacho de la sucursal activa → voz + radio llegada
   useEffect(() => {
     const branchId = filterBranch || null;
@@ -141,15 +163,16 @@ export function AdminLiveMap() {
         listLiveLocations(),
         listLiveAssignments(filterBranch),
       ]);
-      setLocations(locs);
-      setAssignments(asgs);
+      const allow = fleetDriverIds;
+      setLocations(allow ? locs.filter((l) => allow.has(l.driver_id)) : locs);
+      setAssignments(allow ? asgs.filter((a) => allow.has(a.driver_id)) : asgs);
       setError('');
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [filterBranch]);
+  }, [filterBranch, fleetDriverIds]);
 
   useEffect(() => {
     let cancelled = false;

@@ -56,7 +56,7 @@ export function AuthModal({ open, onClose, defaultTab = 'login' }) {
         navigate('/repartidor', { replace: true });
         return;
       }
-      if (isDriverRole(role) || ['super_admin', 'admin_sucursal', 'administrador', 'cajera', 'cajero', 'cocina', 'delivery', 'repartidor'].includes(role)) {
+      if (isDriverRole(role) || ['super_admin', 'admin_sucursal', 'administrador', 'cajera', 'cajero', 'cocina', 'delivery', 'repartidor', 'admin_repartidores'].includes(role)) {
         navigate(getHomePathForRole(role));
       } else {
         navigate('/cuenta');

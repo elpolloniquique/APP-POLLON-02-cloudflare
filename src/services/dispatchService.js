@@ -395,11 +395,12 @@ export async function healOpenOffersForAvailableDrivers() {
 
   const { data: jobs } = await sb
     .from('ep_delivery_jobs')
-    .select('id, status, assigned_driver_id, branch_id')
+    .select('id, status, assigned_driver_id, branch_id, fleet_hold_driver_id')
     .in('source_order_id', orderIds);
   const openJobs = (jobs || []).filter((j) => !j.assigned_driver_id && !CLOSED_JOB.has(j.status));
   const openIds = openJobs.map((j) => j.id);
   const branchByJob = Object.fromEntries(openJobs.map((j) => [j.id, j.branch_id || null]));
+  const holdByJob = Object.fromEntries(openJobs.map((j) => [j.id, j.fleet_hold_driver_id || null]));
   if (!openIds.length) return { ok: true, revived: 0 };
 
   const { data: offers } = await sb
@@ -410,10 +411,12 @@ export async function healOpenOffersForAvailableDrivers() {
   if (!toRevive.length) return { ok: true, revived: 0 };
 
   const driverIds = [...new Set(toRevive.map((o) => o.driver_id).filter(Boolean))];
-  const [{ data: drivers }, { data: actives }] = await Promise.all([
-    sb.from('ep_driver_profiles').select('id, operational_status, preferred_branch_id').in('id', driverIds),
+  const [{ data: drivers }, { data: actives }, fleetsRes] = await Promise.all([
+    sb.from('ep_driver_profiles').select('id, operational_status, preferred_branch_id, is_fleet_boss').in('id', driverIds),
     sb.from('ep_delivery_assignments').select('driver_id, phase').in('driver_id', driverIds).eq('status', 'active'),
+    sb.from('ep_driver_fleets').select('branch_id').eq('is_active', true),
   ]);
+  const fleetBranches = new Set((fleetsRes.data || []).map((f) => f.branch_id).filter(Boolean));
   const blocking = new Set(
     (actives || [])
       .filter((a) => a.phase === 'to_customer' || a.phase === 'done')
@@ -428,8 +431,13 @@ export async function healOpenOffersForAvailableDrivers() {
   const ids = toRevive.filter((o) => {
     if (!eligible.has(o.driver_id)) return false;
     const jobBranch = branchByJob[o.job_id];
-    const drvBranch = driverById.get(o.driver_id)?.preferred_branch_id;
-    return jobBranch && drvBranch && String(jobBranch) === String(drvBranch);
+    const drv = driverById.get(o.driver_id);
+    const drvBranch = drv?.preferred_branch_id;
+    if (!jobBranch || !drvBranch || String(jobBranch) !== String(drvBranch)) return false;
+    const holdId = holdByJob[o.job_id];
+    if (holdId) return String(o.driver_id) === String(holdId);
+    if (fleetBranches.has(jobBranch)) return drv?.is_fleet_boss === true;
+    return true;
   }).map((o) => o.id);
   if (!ids.length) return { ok: true, revived: 0 };
 

@@ -2,7 +2,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { AdminDashboard } from '../../pages/admin/AdminDashboard';
 import { Loader } from '../ui/Loader';
-import { getDefaultAdminPath, hasPermission, isStaffRole, isDriverRole, normalizeRole } from '../../services/authService';
+import { getDefaultAdminPath, hasPermission, isStaffRole, isDriverRole, isFleetBossRole, normalizeRole } from '../../services/authService';
 
 /** Guard de sesión staff (solo layout /admin). */
 export function ProtectedRoute({ children, perm }) {
@@ -13,8 +13,11 @@ export function ProtectedRoute({ children, perm }) {
 
   const normalizedRole = normalizeRole(profile?.rol || profile?.role || role);
 
-  // Repartidores no usan el panel admin — van a su app
-  if (isDriverRole(normalizedRole)) {
+  // Moto pura → app. Jefe de flota en el pollito → panel. En nativo el jefe va a /repartidor.
+  if (isDriverRole(normalizedRole) && !isFleetBossRole(normalizedRole)) {
+    return <Navigate to="/repartidor" replace />;
+  }
+  if (isFleetBossRole(normalizedRole) && typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.()) {
     return <Navigate to="/repartidor" replace />;
   }
 
@@ -54,8 +57,11 @@ export function AdminHome() {
   if (loading) return <Loader text="Cargando panel…" />;
 
   const normalizedRole = normalizeRole(profile?.rol || profile?.role || role);
-  if (isDriverRole(normalizedRole)) {
+  if (isDriverRole(normalizedRole) && !isFleetBossRole(normalizedRole)) {
     return <Navigate to="/repartidor" replace />;
+  }
+  if (isFleetBossRole(normalizedRole)) {
+    return <Navigate to={getDefaultAdminPath(normalizedRole)} replace />;
   }
   if (hasPermission(normalizedRole, 'dashboard')) {
     return <AdminDashboard />;

@@ -22,6 +22,12 @@ const MANAGEABLE = [
     tone: 'orange',
   },
   {
+    id: 'admin_repartidores',
+    label: 'Jefe de repartidores',
+    description: 'Asigna motos de su flota. También trabaja en la app nativa',
+    tone: 'green',
+  },
+  {
     id: 'delivery',
     label: 'Repartidor',
     description: 'Entrega a clientes',

@@ -10,6 +10,9 @@ import {
   updateDriverCommissionCobro,
 } from '../../services/driverReportService';
 import { todayISO } from '../../utils/format';
+import { useAuth } from '../../context/AuthContext';
+import { isFleetBossRole } from '../../services/authService';
+import { listFleetTeam } from '../../services/fleetService';
 import { CAJA_PAGO, cajaPagoLabel, resolveCajaPagoStatus } from '../../utils/cajaPago';
 import '../../styles/driver-report.css';
 
@@ -41,6 +44,8 @@ export function AdminDriverReports() {
   } = useAdminBranchFilter();
 
   const filterBranch = isSuperAdmin ? (selectedBranchId || null) : staffBranchId;
+  const { profile } = useAuth();
+  const isBoss = isFleetBossRole(profile?.role || profile?.rol);
 
   const [desde, setDesde] = useState(() => todayISO());
   const [hasta, setHasta] = useState(() => todayISO());
@@ -69,15 +74,23 @@ export function AdminDriverReports() {
         }),
         fetchDriverOptionsForReport(filterBranch),
       ]);
-      setRows(data);
-      setDriverOptions(drivers);
+      let nextRows = data;
+      let nextDrivers = drivers;
+      if (isBoss) {
+        const team = await listFleetTeam().catch(() => []);
+        const allow = new Set((team || []).map((d) => d.id));
+        nextRows = data.filter((r) => allow.has(r.driverId || r.driver_id || r.assigned_driver_id));
+        nextDrivers = drivers.filter((d) => allow.has(d.id));
+      }
+      setRows(nextRows);
+      setDriverOptions(nextDrivers);
     } catch (err) {
       setError(err.message || 'Error al cargar reporte');
       setRows([]);
     } finally {
       setLoading(false);
     }
-  }, [desde, hasta, horaIni, horaFin, filterBranch, driverFilter]);
+  }, [desde, hasta, horaIni, horaFin, filterBranch, driverFilter, isBoss]);
 
   useEffect(() => {
     load();

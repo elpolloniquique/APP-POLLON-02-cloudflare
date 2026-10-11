@@ -122,6 +122,7 @@ export const ROLES = {
   CAJERA: 'cajera',
   COCINA: 'cocina',
   DELIVERY: 'delivery',
+  ADMIN_REPARTIDORES: 'admin_repartidores',
   CLIENTE: 'cliente',
   // Legacy
   ADMINISTRADOR: 'administrador',
@@ -133,6 +134,7 @@ export const STAFF_ROLES = [
   ROLES.CAJERA,
   ROLES.COCINA,
   ROLES.DELIVERY,
+  ROLES.ADMIN_REPARTIDORES,
   ROLES.ADMINISTRADOR,
   'despachador',
   'cajero',
@@ -161,6 +163,7 @@ export const ROLE_PERMISSIONS = {
   cocinero: ['kitchen'],
   delivery: ['driver_app'],
   repartidor: ['driver_app'],
+  admin_repartidores: ['drivers', 'live_map', 'driver_reports', 'driver_app'],
   cliente: [],
 };
 

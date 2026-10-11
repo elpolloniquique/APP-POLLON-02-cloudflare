@@ -11,4 +11,10 @@ URL en producción (cuando el archivo esté alojado en el hosting / CDN):
 > El APK (~180–200 MB) **no se sube a GitHub** (límite 100 MB).
 > Súbelo a Supabase Storage, Vercel Blob o tu CDN y apunta la misma ruta, o sírvelo desde este `public/` en el host que acepte archivos grandes.
 
+Guía para el repartidor (instalación, permisos, GPS y turno):
+
+- Web: `https://www.el-pollon.cl/guia-repartidor.html`
+- PDF: `https://www.el-pollon.cl/guia-repartidor.pdf`
+- Copia local: `docs/Guia-repartidor-app-nativa-El-Pollon.pdf`
+
 Ver `docs/DRIVER_NATIVE_ANDROID.md`.

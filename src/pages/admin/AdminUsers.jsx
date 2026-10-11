@@ -41,6 +41,7 @@ const ROLE_ICONS = {
   admin_sucursal: Shield,
   cajera: Banknote,
   despachador: Send,
+  admin_repartidores: Bike,
   delivery: Bike,
   cocina: ChefHat,
 };
@@ -57,6 +58,7 @@ const EMPTY_FORM = {
   isActive: true,
   avatarUrl: null,
   avatarFile: null,
+  fleetName: '',
 };
 
 function initials(name, email) {
@@ -82,7 +84,7 @@ export function AdminUsers() {
 
   const assignableRoles = useMemo(() => {
     if (isSuperAdmin) return MANAGEABLE_STAFF_ROLES;
-    return MANAGEABLE_STAFF_ROLES.filter((r) => r.id !== 'admin_sucursal');
+    return MANAGEABLE_STAFF_ROLES.filter((r) => r.id !== 'admin_sucursal' && r.id !== 'admin_repartidores');
   }, [isSuperAdmin]);
 
   const [users, setUsers] = useState([]);
@@ -207,6 +209,9 @@ export function AdminUsers() {
       }
       if (!form.role) throw new Error('Selecciona un rol');
       if (form.role !== 'super_admin' && !form.branchId) throw new Error('Selecciona una sucursal');
+      if (form.role === 'admin_repartidores' && !editing && !form.fleetName.trim()) {
+        throw new Error('Escribe el nombre de la flota (ej. Motos Norte)');
+      }
 
       let avatarUrl = form.avatarUrl;
       if (form.avatarFile) {
@@ -238,6 +243,7 @@ export function AdminUsers() {
           branchId: form.branchId || null,
           isActive: form.isActive,
           avatarUrl: avatarUrl?.startsWith('blob:') ? null : avatarUrl,
+          fleetName: form.fleetName.trim(),
         });
         setOkMsg('Usuario creado correctamente');
         setForm({
@@ -619,6 +625,19 @@ export function AdminUsers() {
                 </ul>
               )}
             </div>
+
+            {form.role === 'admin_repartidores' && (
+              <label className="aus-field">
+                <span>Nombre de la flota</span>
+                <input
+                  type="text"
+                  value={form.fleetName}
+                  onChange={(e) => updateField('fleetName', e.target.value)}
+                  placeholder="Ej. Motos Norte"
+                  required
+                />
+              </label>
+            )}
 
             <label className="aus-field">
               <span>Sucursal</span>

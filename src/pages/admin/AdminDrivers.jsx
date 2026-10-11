@@ -13,6 +13,14 @@ import {
 import { adminListAllBranches } from '../../services/branchService';
 import { Loader } from '../../components/ui/Loader';
 import { Button } from '../../components/ui/Button';
+import { useAuth } from '../../context/AuthContext';
+import { isFleetBossRole } from '../../services/authService';
+import {
+  listFleetTeam,
+  listFleetPendingJobs,
+  createFleetMoto,
+  assignFleetJob,
+} from '../../services/fleetService';
 
 const STATUS_LABELS = {
   pending: { label: 'Pendiente', cls: 'bg-amber-100 text-amber-800' },
@@ -39,6 +47,8 @@ export function AdminDrivers() {
     showBranchFilter,
     branchId: staffBranchId,
   } = useAdminBranchFilter();
+  const { profile } = useAuth();
+  const isBoss = isFleetBossRole(profile?.role || profile?.rol);
   const [drivers, setDrivers] = useState([]);
   const [allBranches, setAllBranches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +56,11 @@ export function AdminDrivers() {
   const [flash, setFlash] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [drafts, setDrafts] = useState({});
+  const [pendingJobs, setPendingJobs] = useState([]);
+  const [motoForm, setMotoForm] = useState({
+    fullName: '', email: '', password: '', phone: '', plate: '',
+  });
+  const [creating, setCreating] = useState(false);
 
   const filterId = isSuperAdmin ? selectedBranchId || null : staffBranchId;
 
@@ -53,15 +68,26 @@ export function AdminDrivers() {
     setLoading(true);
     setError('');
     try {
-      const [data, br] = await Promise.all([
-        listDrivers({ branchId: filterId }),
-        adminListAllBranches().catch(() => filterBranches),
-      ]);
-      setDrivers(data);
-      setAllBranches(br?.length ? br : filterBranches);
+      if (isBoss) {
+        const [team, jobs] = await Promise.all([
+          listFleetTeam(),
+          listFleetPendingJobs().catch(() => []),
+        ]);
+        setDrivers(team);
+        setPendingJobs(jobs);
+        setAllBranches(filterBranches);
+      } else {
+        const [data, br] = await Promise.all([
+          listDrivers({ branchId: filterId }),
+          adminListAllBranches().catch(() => filterBranches),
+        ]);
+        setDrivers(data);
+        setAllBranches(br?.length ? br : filterBranches);
+        setPendingJobs([]);
+      }
       setDrafts({});
     } catch (err) {
-      setError(err.message || 'Error al cargar repartidores. ¿Ejecutaste migration-repartidores-delivery.sql?');
+      setError(err.message || 'Error al cargar repartidores. ¿Ejecutaste supabase/fix-admin-repartidores-fleets.sql?');
     } finally {
       setLoading(false);
     }
@@ -159,12 +185,105 @@ export function AdminDrivers() {
   return (
     <div className="admin-page admin-page--fill">
       <AdminPageHeader
-        title="Repartidores"
-        subtitle="Aprueba, suspende, asigna sucursal, cupo de pedidos y comisión % de cada repartidor."
-        actions={showBranchFilter ? (
+        title={isBoss ? 'Mi flota' : 'Repartidores'}
+        subtitle={isBoss
+          ? 'Asigna pedidos nuevos a tus motos. Cada moto entra a la app nativa con su propio correo.'
+          : 'Aprueba, suspende, asigna sucursal, cupo de pedidos y comisión % de cada repartidor.'}
+        actions={!isBoss && showBranchFilter ? (
           <AdminBranchFilter value={selectedBranchId} onChange={setSelectedBranchId} branches={filterBranches} />
         ) : null}
       />
+
+      {isBoss && (
+        <div className="space-y-3">
+          <div className="rounded-xl border border-red-200 bg-white p-4">
+            <p className="font-semibold text-slate-900">Pedidos nuevos de tu sucursal</p>
+            <p className="mt-0.5 text-xs text-slate-500">Asigna a una moto En línea. El primero que asigne se lo queda. La moto lo ve en la app.</p>
+            {pendingJobs.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-500">No hay pedidos nuevos sin moto.</p>
+            ) : pendingJobs.map((job) => (
+              <div key={job.id} className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold">#{job.ticket_code || '—'} · {job.customer_name || 'Cliente'}</p>
+                  <p className="text-xs text-pollon-red">{job.customer_address || 'Sin dirección'}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    className="rounded-lg border px-2 py-1.5 text-xs"
+                    defaultValue=""
+                    id={`assign-${job.id}`}
+                  >
+                    <option value="">Elegir moto…</option>
+                    {drivers.filter((d) => d.admin_status === 'approved').map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.profiles?.full_name || d.profiles?.email || 'Moto'}
+                        {d.operational_status === 'offline' ? ' · offline' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    className="!px-3 !py-1.5 text-xs"
+                    disabled={busyId === job.id}
+                    onClick={async () => {
+                      const sel = document.getElementById(`assign-${job.id}`);
+                      const driverId = sel?.value;
+                      if (!driverId) {
+                        setError('Elige una moto');
+                        return;
+                      }
+                      setBusyId(job.id);
+                      setError('');
+                      try {
+                        await assignFleetJob(job.id, driverId);
+                        setFlash('Asignado. Le llega a esa moto en la app.');
+                        await load();
+                      } catch (err) {
+                        setError(err.message);
+                      } finally {
+                        setBusyId(null);
+                      }
+                    }}
+                  >
+                    {busyId === job.id ? 'Asignando…' : 'Asignar'}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="font-semibold text-slate-900">Crear moto</p>
+            <p className="mt-0.5 text-xs text-slate-500">Nombre + correo + clave. Con ese correo entra a la app nativa.</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+              <input className="rounded-lg border px-2 py-1.5 text-sm" placeholder="Nombre" value={motoForm.fullName} onChange={(e) => setMotoForm((f) => ({ ...f, fullName: e.target.value }))} />
+              <input className="rounded-lg border px-2 py-1.5 text-sm" placeholder="Correo" type="email" value={motoForm.email} onChange={(e) => setMotoForm((f) => ({ ...f, email: e.target.value }))} />
+              <input className="rounded-lg border px-2 py-1.5 text-sm" placeholder="Clave (mín. 6)" type="password" value={motoForm.password} onChange={(e) => setMotoForm((f) => ({ ...f, password: e.target.value }))} />
+              <input className="rounded-lg border px-2 py-1.5 text-sm" placeholder="Teléfono" value={motoForm.phone} onChange={(e) => setMotoForm((f) => ({ ...f, phone: e.target.value }))} />
+              <input className="rounded-lg border px-2 py-1.5 text-sm" placeholder="Patente" value={motoForm.plate} onChange={(e) => setMotoForm((f) => ({ ...f, plate: e.target.value }))} />
+            </div>
+            <Button
+              className="mt-2 !px-3 !py-1.5 text-xs"
+              disabled={creating}
+              onClick={async () => {
+                setCreating(true);
+                setError('');
+                try {
+                  await createFleetMoto(motoForm);
+                  setFlash(`Moto creada: ${motoForm.email}. Que instale la app nativa con ese correo.`);
+                  setMotoForm({ fullName: '', email: '', password: '', phone: '', plate: '' });
+                  await load();
+                } catch (err) {
+                  setError(err.message);
+                } finally {
+                  setCreating(false);
+                }
+              }}
+            >
+              {creating ? 'Creando…' : 'Crear moto'}
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm text-slate-700">
         <p className="font-semibold text-slate-900">Cómo funciona el cupo máximo</p>
@@ -305,7 +424,9 @@ export function AdminDrivers() {
                 {drivers.length === 0 && (
                   <tr>
                     <td colSpan={8} className="px-4 py-10 text-center text-gray-500">
-                      No hay repartidores. En Supabase Auth crea el usuario y en <code>profiles.role</code> pon <strong>delivery</strong>.
+                      {isBoss
+                        ? 'Aún no tienes motos. Crea la primera arriba con nombre, correo y clave.'
+                        : 'No hay repartidores. En Supabase Auth crea el usuario y en profiles.role pon delivery.'}
                     </td>
                   </tr>
                 )}

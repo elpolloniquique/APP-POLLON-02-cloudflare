@@ -95,11 +95,19 @@ export async function expireCrossBranchPendingOffers(admin, { jobId } = {}) {
 
 export async function jobIsNuevoUnassigned(admin, jobId) {
   if (!admin || !jobId) return { ok: false, reason: 'missing' };
-  const { data: job } = await admin
+  let { data: job } = await admin
     .from('ep_delivery_jobs')
-    .select('id, status, assigned_driver_id, source_order_id, ticket_code, customer_address, delivery_fee, branch_id')
+    .select('id, status, assigned_driver_id, source_order_id, ticket_code, customer_address, delivery_fee, branch_id, fleet_hold_driver_id')
     .eq('id', jobId)
     .maybeSingle();
+  if (!job) {
+    const legacy = await admin
+      .from('ep_delivery_jobs')
+      .select('id, status, assigned_driver_id, source_order_id, ticket_code, customer_address, delivery_fee, branch_id')
+      .eq('id', jobId)
+      .maybeSingle();
+    job = legacy.data;
+  }
   if (!job) return { ok: false, reason: 'job_missing' };
   if (job.assigned_driver_id) return { ok: false, reason: 'assigned', job };
   if (CLOSED_JOB.has(job.status)) return { ok: false, reason: 'job_closed', job, status: job.status };
@@ -147,17 +155,42 @@ export async function ensureNotifyEligibleOffers(admin, jobId) {
 
   if (!driverIds.length) return { added: 0, reason: 'sin_suscripciones' };
 
-  const { data: drivers, error: drvErr } = await admin
+  let { data: drivers, error: drvErr } = await admin
     .from('ep_driver_profiles')
-    .select('id, admin_status, operational_status, preferred_branch_id, profile_id')
+    .select('id, admin_status, operational_status, preferred_branch_id, profile_id, is_fleet_boss, fleet_id')
     .in('id', driverIds)
     .eq('admin_status', 'approved');
+  if (drvErr && /is_fleet_boss|fleet_id|fleet_hold/i.test(drvErr.message || '')) {
+    const fallback = await admin
+      .from('ep_driver_profiles')
+      .select('id, admin_status, operational_status, preferred_branch_id, profile_id')
+      .in('id', driverIds)
+      .eq('admin_status', 'approved');
+    drivers = fallback.data;
+    drvErr = fallback.error;
+  }
   if (drvErr) return { added: 0, reason: drvErr.message };
 
   const branchByDriver = await mapDriverBranchIds(admin, drivers || []);
+  let hasFleets = false;
+  try {
+    const { count: fleetCount } = await admin
+      .from('ep_driver_fleets')
+      .select('id', { count: 'exact', head: true })
+      .eq('branch_id', jobBranch)
+      .eq('is_active', true);
+    hasFleets = Number(fleetCount || 0) > 0;
+  } catch {
+    hasFleets = false;
+  }
+  const holdId = job.fleet_hold_driver_id || null;
+
   const eligible = (drivers || []).filter((d) => {
     if (BLOCKED_STATUS.has(d.operational_status)) return false;
-    return sameBranchId(branchByDriver.get(d.id), jobBranch);
+    if (!sameBranchId(branchByDriver.get(d.id), jobBranch)) return false;
+    if (holdId) return String(d.id) === String(holdId);
+    if (hasFleets) return d.is_fleet_boss === true;
+    return true;
   });
   await expireCrossBranchPendingOffers(admin, { jobId });
   if (!eligible.length) {
