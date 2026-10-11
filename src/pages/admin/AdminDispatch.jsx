@@ -52,6 +52,12 @@ export function AdminDispatch() {
   const isTodayOnly = dateFrom === todayInput() && dateTo === todayInput();
 
   const load = useCallback(async () => {
+    if (!isSuperAdmin && !staffBranchId) {
+      setJobs([]);
+      setError('Tu cuenta no tiene sucursal asignada. Pídele al admin que te asigne un local.');
+      setLoading(false);
+      return;
+    }
     try {
       const data = await listDeliveryJobs({
         branchId: filterBranch,
@@ -65,7 +71,7 @@ export function AdminDispatch() {
     } finally {
       setLoading(false);
     }
-  }, [filterBranch, dateFrom, dateTo]);
+  }, [filterBranch, dateFrom, dateTo, isSuperAdmin, staffBranchId]);
 
   useEffect(() => {
     setLoading(true);

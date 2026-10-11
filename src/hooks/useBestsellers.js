@@ -3,7 +3,7 @@ import {
   buildTopProductItems,
   resolveBestsellerProducts,
 } from '../utils/dashboardAnalytics';
-import { fetchBranchOrdersForPeriod } from '../services/orderService';
+import { fetchBestsellersForBranch, fetchBranchOrdersForPeriod } from '../services/orderService';
 
 /** Período alineado con el filtro por defecto del dashboard admin (semana). */
 export const BESTSELLERS_PERIOD = 'week';
@@ -32,8 +32,10 @@ export function useBestsellers(branchId, menuProducts, periodId = BESTSELLERS_PE
 
     (async () => {
       try {
-        const orders = await fetchBranchOrdersForPeriod(branchId, periodId);
-        const topItems = buildTopProductItems(orders, BESTSELLERS_LIMIT * 2);
+        const ranked = await fetchBestsellersForBranch(branchId, periodId);
+        const topItems = ranked.length
+          ? ranked.slice(0, BESTSELLERS_LIMIT * 2)
+          : buildTopProductItems(await fetchBranchOrdersForPeriod(branchId, periodId), BESTSELLERS_LIMIT * 2);
         const matched = resolveBestsellerProducts(topItems, menuProducts, BESTSELLERS_LIMIT);
         if (!cancelled) {
           setBestsellers(matched.length ? matched : fallbackProducts(menuProducts));

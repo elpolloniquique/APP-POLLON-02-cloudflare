@@ -15,16 +15,15 @@ export default async function handler(req, res) {
   const auth = req.headers.authorization || '';
   const headerSecret = req.headers['x-cron-secret'] || '';
   const q = req.query?.secret;
-  const fromPlatformCron = Boolean(req.headers['x-vercel-cron'] || req.headers['x-cloudflare-cron']);
-  const ok = Boolean(cronSecret) && (
+  const secretOk = Boolean(cronSecret) && (
     auth === `Bearer ${cronSecret}`
     || q === cronSecret
     || headerSecret === cronSecret
   );
-  if (!ok && !fromPlatformCron) {
+  if (!secretOk) {
     return res.status(401).json({
       error: 'Unauthorized',
-      hint: cronSecret ? 'Falta CRON_SECRET' : 'Configura CRON_SECRET en Cloudflare Pages (Production)',
+      hint: cronSecret ? 'Falta CRON_SECRET válido' : 'Configura CRON_SECRET en Cloudflare Pages (Production)',
     });
   }
 

@@ -2,41 +2,49 @@ import { useState, useEffect } from 'react';
 import { Button } from '../../components/ui/Button';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { AdminScrollPanel } from '../../components/admin/AdminScrollPanel';
-import { useStaffBranch } from '../../hooks/useStaffBranch';
-
-function stockKey(branchId) {
-  return branchId ? `pollon_stock_v1_${branchId}` : 'pollon_stock_v1';
-}
-
-function loadStock(branchId) {
-  try { return JSON.parse(localStorage.getItem(stockKey(branchId)) || '[]'); } catch { return []; }
-}
+import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
+import { addStockItem, adjustStockItem, loadStockItems } from '../../services/cajaStockService';
 
 export function AdminInventory() {
-  const { branchId, branchName, isBranchScoped } = useStaffBranch();
-  const [items, setItems] = useState(() => loadStock(branchId));
+  const {
+    branchId,
+    branchName,
+    isBranchScoped,
+    selectedBranchId,
+    setSelectedBranchId,
+    showBranchFilter,
+    branches,
+    headerBranchLabel,
+  } = useAdminBranchFilter();
+  const stockBranch = branchId || selectedBranchId || '';
+  const [items, setItems] = useState([]);
   const [nombre, setNombre] = useState('');
   const [cantidad, setCantidad] = useState(0);
   const [minimo, setMinimo] = useState(5);
+  const [source, setSource] = useState('local');
 
   useEffect(() => {
-    setItems(loadStock(branchId));
-  }, [branchId]);
+    let cancelled = false;
+    loadStockItems(stockBranch).then((list) => {
+      if (cancelled) return;
+      setItems(list);
+      setSource(list.some((i) => i.source === 'cloud') ? 'cloud' : 'local');
+    });
+    return () => { cancelled = true; };
+  }, [stockBranch]);
 
-  const save = (list) => {
-    localStorage.setItem(stockKey(branchId), JSON.stringify(list));
-    setItems(list);
-  };
-
-  const agregar = () => {
-    if (!nombre.trim()) return;
-    save([...items, { id: Date.now(), nombre, cantidad, minimo, updated: new Date().toISOString() }]);
+  const agregar = async () => {
+    if (!nombre.trim() || !stockBranch) return;
+    const item = await addStockItem(stockBranch, { nombre: nombre.trim(), cantidad, minimo });
+    setItems((prev) => [...prev, item]);
+    if (item.source === 'cloud') setSource('cloud');
     setNombre('');
     setCantidad(0);
   };
 
-  const movimiento = (id, delta) => {
-    save(items.map((i) => (i.id === id ? { ...i, cantidad: Math.max(0, i.cantidad + delta) } : i)));
+  const movimiento = async (item, delta) => {
+    const next = await adjustStockItem(stockBranch, item, delta);
+    setItems((prev) => prev.map((row) => (row.id === item.id ? next : row)));
   };
 
   const bajo = items.filter((i) => i.cantidad <= i.minimo);
@@ -46,7 +54,19 @@ export function AdminInventory() {
       <AdminPageHeader
         title="Control de stock"
         subtitle="Inventario de insumos por sucursal"
-        branchLabel={isBranchScoped ? branchName : undefined}
+        branchLabel={headerBranchLabel || (isBranchScoped ? branchName : undefined)}
+        actions={showBranchFilter ? (
+          <select
+            value={selectedBranchId}
+            onChange={(e) => setSelectedBranchId(e.target.value)}
+            className="rounded-xl border px-3 py-2 text-sm"
+          >
+            <option value="">Elige sucursal</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        ) : null}
       />
 
       {isBranchScoped && !branchId && (
@@ -57,7 +77,7 @@ export function AdminInventory() {
 
       {bajo.length > 0 && (
         <div className="rounded-xl bg-red-50 p-3 text-sm text-red-800 sm:p-4">
-          <strong>⚠️ Alerta bajo stock:</strong> {bajo.map((i) => i.nombre).join(', ')}
+          <strong>Alerta bajo stock:</strong> {bajo.map((i) => i.nombre).join(', ')}
         </div>
       )}
 
@@ -65,7 +85,7 @@ export function AdminInventory() {
         <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Insumo" className="min-w-[140px] flex-1" />
         <input type="number" value={cantidad} onChange={(e) => setCantidad(Number(e.target.value))} placeholder="Cantidad" className="w-24" />
         <input type="number" value={minimo} onChange={(e) => setMinimo(Number(e.target.value))} placeholder="Mín." className="w-20" />
-        <Button onClick={agregar}>Agregar insumo</Button>
+        <Button onClick={agregar} disabled={!stockBranch}>Agregar insumo</Button>
       </div>
 
       <div className="admin-list-shell">
@@ -85,8 +105,8 @@ export function AdminInventory() {
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-1">
-                  <Button variant="ghost" className="!px-2" onClick={() => movimiento(i.id, -1)}>−</Button>
-                  <Button variant="ghost" className="!px-2" onClick={() => movimiento(i.id, 1)}>+</Button>
+                  <Button variant="ghost" className="!px-2" onClick={() => movimiento(i, -1)}>−</Button>
+                  <Button variant="ghost" className="!px-2" onClick={() => movimiento(i, 1)}>+</Button>
                 </div>
               </div>
             ))}
@@ -95,8 +115,11 @@ export function AdminInventory() {
         </AdminScrollPanel>
       </div>
 
-      <p className="text-xs text-gray-500">Stock guardado por sucursal en este navegador.</p>
+      <p className="text-xs text-gray-500">
+        {source === 'cloud'
+          ? 'Stock compartido entre cajeras de esta sucursal.'
+          : 'Stock en este computador hasta ejecutar fix-web-ops-hardening.sql en Supabase.'}
+      </p>
     </div>
   );
 }
-

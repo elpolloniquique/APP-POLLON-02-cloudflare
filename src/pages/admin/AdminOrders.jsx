@@ -129,7 +129,7 @@ function statusBadgeClass(estado) {
 
 export function AdminOrders() {
   const [alarmOn, setAlarmOn] = useState(true);
-  const { isBranchScoped } = useStaffBranch();
+  const { isBranchScoped, branchId: staffBranchId } = useStaffBranch();
   const {
     applyBranchFilter,
     showBranchFilter,
@@ -138,7 +138,16 @@ export function AdminOrders() {
     setSelectedBranchId,
     headerBranchLabel,
   } = useAdminBranchFilter();
-  const { orders, updateOrder, refresh, ready, realtimeStatus, isBackendReady } = useOrders({ alarmEnabled: alarmOn });
+  const alarmMatch = useCallback((order) => {
+    const bid = order?.branchId || order?.branch_id || null;
+    if (isBranchScoped) return Boolean(staffBranchId) && String(bid) === String(staffBranchId);
+    if (selectedBranchId) return String(bid) === String(selectedBranchId);
+    return true;
+  }, [isBranchScoped, staffBranchId, selectedBranchId]);
+  const { orders, updateOrder, refresh, ready, realtimeStatus, isBackendReady } = useOrders({
+    alarmEnabled: alarmOn,
+    alarmMatch,
+  });
   const ordersScoped = useMemo(() => applyBranchFilter(orders), [orders, applyBranchFilter]);
   const [estado, setEstado] = useState('');
   const [search, setSearch] = useState('');
@@ -195,10 +204,10 @@ export function AdminOrders() {
 
   useEffect(() => {
     refreshDelivery();
-    fetchDriverNamesForFilter().then(setDriverNames).catch(() => {});
+    fetchDriverNamesForFilter(staffBranchId || selectedBranchId || null).then(setDriverNames).catch(() => {});
     const t = setInterval(refreshDelivery, 8000);
     return () => clearInterval(t);
-  }, [refreshDelivery]);
+  }, [refreshDelivery, staffBranchId, selectedBranchId]);
 
   useEffect(() => {
     if (!ready) return;
@@ -710,7 +719,11 @@ export function AdminOrders() {
         {/* Vista móvil: cards sin scroll horizontal */}
         <div className="orders-panel__cards">
           {filtered.length === 0 ? (
-            <p className="orders-panel__cards-empty">Sin pedidos con estos filtros</p>
+            <p className="orders-panel__cards-empty">
+              {isBranchScoped && !staffBranchId
+                ? 'Tu cuenta no tiene sucursal. Pídele al admin que te asigne un local en Usuarios.'
+                : 'Sin pedidos con estos filtros'}
+            </p>
           ) : (
             filtered.map((o) => {
               const info = deliveryMap[o.id];
@@ -832,7 +845,11 @@ export function AdminOrders() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="orders-panel__empty">Sin pedidos con estos filtros</td>
+                  <td colSpan={12} className="orders-panel__empty">
+                    {isBranchScoped && !staffBranchId
+                      ? 'Tu cuenta no tiene sucursal. Pídele al admin que te asigne un local en Usuarios.'
+                      : 'Sin pedidos con estos filtros'}
+                  </td>
                 </tr>
               ) : (
                 filtered.map((o) => {

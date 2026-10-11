@@ -5,12 +5,15 @@ import { WhatsAppIcon } from '../components/ui/WhatsAppIcon';
 import { useBranch } from '../context/BranchContext';
 import { money, formatDateTime, buildWhatsappMessage } from '../utils/format';
 import * as orderService from '../services/orderService';
+import { followOrderPath } from '../utils/guestOrderTrack';
+import { useAuth } from '../context/AuthContext';
 import { useEffect, useState } from 'react';
 
 export function OrderSuccess() {
   const { state } = useLocation();
   const { id } = useParams();
   const { branch, whatsapp } = useBranch();
+  const { isCustomer } = useAuth();
   const [order, setOrder] = useState(state?.order || null);
 
   useEffect(() => {
@@ -60,7 +63,7 @@ export function OrderSuccess() {
           </button>
         )}
         {order?.id && (
-          <Link to={`/cuenta/seguimiento/${order.id}`}><Button>Seguir mi pedido</Button></Link>
+          <Link to={followOrderPath(order, { loggedInCustomer: isCustomer })}><Button>Seguir mi pedido</Button></Link>
         )}
         <Link to="/tienda"><Button variant="outline">Seguir comprando</Button></Link>
         <Link to="/"><Button variant="outline">Inicio</Button></Link>

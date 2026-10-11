@@ -294,22 +294,29 @@ function startPollingFallback(sb) {
 }
 
 const BRANCH_SCOPED_ROLES = new Set([
-  'cajera', 'cajero', 'admin_sucursal', 'administrador', 'cocina', 'cocinero', 'despachador',
+  'cajera', 'cajero', 'admin_sucursal', 'administrador', 'cocina', 'cocinero', 'despachador', 'admin_repartidores',
 ]);
+const EMPTY_BRANCH_FILTER = '00000000-0000-0000-0000-000000000000';
 
 async function loadPedidosRealtimeFilter(sb) {
   try {
     const { data: sessionData } = await sb.auth.getSession();
-    const uid = sessionData?.session?.user?.id;
-    if (!uid) return null;
+    const user = sessionData?.session?.user;
+    if (!user) return null;
     const { data: profile } = await sb
       .from('profiles')
       .select('role, branch_id')
-      .eq('auth_user_id', uid)
+      .eq('auth_user_id', user.id)
       .maybeSingle();
-    const role = String(profile?.role || '').toLowerCase();
-    if (role === 'super_admin' || !BRANCH_SCOPED_ROLES.has(role) || !profile?.branch_id) return null;
-    return String(profile.branch_id);
+    const raw = String(profile?.role || user.user_metadata?.role || '').toLowerCase();
+    const role = raw === 'cajero' ? 'cajera'
+      : raw === 'cocinero' ? 'cocina'
+        : raw === 'administrador' ? 'admin_sucursal'
+          : raw;
+    if (role === 'super_admin' || !BRANCH_SCOPED_ROLES.has(role)) return null;
+    const branchId = profile?.branch_id || user.user_metadata?.branch_id || null;
+    if (!branchId) return EMPTY_BRANCH_FILTER;
+    return String(branchId);
   } catch {
     return null;
   }
@@ -444,6 +451,15 @@ function mapPedidoInsertError(error) {
 
 export async function allocateTicketNumber(sb) {
   if (sb) {
+    try {
+      const rpc = await sb.rpc('ep_next_pedido_codigo');
+      if (!rpc.error && rpc.data) {
+        const code = String(rpc.data).trim();
+        if (code) return code.padStart(6, '0');
+      }
+    } catch (e) {
+      console.warn('[Pollón] ep_next_pedido_codigo:', e);
+    }
     try {
       const { data, error } = await sb
         .from('pedidos')
@@ -622,6 +638,25 @@ export async function fetchOrdersAdmin() {
   return list;
 }
 
+/** Ranking público de más vendidos (sin PII). */
+export async function fetchBestsellersForBranch(branchId, periodId = 'month') {
+  const sb = getSupabase();
+  if (!sb || !branchId) return [];
+  const days = periodId === 'today' ? 1 : periodId === 'week' ? 7 : periodId === 'quarter' ? 90 : 30;
+  const { data, error } = await sb.rpc('ep_bestsellers_for_branch', {
+    p_branch: branchId,
+    p_days: days,
+  });
+  if (error || !data) return [];
+  const items = Array.isArray(data) ? data : (data.items || []);
+  return items.map((it) => ({
+    name: it.name || it.nombre,
+    productId: it.productId || it.product_id || null,
+    qty: Number(it.qty || it.cantidad) || 0,
+    sales: Number(it.sales) || 0,
+  })).filter((it) => it.name && it.qty > 0);
+}
+
 /** Pedidos de una sucursal para analytics públicos (ej. más vendidos en inicio). */
 export async function fetchBranchOrdersForPeriod(branchId, periodId = 'month') {
   const sb = getSupabase();
@@ -631,7 +666,7 @@ export async function fetchBranchOrdersForPeriod(branchId, periodId = 'month') {
 
   const { data, error } = await sb
     .from('pedidos')
-    .select('*')
+    .select('id, estado, creado_en, datos_json, branch_id')
     .eq('branch_id', branchId)
     .gte('creado_en', start.toISOString())
     .order('creado_en', { ascending: false })

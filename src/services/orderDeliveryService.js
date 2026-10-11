@@ -214,25 +214,44 @@ export async function retryStaleDriverSearches() {
 }
 
 /** Fetch list of unique driver names for filter dropdown */
-export async function fetchDriverNamesForFilter() {
+export async function fetchDriverNamesForFilter(branchId) {
   if (!isSupabaseConfigured()) return [];
   const sb = getSupabase();
-  const { data: drivers, error } = await sb
+  let drivers = [];
+  const withBranch = await sb
     .from('ep_driver_profiles')
-    .select('id, profile_id')
+    .select('id, profile_id, preferred_branch_id')
     .eq('admin_status', 'approved');
-  if (error || !drivers?.length) return [];
+  if (withBranch.error) {
+    const fallback = await sb
+      .from('ep_driver_profiles')
+      .select('id, profile_id')
+      .eq('admin_status', 'approved');
+    if (fallback.error || !fallback.data?.length) return [];
+    drivers = fallback.data;
+  } else {
+    drivers = withBranch.data || [];
+  }
+  if (!drivers.length) return [];
 
   const profileIds = drivers.map((d) => d.profile_id).filter(Boolean);
   const { data: profiles } = await sb
     .from('profiles')
-    .select('id, full_name')
+    .select('id, full_name, branch_id')
     .in('id', profileIds);
 
-  const byProfileId = Object.fromEntries((profiles || []).map((p) => [p.id, p.full_name]));
-  return drivers.map((d) => ({
+  const byProfileId = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
+  const scoped = branchId
+    ? drivers.filter((d) => {
+      const pref = d.preferred_branch_id || null;
+      const profileBranch = byProfileId[d.profile_id]?.branch_id || null;
+      return String(pref || profileBranch || '') === String(branchId);
+    })
+    : drivers;
+
+  return scoped.map((d) => ({
     driverId: d.id,
-    name: byProfileId[d.profile_id] || 'Repartidor',
+    name: byProfileId[d.profile_id]?.full_name || 'Repartidor',
   })).filter((d) => d.name);
 }
 

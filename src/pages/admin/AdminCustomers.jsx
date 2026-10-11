@@ -49,7 +49,9 @@ export function AdminCustomers() {
 
   const viewCustomer = async (c) => {
     setSelected(c);
-    const o = await adminGetCustomerOrders(c.id);
+    const o = await adminGetCustomerOrders(c.id, {
+      branchId: normalizeRole(role) === 'super_admin' ? undefined : branchId,
+    });
     setOrders(o);
   };
 

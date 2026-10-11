@@ -7,16 +7,18 @@ export { playNewOrderAlert, playNewOrderBeep } from '../utils/orderAlertSound';
 const FOCUS_REFRESH_MIN_MS = 90_000;
 
 export function useOrders(options = {}) {
-  const { alarmEnabled = false } = options;
+  const { alarmEnabled = false, alarmMatch } = options;
   const [orders, setOrders] = useState([]);
   const [ready, setReady] = useState(false);
   const [realtimeStatus, setRealtimeStatus] = useState('connecting');
   const prevIds = useRef(new Set());
   const initialLoad = useRef(true);
   const alarmEnabledRef = useRef(alarmEnabled);
+  const alarmMatchRef = useRef(alarmMatch);
   const lastFocusRefresh = useRef(0);
 
   alarmEnabledRef.current = alarmEnabled;
+  alarmMatchRef.current = alarmMatch;
 
   const sync = useCallback((list, meta = {}) => {
     setOrders([...list].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')));
@@ -62,7 +64,12 @@ export function useOrders(options = {}) {
       prevIds.current = currentIds;
       return;
     }
-    const hasNewOrder = orders.some((o) => !prevIds.current.has(o.id));
+    const match = alarmMatchRef.current;
+    const hasNewOrder = orders.some((o) => {
+      if (prevIds.current.has(o.id)) return false;
+      if (typeof match === 'function' && !match(o)) return false;
+      return true;
+    });
     if (alarmEnabledRef.current && hasNewOrder) {
       playNewOrderAlert();
     }

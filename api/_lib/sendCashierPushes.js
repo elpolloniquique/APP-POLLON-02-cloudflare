@@ -140,12 +140,39 @@ async function sendToSubs(admin, subs, notice, badgeCount) {
   return { webSent, lastWebError, stale };
 }
 
-export async function notifyCashiersForOrder(_admin, _orderId) {
-  return { ok: true, disabled: true, webSent: 0 };
+export async function notifyCashiersForOrder(admin, orderId) {
+  if (!admin || !orderId) return { ok: false, error: 'missing', webSent: 0 };
+  const pedido = await loadPedido(admin, orderId);
+  if (!pedido) return { ok: false, error: 'not_found', webSent: 0 };
+  const estado = String(pedido.estado || '').toLowerCase();
+  if (!NUEVO_PEDIDO_ESTADOS.has(estado)) {
+    return { ok: true, skipped: 'not-nuevo', webSent: 0 };
+  }
+  const branchId = orderBranchId(pedido);
+  if (!branchId) return { ok: true, skipped: 'no-branch', webSent: 0 };
+  const subs = await cashierSubsForBranch(admin, branchId);
+  if (!subs.length) return { ok: true, webSent: 0, reason: 'no-subs', branchId };
+  const notice = cashierNoticeText(pedido);
+  const sent = await sendToSubs(admin, subs, notice, 1);
+  return { ok: true, orderId: String(pedido.id), branchId, ...sent };
 }
 
-export async function notifyCashiersForPendingOrders(_admin, _opts = {}) {
-  return { ok: true, disabled: true, webSent: 0, orders: 0 };
+export async function notifyCashiersForPendingOrders(admin, { branchId, limit = 3 } = {}) {
+  if (!admin || !branchId) return { ok: true, webSent: 0, orders: 0 };
+  const { data } = await admin
+    .from('pedidos')
+    .select('id')
+    .eq('branch_id', branchId)
+    .in('estado', [...NUEVO_PEDIDO_ESTADOS])
+    .order('creado_en', { ascending: false })
+    .limit(limit);
+  const rows = data || [];
+  let webSent = 0;
+  for (const row of rows) {
+    const r = await notifyCashiersForOrder(admin, row.id);
+    webSent += Number(r.webSent) || 0;
+  }
+  return { ok: true, webSent, orders: rows.length, branchId };
 }
 
 export async function findCashierProfileForAuthUser(admin, authUserId) {

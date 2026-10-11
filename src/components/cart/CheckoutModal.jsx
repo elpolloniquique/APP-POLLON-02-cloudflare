@@ -20,6 +20,7 @@ import {
   isPaymentMethodAllowed,
 } from '../../utils/paymentMethods';
 import * as orderService from '../../services/orderService';
+import { followOrderPath } from '../../utils/guestOrderTrack';
 import { quoteDelivery } from '../../services/pricingService';
 import { haversineKm, formatDistance } from '../../utils/geo';
 import { parseAddressQuery, snapAddressCoordsForBranch } from '../../utils/addressGeocode';
@@ -387,7 +388,7 @@ export function CheckoutModal() {
               </button>
               {confirmedOrder.id && (
                 <Link
-                  to={`/cuenta/seguimiento/${confirmedOrder.id}`}
+                  to={followOrderPath(confirmedOrder, { loggedInCustomer: isCustomer })}
                   onClick={closeModal}
                   className="block w-full rounded-[0.32rem] border-2 border-pollon-red py-3 text-center text-sm font-bold uppercase tracking-wide text-pollon-red transition hover:bg-red-50"
                 >

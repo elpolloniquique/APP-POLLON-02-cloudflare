@@ -14,6 +14,7 @@ import {
   isStaffRole,
   isCustomerRole,
   isDriverRole,
+  isCashierRole,
   isBranchScopedStaff,
   normalizeRole,
   canAccessBranch,
@@ -132,6 +133,36 @@ function roleOf(profile) {
   return normalizeRole(profile?.rol || profile?.role);
 }
 
+function kickoffRolePushes(profile, userId) {
+  const role = roleOf(profile);
+  const uid = userId || profile?.authUserId || profile?.auth_user_id;
+  if (!uid) return;
+  if (isDriverRole(role)) {
+    import('../services/pushService')
+      .then((m) => {
+        m.rememberPushForUser(uid);
+        return m.ensureDriverPushSubscription({ force: false, userId: uid });
+      })
+      .catch(() => {});
+    if (isNativeApp()) {
+      import('../services/fcmService')
+        .then((m) => m.kickoffNativePushRegistration())
+        .catch(() => {});
+    }
+    return;
+  }
+  if (isCashierRole(role) && !isNativeApp()) {
+    window.setTimeout(() => {
+      import('../services/pushService')
+        .then((m) => {
+          m.rememberPushForUser(uid);
+          return m.ensureCashierPushSubscription({ force: false, userId: uid });
+        })
+        .catch(() => {});
+    }, 600);
+  }
+}
+
 /** Si ya teníamos staff/delivery, no degradar a cliente por timeout/red lenta. */
 function shouldKeepCachedStaff(existing, incoming) {
   const prev = roleOf(existing);
@@ -229,21 +260,11 @@ export function AuthProvider({ children }) {
       if (resolved?.user) {
         refreshProfile(resolved.user)
           .then((cached) => {
-            if (!isDriverRole(roleOf(cached || profileCacheRef.current))) return;
             const uid = resolved.user.id;
-            window.setTimeout(() => {
-              import('../services/pushService')
-                .then((m) => {
-                  m.rememberPushForUser(uid);
-                  return m.ensureDriverPushSubscription({ force: false, userId: uid });
-                })
-                .catch(() => {});
-              if (isNativeApp()) {
-                import('../services/fcmService')
-                  .then((m) => m.kickoffNativePushRegistration())
-                  .catch(() => {});
-              }
-            }, isNativeApp() ? 2500 : 400);
+            window.setTimeout(
+              () => kickoffRolePushes(cached || profileCacheRef.current, uid),
+              isNativeApp() ? 2500 : 400,
+            );
           })
           .catch((err) => {
             console.warn('[Pollón] boot profile:', err);
@@ -375,20 +396,7 @@ export function AuthProvider({ children }) {
     writeStaffProfileCache(resolved);
     profileUserIdRef.current = user.id;
     profileCacheRef.current = resolved;
-    if (isDriverRole(roleOf(resolved))) {
-      const uid = user.id;
-      import('../services/pushService')
-        .then((m) => {
-          m.rememberPushForUser(uid);
-          return m.ensureDriverPushSubscription({ force: false, userId: uid });
-        })
-        .catch(() => {});
-      if (isNativeApp()) {
-        import('../services/fcmService')
-          .then((m) => m.kickoffNativePushRegistration())
-          .catch(() => {});
-      }
-    }
+    kickoffRolePushes(resolved, user.id);
     return { session: s, profile: resolved };
   };
 

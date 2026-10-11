@@ -46,17 +46,17 @@ export function isDriverRole(role) {
   return r === ROLES.DELIVERY || r === 'repartidor' || isFleetBossRole(r);
 }
 
+export function isCashierRole(role) {
+  const r = normalizeRole(role);
+  return r === ROLES.CAJERA || r === 'cajera' || r === 'cajero';
+}
+
 function isNativeCapacitor() {
   try {
     return typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.() === true;
   } catch {
     return false;
   }
-}
-
-export function isCashierRole(role) {
-  const r = normalizeRole(role);
-  return r === ROLES.CAJERA || r === 'cajero';
 }
 
 export function isCustomerRole(role) {
@@ -357,6 +357,7 @@ export function isBranchScopedStaff(role) {
     ROLES.ADMINISTRADOR,
     'cajero',
     'repartidor',
+    'despachador',
   ].includes(r);
 }
 

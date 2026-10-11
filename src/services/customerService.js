@@ -255,11 +255,25 @@ export function subscribeOrderUpdates(orderId, onUpdate) {
 
 /** Admin: listar clientes */
 export async function adminListCustomers({ branchId, search, acceptsPromotions, limit = 120 } = {}) {
+  let allowedIds = null;
+  if (branchId) {
+    const { data: rows, error: pedErr } = await sb()
+      .from('pedidos')
+      .select('customer_id')
+      .eq('branch_id', branchId)
+      .not('customer_id', 'is', null)
+      .limit(3000);
+    if (pedErr) throw pedErr;
+    allowedIds = [...new Set((rows || []).map((r) => r.customer_id).filter(Boolean))];
+    if (!allowedIds.length) return [];
+  }
+
   let q = sb().from('profiles').select(`
     id, full_name, email, phone, is_active, created_at,
     customer_marketing_preferences(accepts_email_promotions, accepts_whatsapp_promotions)
   `).eq('role', ROLES.CLIENTE).order('created_at', { ascending: false }).limit(limit);
 
+  if (allowedIds) q = q.in('id', allowedIds);
   if (search) {
     q = q.or(`full_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
   }
@@ -280,11 +294,13 @@ export async function adminListCustomers({ branchId, search, acceptsPromotions, 
 
   if (branchId) {
     const orderCounts = await adminCustomerOrderCountsByBranch(branchId);
-    list = list.map((c) => ({
-      ...c,
-      orderCount: orderCounts[c.id] || 0,
-      branchId,
-    }));
+    list = list
+      .map((c) => ({
+        ...c,
+        orderCount: orderCounts[c.id] || 0,
+        branchId,
+      }))
+      .filter((c) => c.orderCount > 0);
   }
 
   if (acceptsPromotions === true) {
@@ -308,8 +324,85 @@ async function adminCustomerOrderCountsByBranch(branchId) {
   return counts;
 }
 
-export async function adminGetCustomerOrders(customerId) {
-  const { data, error } = await sb().from('pedidos').select('*').eq('customer_id', customerId).order('creado_en', { ascending: false });
+export async function adminGetCustomerOrders(customerId, { branchId } = {}) {
+  let q = sb().from('pedidos').select('*').eq('customer_id', customerId).order('creado_en', { ascending: false });
+  if (branchId) q = q.eq('branch_id', branchId);
+  const { data, error } = await q;
   if (error) throw error;
   return (data || []).map(mapOrder);
+}
+
+function phoneTail(value) {
+  return String(value || '').replace(/\D/g, '').slice(-8);
+}
+
+/** Seguimiento de invitado: código + teléfono del checkout. */
+export async function guestTrackOrder(ticketCode, phone) {
+  const ticket = String(ticketCode || '').replace(/^#/, '').trim();
+  const phoneDigits = String(phone || '').replace(/\D/g, '');
+  if (!ticket || phoneDigits.length < 8) {
+    throw new Error('Ingresa el código del pedido y el teléfono con el que compraste.');
+  }
+
+  const { data, error } = await sb().rpc('ep_guest_track_order', {
+    p_ticket: ticket,
+    p_phone: phoneDigits,
+  });
+  if (!error && data?.ok && data.order) {
+    return mapGuestTrack(data);
+  }
+  if (error && !/does not exist|schema cache/i.test(error.message || '')) {
+    let msg = error.message || 'No se pudo buscar el pedido';
+    if (/no encontrado|not found|no coincide/i.test(msg)) {
+      throw new Error('No encontramos ese pedido. Revisa el código y el teléfono.');
+    }
+    throw new Error(msg);
+  }
+
+  const padded = /^\d+$/.test(ticket) ? ticket.padStart(6, '0') : ticket;
+  const { data: row, error: selErr } = await sb()
+    .from('pedidos')
+    .select('id, codigo_pedido, estado, tipo_entrega, total, creado_en, branch_id, cliente_telefono, datos_json')
+    .or(`codigo_pedido.eq.${padded},codigo_pedido.eq.${ticket}`)
+    .limit(8);
+  if (selErr) {
+    throw new Error('Falta activar el seguimiento de invitados. Ejecuta fix-web-ops-hardening.sql en Supabase.');
+  }
+  const match = (row || []).find((r) => phoneTail(r.cliente_telefono) === phoneTail(phoneDigits)
+    || phoneTail(r.datos_json?.customer?.phone) === phoneTail(phoneDigits));
+  if (!match) throw new Error('No encontramos ese pedido. Revisa el código y el teléfono.');
+  const hist = await getOrderStatusHistory(match.id).catch(() => []);
+  return mapGuestTrack({
+    ok: true,
+    order: {
+      id: match.id,
+      ticketNumber: match.codigo_pedido,
+      estado: match.estado,
+      orderType: match.tipo_entrega,
+      total: match.total,
+      createdAt: match.creado_en,
+      items: match.datos_json?.items || [],
+    },
+    history: hist.map((h) => ({ status: h.status, createdAt: h.created_at })),
+  });
+}
+
+function mapGuestTrack(payload) {
+  const o = payload.order || {};
+  return {
+    order: {
+      id: o.id,
+      ticketNumber: o.ticketNumber || o.codigo_pedido || o.codigo,
+      estado: o.estado,
+      orderType: o.orderType || o.tipo_entrega,
+      total: Number(o.total) || 0,
+      createdAt: o.createdAt || o.creado_en,
+      items: o.items || [],
+      branchName: o.branchName || o.branch_name || '',
+    },
+    history: (payload.history || []).map((h) => ({
+      status: h.status || h.estado,
+      createdAt: h.createdAt || h.created_at,
+    })),
+  };
 }

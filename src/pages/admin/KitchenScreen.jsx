@@ -97,8 +97,16 @@ function KitchenOrderCard({ order, onView, onAdvance }) {
 }
 
 export function KitchenScreen() {
-  const { orders, updateOrder, refresh, ready, realtimeStatus, isBackendReady } = useOrders({ alarmEnabled: true });
-  const { applyBranchFilter, headerBranchLabel, showBranchFilter } = useAdminBranchFilter();
+  const { applyBranchFilter, headerBranchLabel, showBranchFilter, isBranchScoped, branchId: staffBranchId } = useAdminBranchFilter();
+  const alarmMatch = useCallback((order) => {
+    const bid = order?.branchId || order?.branch_id || null;
+    if (isBranchScoped) return Boolean(staffBranchId) && String(bid) === String(staffBranchId);
+    return true;
+  }, [isBranchScoped, staffBranchId]);
+  const { orders, updateOrder, refresh, ready, realtimeStatus, isBackendReady } = useOrders({
+    alarmEnabled: true,
+    alarmMatch,
+  });
   const [viewOrder, setViewOrder] = useState(null);
   const [branches, setBranches] = useState([]);
   const [advancingId, setAdvancingId] = useState(null);
@@ -228,8 +236,16 @@ export function KitchenScreen() {
         </AdminScrollPanel>
       ) : (
         <div className="kitchen-empty">
-          <p className="text-lg font-bold sm:text-xl">Sin pedidos pendientes en cocina</p>
-          <p className="mt-1 text-sm opacity-80">Los pedidos entregados desaparecen automáticamente de esta vista.</p>
+          <p className="text-lg font-bold sm:text-xl">
+            {isBranchScoped && !staffBranchId
+              ? 'Tu cuenta no tiene sucursal'
+              : 'Sin pedidos pendientes en cocina'}
+          </p>
+          <p className="mt-1 text-sm opacity-80">
+            {isBranchScoped && !staffBranchId
+              ? 'Pídele al admin que te asigne un local en Usuarios.'
+              : 'Los pedidos entregados desaparecen automáticamente de esta vista.'}
+          </p>
         </div>
       )}
 

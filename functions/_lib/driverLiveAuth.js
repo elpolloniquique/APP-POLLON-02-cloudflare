@@ -9,7 +9,9 @@ const LIVE_STAFF_ROLES = new Set([
   'despachador',
 ]);
 
-const BRANCH_SCOPED = new Set(['cajera', 'cajero', 'despachador', 'cocina', 'cocinero']);
+const BRANCH_SCOPED = new Set([
+  'cajera', 'cajero', 'despachador', 'cocina', 'cocinero', 'admin_sucursal', 'administrador', 'admin_repartidores',
+]);
 
 function envVal(...keys) {
   for (const k of keys) {

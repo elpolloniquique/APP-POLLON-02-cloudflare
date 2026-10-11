@@ -157,6 +157,13 @@ export function AdminLiveMap() {
   const branches = allBranches.length ? allBranches : (filterBranches || []);
 
   const load = useCallback(async () => {
+    if (!isSuperAdmin && !filterBranch && !isBoss) {
+      setLocations([]);
+      setAssignments([]);
+      setError('Tu cuenta no tiene sucursal asignada. Pídele al admin que te asigne un local.');
+      setLoading(false);
+      return;
+    }
     try {
       await healOpenOffersForAvailableDrivers().catch(() => {});
       const [locs, asgs] = await Promise.all([
@@ -172,7 +179,7 @@ export function AdminLiveMap() {
     } finally {
       setLoading(false);
     }
-  }, [filterBranch, fleetDriverIds]);
+  }, [filterBranch, fleetDriverIds, isSuperAdmin, isBoss]);
 
   useEffect(() => {
     let cancelled = false;
