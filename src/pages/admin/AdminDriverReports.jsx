@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Download, Phone, RefreshCw } from 'lucide-react';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
@@ -46,6 +47,7 @@ export function AdminDriverReports() {
   const filterBranch = isSuperAdmin ? (selectedBranchId || null) : staffBranchId;
   const { profile } = useAuth();
   const isBoss = isFleetBossRole(profile?.role || profile?.rol);
+  const navigate = useNavigate();
 
   const [desde, setDesde] = useState(() => todayISO());
   const [hasta, setHasta] = useState(() => todayISO());
@@ -63,24 +65,28 @@ export function AdminDriverReports() {
     setLoading(true);
     setError('');
     try {
-      const [data, drivers] = await Promise.all([
-        fetchDriverReportRows({
-          fromDate: desde,
-          toDate: hasta,
-          fromTime: horaIni,
-          toTime: horaFin === '23:00' ? '23:59' : horaFin,
-          branchId: filterBranch,
-          driverId: driverFilter || null,
-        }),
-        fetchDriverOptionsForReport(filterBranch),
+      const reportArgs = {
+        fromDate: desde,
+        toDate: hasta,
+        fromTime: horaIni,
+        toTime: horaFin === '23:00' ? '23:59' : horaFin,
+        branchId: filterBranch,
+        driverId: driverFilter || null,
+      };
+      const [data, drivers, team] = await Promise.all([
+        fetchDriverReportRows(reportArgs),
+        isBoss ? Promise.resolve([]) : fetchDriverOptionsForReport(filterBranch),
+        isBoss ? listFleetTeam().catch(() => []) : Promise.resolve([]),
       ]);
       let nextRows = data;
       let nextDrivers = drivers;
       if (isBoss) {
-        const team = await listFleetTeam().catch(() => []);
         const allow = new Set((team || []).map((d) => d.id));
         nextRows = data.filter((r) => allow.has(r.driverId || r.driver_id || r.assigned_driver_id));
-        nextDrivers = drivers.filter((d) => allow.has(d.id));
+        nextDrivers = (team || []).map((d) => ({
+          id: d.id,
+          name: d.profiles?.full_name || d.profiles?.email || 'Moto',
+        }));
       }
       setRows(nextRows);
       setDriverOptions(nextDrivers);
@@ -169,6 +175,8 @@ export function AdminDriverReports() {
       <AdminPageHeader
         title="Reporte de repartidores"
         subtitle="Control operativo de entregas, delivery y cobros de caja"
+        onBack={isBoss ? () => navigate('/admin/repartidores') : undefined}
+        backLabel="Atrás"
         actions={(
           <div className="flex flex-wrap items-center gap-2">
             <button

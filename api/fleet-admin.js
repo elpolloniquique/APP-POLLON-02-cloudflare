@@ -80,6 +80,21 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, fleet: ctx.fleet, driver: ctx.bossDriver, branchId: ctx.branchId });
     }
 
+    if (action === 'home') {
+      const [team, jobs] = await Promise.all([
+        listTeam(admin, ctx),
+        listPending(admin, ctx.branchId),
+      ]);
+      return res.status(200).json({
+        ok: true,
+        fleet: ctx.fleet,
+        driver: ctx.bossDriver,
+        branchId: ctx.branchId,
+        drivers: team,
+        jobs,
+      });
+    }
+
     if (action === 'team') {
       const team = await listTeam(admin, ctx);
       return res.status(200).json({ ok: true, fleet: ctx.fleet, drivers: team });
@@ -120,11 +135,40 @@ async function loadFleetContext(admin, caller, isSuper, fleetId) {
       .maybeSingle();
     fleet = data;
   }
-  const { data: bossDriver } = await admin
+  let { data: bossDriver } = await admin
     .from('ep_driver_profiles')
     .select('*')
     .eq('profile_id', caller.id)
     .maybeSingle();
+
+  if (caller.role === 'admin_repartidores' && !fleet && caller.branch_id) {
+    await admin.rpc('ep_ensure_fleet_for_boss', {
+      p_profile_id: caller.id,
+      p_branch_id: caller.branch_id,
+      p_fleet_name: `Flota ${caller.full_name || ''}`.trim(),
+    }).catch(() => null);
+    const again = await admin
+      .from('ep_driver_fleets')
+      .select('*')
+      .eq('owner_profile_id', caller.id)
+      .maybeSingle();
+    fleet = again.data || fleet;
+  }
+
+  if (bossDriver && bossDriver.is_fleet_boss !== true) {
+    await admin
+      .from('ep_driver_profiles')
+      .update({
+        is_fleet_boss: true,
+        admin_status: 'approved',
+        fleet_id: fleet?.id || bossDriver.fleet_id,
+        preferred_branch_id: bossDriver.preferred_branch_id || fleet?.branch_id || caller.branch_id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', bossDriver.id);
+    bossDriver = { ...bossDriver, is_fleet_boss: true, admin_status: 'approved' };
+  }
+
   return {
     fleet,
     bossDriver,

@@ -27,12 +27,12 @@
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
 }
 
+.admin-shell__back,
 .admin-shell__burger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.35rem;
-  height: 2.35rem;
+  min-height: 2.35rem;
   border-radius: 0.5rem;
   border: 1px solid #e5e7eb;
   background: #fff;
@@ -41,7 +41,21 @@
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.admin-shell__burger:hover {
+.admin-shell__burger {
+  width: 2.35rem;
+  height: 2.35rem;
+}
+
+.admin-shell__back {
+  gap: 0.1rem;
+  padding: 0 0.65rem 0 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 750;
+  color: #1c1917;
+}
+
+.admin-shell__burger:hover,
+.admin-shell__back:hover {
   background: #f9fafb;
   color: #111827;
 }

@@ -205,6 +205,17 @@
   opacity: 0.9;
 }
 
+@media (max-width: 767px) {
+  .driver-report__scroll {
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .driver-report__table {
+    min-width: 40rem;
+  }
+}
+
 @media (max-width: 900px) {
   .driver-report__footer {
     grid-template-columns: 1fr 1fr;

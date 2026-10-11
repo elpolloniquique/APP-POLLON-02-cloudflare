@@ -25,6 +25,10 @@ export async function getMyFleet() {
   return callFleetAdmin({ action: 'me' });
 }
 
+export async function loadFleetHome() {
+  return callFleetAdmin({ action: 'home' });
+}
+
 export async function listFleetTeam() {
   const json = await callFleetAdmin({ action: 'team' });
   return json.drivers || [];

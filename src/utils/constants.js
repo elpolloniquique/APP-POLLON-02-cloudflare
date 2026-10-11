@@ -163,7 +163,7 @@ export const ROLE_PERMISSIONS = {
   cocinero: ['kitchen'],
   delivery: ['driver_app'],
   repartidor: ['driver_app'],
-  admin_repartidores: ['drivers', 'live_map', 'driver_reports', 'driver_app'],
+  admin_repartidores: ['drivers', 'driver_reports', 'driver_app'],
   cliente: [],
 };
 

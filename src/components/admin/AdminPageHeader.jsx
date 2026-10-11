@@ -1,10 +1,15 @@
 /**
  * Encabezado estándar de páginas admin — responsive en móvil/tablet/PC.
  */
-export function AdminPageHeader({ title, subtitle, branchLabel, actions }) {
+export function AdminPageHeader({ title, subtitle, branchLabel, actions, onBack, backLabel = 'Atrás' }) {
   return (
     <div className="admin-page-header flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-3">
       <div className="min-w-0">
+        {onBack && (
+          <button type="button" className="admin-back-btn" onClick={onBack}>
+            <span aria-hidden>←</span> {backLabel}
+          </button>
+        )}
         <h2 className="admin-page-header__title">{title}</h2>
         {subtitle && <p className="admin-page-header__subtitle">{subtitle}</p>}
         {branchLabel && (

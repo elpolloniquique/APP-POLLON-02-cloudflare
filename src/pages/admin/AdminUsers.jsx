@@ -96,7 +96,9 @@ export function AdminUsers() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [pageSize] = useState(8);
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 1100px)').matches
+  ));
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [showPass, setShowPass] = useState(false);
@@ -505,6 +507,10 @@ export function AdminUsers() {
 
         <aside className={`aus-panel ${panelOpen ? 'is-open' : ''}`}>
           <div className="aus-panel__head">
+            <button type="button" className="aus-back" onClick={() => setPanelOpen(false)}>
+              <ChevronLeft className="h-5 w-5" strokeWidth={2.4} />
+              Atrás
+            </button>
             <h2>{editing ? 'Editar Usuario' : 'Agregar Usuario'}</h2>
             <button type="button" className="aus-icon-btn" onClick={() => setPanelOpen(false)} aria-label="Cerrar">
               <X className="h-4 w-4" />
@@ -666,7 +672,7 @@ export function AdminUsers() {
 
             <div className="aus-form__actions">
               <button type="button" className="aus-btn aus-btn--ghost" onClick={() => setPanelOpen(false)}>
-                Cancelar
+                Atrás
               </button>
               <button type="submit" className="aus-btn aus-btn--primary" disabled={saving}>
                 {saving ? 'Guardando…' : (editing ? 'Guardar cambios' : 'Guardar Usuario')}

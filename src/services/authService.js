@@ -341,6 +341,7 @@ export function isBranchScopedStaff(role) {
     ROLES.CAJERA,
     ROLES.COCINA,
     ROLES.DELIVERY,
+    ROLES.ADMIN_REPARTIDORES,
     ROLES.ADMINISTRADOR,
     'cajero',
     'repartidor',

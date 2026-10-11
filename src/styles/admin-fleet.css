@@ -1,0 +1,266 @@
+.fleet-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.55rem 0.7rem max(1.4rem, env(safe-area-inset-bottom));
+  max-width: 42rem;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.fleet-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+}
+
+.fleet-kicker {
+  width: 100%;
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #a8a29e;
+}
+
+.fleet-title {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #1c1917;
+}
+
+.fleet-top__actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.fleet-back,
+.fleet-icon-btn,
+.fleet-btn,
+.fleet-link,
+.fleet-pick {
+  min-height: 2.5rem;
+  border-radius: 0.65rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.fleet-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0 0.7rem 0 0.35rem;
+  border: 1px solid #e7e5e4;
+  background: #fff;
+  color: #1c1917;
+  font-size: 0.9rem;
+}
+
+.fleet-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.7rem;
+  border: 1px solid #e7e5e4;
+  background: #fff;
+  color: #1c1917;
+  font-size: 0.8rem;
+}
+
+.fleet-icon-btn--red {
+  background: #c00000;
+  border-color: #9f0000;
+  color: #fff;
+}
+
+.fleet-banner {
+  border-radius: 0.7rem;
+  padding: 0.65rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.fleet-banner--err {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.fleet-banner--ok {
+  border: 1px solid #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.fleet-stack,
+.fleet-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.fleet-block h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.fleet-block__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.fleet-link {
+  border: 0;
+  background: transparent;
+  color: #c00000;
+  font-size: 0.8rem;
+  padding: 0;
+  min-height: auto;
+}
+
+.fleet-hint,
+.fleet-empty,
+.fleet-card__sub {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: #78716c;
+}
+
+.fleet-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.8rem 0.85rem;
+  border: 1px solid #e7e5e4;
+  border-radius: 0.8rem;
+  background: #fff;
+}
+
+.fleet-card--job {
+  border-color: #fecaca;
+}
+
+.fleet-card--tap {
+  cursor: pointer;
+}
+
+.fleet-card__title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #1c1917;
+}
+
+.fleet-chip {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.fleet-chip--green { background: #dcfce7; color: #166534; }
+.fleet-chip--amber { background: #fef3c7; color: #92400e; }
+.fleet-chip--orange { background: #ffedd5; color: #9a3412; }
+.fleet-chip--red { background: #fee2e2; color: #991b1b; }
+
+.fleet-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.fleet-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.fleet-form span {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #78716c;
+}
+
+.fleet-form input,
+.fleet-form select {
+  min-height: 2.7rem;
+  border: 1px solid #d6d3d1;
+  border-radius: 0.65rem;
+  padding: 0.5rem 0.7rem;
+  font-size: 1rem;
+  background: #fff;
+}
+
+.fleet-form__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.fleet-form__actions > * {
+  flex: 1;
+}
+
+.fleet-btn--ghost {
+  border: 1px solid #e7e5e4;
+  background: #fff;
+  color: #1c1917;
+  font-size: 0.88rem;
+}
+
+.fleet-pick {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  column-gap: 0.75rem;
+  width: 100%;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid #e7e5e4;
+  background: #fff;
+  text-align: left;
+}
+
+.fleet-pick strong {
+  font-size: 0.92rem;
+}
+
+.fleet-pick span {
+  grid-column: 1;
+  font-size: 0.75rem;
+  color: #78716c;
+}
+
+.fleet-pick em {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  font-style: normal;
+  color: #c00000;
+  font-size: 0.8rem;
+}
+
+@media (min-width: 720px) {
+  .fleet-page {
+    padding-top: 0.75rem;
+  }
+
+  .fleet-title {
+    font-size: 1.35rem;
+  }
+}

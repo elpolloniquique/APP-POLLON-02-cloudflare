@@ -3,11 +3,12 @@ import { useAuth } from '../../context/AuthContext';
 import { useStaffBranch } from '../../hooks/useStaffBranch';
 import { ADMIN_NAV } from '../../utils/constants';
 import {
-  LogOut, Menu, X,
+  LogOut, Menu, X, ChevronLeft,
   LayoutDashboard, BookOpen, ShoppingBag, ChefHat, Users, Megaphone,
   Building2, Banknote, Package, BarChart3, Settings, Bike, SlidersHorizontal,
   DollarSign, Send, MapPin, FileBarChart,
 } from 'lucide-react';
+import { getDefaultAdminPath } from '../../services/authService';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import '../../styles/admin-shell.css';
 import '../../styles/admin-theme.css';
@@ -95,6 +96,7 @@ export function AdminLayout() {
     despachador: 'Despachador',
     cocina: 'Cocina',
     delivery: 'Repartidor',
+    admin_repartidores: 'Jefe de flota',
   };
   const roleLabel = roleLabels[role] || role;
 
@@ -103,6 +105,19 @@ export function AdminLayout() {
     await signOut();
     navigate('/admin/login');
   }, [signOut, navigate]);
+
+  const defaultPath = getDefaultAdminPath(role);
+  const isHome = location.pathname === defaultPath || location.pathname === '/admin';
+  const showBack = isDrawer && !isHome;
+
+  const goBack = useCallback(() => {
+    if (location.pathname.startsWith('/admin/repartidores/') && location.pathname !== '/admin/repartidores') {
+      navigate('/admin/repartidores');
+      return;
+    }
+    if (window.history.length > 1) navigate(-1);
+    else navigate(defaultPath);
+  }, [location.pathname, navigate, defaultPath]);
 
   const mainNav = useMemo(() => nav.filter((n) => n.group !== 'delivery'), [nav]);
   const deliveryNav = useMemo(() => nav.filter((n) => n.group === 'delivery'), [nav]);
@@ -155,7 +170,7 @@ export function AdminLayout() {
           {deliveryNav.length > 0 && (
             <>
               <div className="admin-shell__divider" />
-              <p className="admin-shell__group-label">Delivery / GPS</p>
+              <p className="admin-shell__group-label">{role === 'admin_repartidores' ? 'Mi flota' : 'Delivery / GPS'}</p>
               <div className="admin-shell__group">
                 {deliveryNav.map((item) => (
                   <NavLink
@@ -202,6 +217,17 @@ export function AdminLayout() {
 
       <div className="admin-shell__body">
         <header className="admin-shell__topbar">
+          {isDrawer && showBack && (
+            <button
+              type="button"
+              className="admin-shell__back"
+              onClick={goBack}
+              aria-label="Regresar atrás"
+            >
+              <ChevronLeft className="h-5 w-5" strokeWidth={2.4} />
+              <span>Atrás</span>
+            </button>
+          )}
           {isDrawer && (
             <button
               type="button"

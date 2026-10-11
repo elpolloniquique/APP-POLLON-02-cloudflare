@@ -158,6 +158,22 @@
   padding: 0.1rem 0 0.05rem;
 }
 
+.admin-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0 0 0.35rem;
+  padding: 0.35rem 0.65rem;
+  min-height: 2.35rem;
+  border: 1px solid var(--ap-line);
+  border-radius: 0.55rem;
+  background: #fff;
+  color: var(--ap-ink);
+  font-size: 0.85rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
 .admin-shell .admin-page-header__title {
   margin: 0;
   font-size: var(--ap-fs-title);
