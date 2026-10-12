@@ -255,6 +255,59 @@
   font-size: 0.8rem;
 }
 
+.fleet-pick.is-assigned {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.fleet-pick__actions {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.fleet-assign-btn {
+  border: 0;
+  background: transparent;
+  color: #c00000;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0.2rem 0.1rem;
+}
+
+.fleet-assign-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.fleet-wa-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.55rem;
+  height: 2.55rem;
+  border: 0;
+  border-radius: 999px;
+  background: #25d366;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 211, 102, 0.35);
+  cursor: pointer;
+}
+
+.fleet-wa-btn:hover {
+  background: #1ebe5d;
+}
+
+.fleet-hint--ok {
+  color: #166534;
+  font-weight: 650;
+}
+
 @media (min-width: 720px) {
   .fleet-page {
     padding-top: 0.75rem;

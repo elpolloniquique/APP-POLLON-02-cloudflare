@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Plus, RefreshCw } from 'lucide-react';
 import { Loader } from '../../components/ui/Loader';
 import { Button } from '../../components/ui/Button';
+import { WhatsAppIcon } from '../../components/ui/WhatsAppIcon';
+import { openWhatsappToCustomer } from '../../utils/format';
 import {
   loadFleetHome,
   createFleetMoto,
@@ -18,6 +20,26 @@ import '../../styles/admin-fleet.css';
 
 const MAX_ORDER_OPTIONS = [2, 3, 4];
 const EMPTY_MOTO = { fullName: '', email: '', password: '', phone: '', plate: '' };
+
+function driverPhone(d) {
+  return d?.profiles?.phone || d?.phone || d?.profiles?.telefono || '';
+}
+
+function driverFirstName(d) {
+  const full = String(d?.profiles?.full_name || d?.profiles?.email || 'repartidor').trim();
+  return full.split(/\s+/)[0] || 'repartidor';
+}
+
+function ticketLabel(job) {
+  const raw = String(job?.ticket_code || job?.codigo_pedido || '').replace(/^#/, '').trim();
+  if (!raw) return 'el pedido';
+  const padded = /^\d+$/.test(raw) ? raw.padStart(6, '0') : raw;
+  return `#${padded}`;
+}
+
+function fleetAssignWhatsappMessage(driver, job) {
+  return `Hola ${driverFirstName(driver)}, por favor acepte el pedido ${ticketLabel(job)} desde su app Pollón.`;
+}
 
 const STATUS_LABELS = {
   pending: { label: 'Pendiente', cls: 'fleet-chip--amber' },
@@ -45,6 +67,7 @@ export function AdminFleetPanel() {
   const [creating, setCreating] = useState(false);
   const [motoForm, setMotoForm] = useState(EMPTY_MOTO);
   const [jobToAssign, setJobToAssign] = useState(null);
+  const [assignedDriverId, setAssignedDriverId] = useState(null);
   const [editDriver, setEditDriver] = useState(null);
   const [editDraft, setEditDraft] = useState({ max_orders: 2, commission_percent: '5' });
 
@@ -68,6 +91,7 @@ export function AdminFleetPanel() {
   const goHome = () => {
     setView('home');
     setJobToAssign(null);
+    setAssignedDriverId(null);
     setEditDriver(null);
     setError('');
   };
@@ -79,6 +103,7 @@ export function AdminFleetPanel() {
 
   const openAssign = (job) => {
     setJobToAssign(job);
+    setAssignedDriverId(null);
     setView('assign');
     setError('');
     setFlash('');
@@ -118,9 +143,9 @@ export function AdminFleetPanel() {
     setError('');
     try {
       await assignFleetJob(jobToAssign.id, driverId);
-      setFlash('Asignado. Esa moto lo ve ahora en la app.');
+      setAssignedDriverId(driverId);
+      setFlash('Asignado. Avisa a esa moto por WhatsApp para que acepte en la app.');
       setJobs((prev) => prev.filter((j) => j.id !== jobToAssign.id));
-      goHome();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -201,7 +226,9 @@ export function AdminFleetPanel() {
       </header>
 
       {error && <div className="fleet-banner fleet-banner--err">{error}</div>}
-      {flash && view === 'home' && <div className="fleet-banner fleet-banner--ok">{flash}</div>}
+      {flash && (view === 'home' || view === 'assign') && (
+        <div className="fleet-banner fleet-banner--ok">{flash}</div>
+      )}
 
       {loading && view === 'home' ? (
         <Loader text="Cargando flota…" />
@@ -221,8 +248,8 @@ export function AdminFleetPanel() {
             <input required type="password" minLength={6} autoComplete="new-password" value={motoForm.password} onChange={(e) => setMotoForm((f) => ({ ...f, password: e.target.value }))} />
           </label>
           <label>
-            <span>Teléfono</span>
-            <input inputMode="tel" value={motoForm.phone} onChange={(e) => setMotoForm((f) => ({ ...f, phone: e.target.value }))} />
+            <span>Teléfono WhatsApp</span>
+            <input inputMode="tel" value={motoForm.phone} onChange={(e) => setMotoForm((f) => ({ ...f, phone: e.target.value }))} placeholder="56912345678" />
           </label>
           <label>
             <span>Patente</span>
@@ -240,21 +267,54 @@ export function AdminFleetPanel() {
             <p className="fleet-card__sub">{jobToAssign.customer_address || 'Sin dirección'}</p>
           </div>
           <p className="fleet-hint">Tú no necesitas asignártelo: acéptalo en la app nativa. Aquí eliges una moto.</p>
+          {assignedDriverId && (
+            <p className="fleet-hint fleet-hint--ok">Pedido asignado. Pulsa el icono verde de WhatsApp para avisar a esa moto.</p>
+          )}
           {motosOnline.length === 0 ? (
             <p className="fleet-empty">No hay motos aprobadas.</p>
-          ) : motosOnline.map((d) => (
-            <button
-              key={d.id}
-              type="button"
-              className="fleet-pick"
-              disabled={busyId === d.id}
-              onClick={() => handleAssign(d.id)}
-            >
-              <strong>{d.profiles?.full_name || d.profiles?.email || 'Moto'}</strong>
-              <span>{d.operational_status === 'offline' ? 'Offline' : 'En línea'}{d.is_fleet_boss ? ' · tú' : ''}</span>
-              <em>{busyId === d.id ? 'Asignando…' : 'Asignar'}</em>
-            </button>
-          ))}
+          ) : motosOnline.map((d) => {
+            const assigned = assignedDriverId === d.id;
+            const phone = driverPhone(d);
+            return (
+              <div
+                key={d.id}
+                className={`fleet-pick ${assigned ? 'is-assigned' : ''}`}
+              >
+                <strong>{d.profiles?.full_name || d.profiles?.email || 'Moto'}</strong>
+                <span>{d.operational_status === 'offline' ? 'Offline' : 'En línea'}{d.is_fleet_boss ? ' · tú' : ''}{assigned ? ' · asignado' : ''}</span>
+                <div className="fleet-pick__actions">
+                  {assigned ? (
+                    <button
+                      type="button"
+                      className="fleet-wa-btn"
+                      title={phone ? `WhatsApp a ${driverFirstName(d)}` : 'Esta moto no tiene teléfono'}
+                      aria-label={`Enviar WhatsApp a ${driverFirstName(d)}`}
+                      onClick={() => {
+                        try {
+                          openWhatsappToCustomer(phone, fleetAssignWhatsappMessage(d, jobToAssign));
+                        } catch {
+                          setError('Esta moto no tiene un teléfono WhatsApp. Edítala y agrégale el número.');
+                        }
+                      }}
+                    >
+                      <WhatsAppIcon className="h-5 w-5" title="" />
+                    </button>
+                  ) : (
+                    <em>
+                      <button
+                        type="button"
+                        className="fleet-assign-btn"
+                        disabled={Boolean(busyId) || Boolean(assignedDriverId)}
+                        onClick={() => handleAssign(d.id)}
+                      >
+                        {busyId === d.id ? 'Asignando…' : 'Asignar'}
+                      </button>
+                    </em>
+                  )}
+                </div>
+              </div>
+            );
+          })}
           <button type="button" className="fleet-btn fleet-btn--ghost" onClick={goHome}>Atrás</button>
         </div>
       ) : view === 'edit' && editDriver ? (

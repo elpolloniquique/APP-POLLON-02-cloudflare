@@ -1,2 +1,2 @@
 /** Cambia esto en cada deploy importante para verificar caché PWA. */
-export const APP_BUILD_ID = '2026-10-12-mapa-colores-v2';
+export const APP_BUILD_ID = '2026-10-12-flota-whatsapp';
