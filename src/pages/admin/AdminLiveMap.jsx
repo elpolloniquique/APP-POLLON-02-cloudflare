@@ -15,7 +15,7 @@ import {
 import { subscribeDispatch, healOpenOffersForAvailableDrivers } from '../../services/dispatchService';
 import { fetchOsrmRoute } from '../../utils/osrm';
 import {
-  assignColorsByPhase,
+  colorAt,
   isPickupPhase,
   isDeliveryPhase,
   shortBranchLabel,
@@ -273,8 +273,7 @@ export function AdminLiveMap() {
         trail: Array.isArray(loc?.trail) ? loc.trail : [],
       };
     });
-    const colors = assignColorsByPhase(groups);
-    return groups.map((g) => ({ ...g, color: colors[g.driverId] }));
+    return groups;
   }, [assignments, locations]);
 
   // Resolver destinos cliente (coords o geocode dirección) para rutas en vivo
@@ -333,13 +332,38 @@ export function AdminLiveMap() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driverGroups]);
 
-  const pickupDrivers = useMemo(
-    () => driverGroups.filter((d) => isPickupPhase(d.phase)),
-    [driverGroups]
-  );
-  const deliveryDrivers = useMemo(
-    () => driverGroups.filter((d) => isDeliveryPhase(d.phase)),
-    [driverGroups]
+  const pickupDrivers = useMemo(() => {
+    const list = driverGroups
+      .filter((d) => !isDeliveryPhase(d.phase))
+      .slice()
+      .sort((a, b) => {
+        const at = String(a.acceptedAt || '').localeCompare(String(b.acceptedAt || ''));
+        return at !== 0 ? at : String(a.driverId).localeCompare(String(b.driverId));
+      });
+    return list.map((d, i) => ({ ...d, color: colorAt('pickup', i) }));
+  }, [driverGroups]);
+  const deliveryDrivers = useMemo(() => {
+    const list = driverGroups
+      .filter((d) => isDeliveryPhase(d.phase))
+      .slice()
+      .sort((a, b) => {
+        const at = String(a.acceptedAt || '').localeCompare(String(b.acceptedAt || ''));
+        return at !== 0 ? at : String(a.driverId).localeCompare(String(b.driverId));
+      });
+    return list.map((d, i) => ({ ...d, color: colorAt('delivery', i) }));
+  }, [driverGroups]);
+  const coloredById = useMemo(() => {
+    const map = new Map();
+    for (const d of pickupDrivers) map.set(String(d.driverId), d.color);
+    for (const d of deliveryDrivers) map.set(String(d.driverId), d.color);
+    return map;
+  }, [pickupDrivers, deliveryDrivers]);
+  const liveDrivers = useMemo(
+    () => driverGroups.map((g) => ({
+      ...g,
+      color: coloredById.get(String(g.driverId)) || (isDeliveryPhase(g.phase) ? colorAt('delivery', 0) : colorAt('pickup', 0)),
+    })),
+    [driverGroups, coloredById],
   );
 
   useLiveVoiceAlerts({
@@ -356,7 +380,7 @@ export function AdminLiveMap() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const jobs = driverGroups
+      const jobs = liveDrivers
         .filter((d) => d.hasGps)
         .map((d) => {
           const to = isPickupPhase(d.phase)
@@ -381,7 +405,7 @@ export function AdminLiveMap() {
       setEtas(next);
     })();
     return () => { cancelled = true; };
-  }, [driverGroups, store, destByDriver]);
+  }, [liveDrivers, store, destByDriver]);
 
   const sidebarPickup = pickupDrivers.map((d) => ({
     driverId: d.driverId,
@@ -409,7 +433,7 @@ export function AdminLiveMap() {
 
   const markers = useMemo(() => {
     const list = [];
-    for (const d of driverGroups) {
+    for (const d of liveDrivers) {
       if (d.hasGps) {
         list.push({
           id: `drv-${d.driverId}`,
@@ -434,13 +458,13 @@ export function AdminLiveMap() {
       }
     }
     return list;
-  }, [driverGroups, destByDriver]);
+  }, [liveDrivers, destByDriver]);
 
   const routes = useMemo(() => {
     const list = [];
-    for (const d of driverGroups) {
+    for (const d of liveDrivers) {
       if (!d.hasGps) continue;
-      if (isPickupPhase(d.phase)) {
+      if (!isDeliveryPhase(d.phase)) {
         list.push({
           id: `r-${d.driverId}`,
           from: { lat: d.lat, lng: d.lng },
@@ -459,15 +483,15 @@ export function AdminLiveMap() {
       });
     }
     return list;
-  }, [driverGroups, store, destByDriver]);
+  }, [liveDrivers, store, destByDriver]);
 
   const center = useMemo(() => {
-    const withGps = driverGroups.find((d) => d.hasGps);
+    const withGps = liveDrivers.find((d) => d.hasGps);
     if (withGps) return { lat: withGps.lat, lng: withGps.lng };
     const dest = Object.values(destByDriver)[0];
     if (dest) return { lat: dest.lat, lng: dest.lng };
     return { lat: store.lat, lng: store.lng };
-  }, [driverGroups, destByDriver, store]);
+  }, [liveDrivers, destByDriver, store]);
 
   const loadDetail = async (driverId) => {
     setViewDriverId(driverId);

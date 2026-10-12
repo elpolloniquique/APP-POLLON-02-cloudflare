@@ -25,12 +25,13 @@ const DELIVERY_EXTRAS = [
   '#1d4ed8', // royal
 ];
 
-export function isPickupPhase(phase) {
-  return phase === 'to_store' || phase === 'at_store';
+export function isDeliveryPhase(phase) {
+  const p = String(phase || '').toLowerCase();
+  return p === 'to_customer' || p === 'at_customer' || p === 'delivering';
 }
 
-export function isDeliveryPhase(phase) {
-  return phase === 'to_customer';
+export function isPickupPhase(phase) {
+  return !isDeliveryPhase(phase);
 }
 
 function hueDiff(a, b) {
