@@ -15,10 +15,12 @@ import {
 import { subscribeDispatch, healOpenOffersForAvailableDrivers } from '../../services/dispatchService';
 import { fetchOsrmRoute } from '../../utils/osrm';
 import {
-  colorForDriver,
+  assignColorsByPhase,
   isPickupPhase,
   isDeliveryPhase,
   shortBranchLabel,
+  PICKUP_COLORS,
+  DELIVERY_COLORS,
 } from '../../utils/liveMapColors';
 import {
   isValidLatLng,
@@ -245,10 +247,9 @@ export function AdminLiveMap() {
       g.phases.push(a.phase);
     }
 
-    return [...map.values()].map((g) => {
+    const groups = [...map.values()].map((g) => {
       const hasDelivery = g.phases.some(isDeliveryPhase);
       const phase = hasDelivery ? 'to_customer' : (g.phases.find(isPickupPhase) || g.phases[0] || 'to_store');
-      const color = colorForDriver(g.driverId, phase);
       const loc = locations.find((l) => l.driver_id === g.driverId);
       const name =
         g.driver?.profiles?.full_name
@@ -262,7 +263,6 @@ export function AdminLiveMap() {
       return {
         ...g,
         phase,
-        color,
         name,
         lat: loc?.lat != null ? Number(loc.lat) : null,
         lng: loc?.lng != null ? Number(loc.lng) : null,
@@ -273,6 +273,8 @@ export function AdminLiveMap() {
         trail: Array.isArray(loc?.trail) ? loc.trail : [],
       };
     });
+    const colors = assignColorsByPhase(groups);
+    return groups.map((g) => ({ ...g, color: colors[g.driverId] }));
   }, [assignments, locations]);
 
   // Resolver destinos cliente (coords o geocode dirección) para rutas en vivo
@@ -601,6 +603,8 @@ export function AdminLiveMap() {
               onStyleChange={setStyleId}
               followId={followId}
               showLegend
+              pickupLegendColors={pickupDrivers.length ? pickupDrivers.map((d) => d.color) : PICKUP_COLORS}
+              deliveryLegendColors={deliveryDrivers.length ? deliveryDrivers.map((d) => d.color) : DELIVERY_COLORS}
               autoFit
               expanded={mapExpanded}
               onToggleExpand={toggleMapExpanded}

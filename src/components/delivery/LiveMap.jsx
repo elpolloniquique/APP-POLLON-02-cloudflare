@@ -153,6 +153,8 @@ export function LiveMap({
   styleId = 'streets',
   onStyleChange,
   showLegend = true,
+  pickupLegendColors = PICKUP_COLORS,
+  deliveryLegendColors = DELIVERY_COLORS,
   autoFit = true,
   expanded = false,
   onToggleExpand,
@@ -339,17 +341,17 @@ export function LiveMap({
         <div className="absolute bottom-3 left-3 z-10 flex flex-col gap-2 sm:flex-row">
           <div className="rounded-xl bg-white/95 px-3 py-2 shadow text-[11px]">
             <p className="mb-1 font-bold uppercase tracking-wide text-gray-500">Hacia sucursal</p>
-            <div className="flex gap-2">
-              {PICKUP_COLORS.map((c) => (
-                <span key={c} className="h-3 w-3 rounded-full" style={{ background: c }} />
+            <div className="flex flex-wrap gap-2">
+              {(pickupLegendColors?.length ? pickupLegendColors : PICKUP_COLORS).map((c, i) => (
+                <span key={`p-${c}-${i}`} className="h-3 w-3 rounded-full ring-1 ring-black/10" style={{ background: c }} />
               ))}
             </div>
           </div>
           <div className="rounded-xl bg-white/95 px-3 py-2 shadow text-[11px]">
             <p className="mb-1 font-bold uppercase tracking-wide text-gray-500">Hacia cliente</p>
-            <div className="flex gap-2">
-              {DELIVERY_COLORS.map((c) => (
-                <span key={c} className="h-3 w-3 rounded-full" style={{ background: c }} />
+            <div className="flex flex-wrap gap-2">
+              {(deliveryLegendColors?.length ? deliveryLegendColors : DELIVERY_COLORS).map((c, i) => (
+                <span key={`d-${c}-${i}`} className="h-3 w-3 rounded-full ring-1 ring-black/10" style={{ background: c }} />
               ))}
             </div>
             <p className="mt-1 text-[10px] text-gray-400">🛵 repartidor · 📍 destino</p>
