@@ -10,9 +10,32 @@ import { getDispatchSettings } from './trackingService';
 let jobCache = {};
 let driverCache = {};
 let lastFetch = 0;
+let inflightJobMap = null;
 const settingsCache = new Map(); // branchId -> { at, data }
 const lastJobNotifyAt = new Map();
 const JOB_NOTIFY_GAP_MS = 55 * 1000;
+
+function orderKey(value) {
+  return value == null ? '' : String(value);
+}
+
+function jobRank(job) {
+  const assigned = job?.assigned_driver_id ? 1 : 0;
+  const created = new Date(job?.created_at || 0).getTime() || 0;
+  return assigned * 1e15 + created;
+}
+
+function rememberDriver(id, patch = {}) {
+  if (!id) return null;
+  const prev = driverCache[id] || {};
+  const next = {
+    id,
+    vehicle_plate: patch.vehicle_plate || prev.vehicle_plate || null,
+    full_name: patch.full_name || prev.full_name || 'Repartidor',
+  };
+  driverCache[id] = next;
+  return next;
+}
 
 async function settingsForBranch(branchId) {
   if (!branchId) return getDispatchSettings(null);
@@ -33,20 +56,46 @@ async function resolveOrderBranchId(orderId) {
   return data?.branch_id || data?.datos_json?.branchId || null;
 }
 
-/** Fetch all delivery jobs with their assigned driver (no embed — safe) */
-export async function fetchDeliveryJobMap() {
-  if (!isSupabaseConfigured()) return {};
-  if (Date.now() - lastFetch < 3000) return jobCache;
-
+async function loadDeliveryJobMap() {
   const sb = getSupabase();
   const { data: jobs, error } = await sb
     .from('ep_delivery_jobs')
-    .select('id, source_order_id, status, assigned_driver_id, ticket_code')
+    .select('id, source_order_id, status, assigned_driver_id, ticket_code, created_at')
     .order('created_at', { ascending: false })
-    .limit(200);
-  if (error) { console.warn('[Pollón] fetchDeliveryJobMap:', error.message); return jobCache; }
+    .limit(400);
+  if (error) {
+    console.warn('[Pollón] fetchDeliveryJobMap:', error.message);
+    return jobCache;
+  }
 
-  const driverIds = [...new Set((jobs || []).map((j) => j.assigned_driver_id).filter(Boolean))];
+  const byOrder = new Map();
+  for (const j of jobs || []) {
+    const key = orderKey(j.source_order_id);
+    if (!key) continue;
+    const prev = byOrder.get(key);
+    if (!prev || jobRank(j) >= jobRank(prev)) byOrder.set(key, j);
+  }
+
+  const chosen = [...byOrder.values()];
+  const jobIds = chosen.map((j) => j.id).filter(Boolean);
+
+  let assignmentByJob = {};
+  if (jobIds.length) {
+    const { data: asgs } = await sb
+      .from('ep_delivery_assignments')
+      .select('job_id, driver_id, status')
+      .in('job_id', jobIds)
+      .eq('status', 'active');
+    assignmentByJob = Object.fromEntries(
+      (asgs || []).filter((a) => a.job_id && a.driver_id).map((a) => [a.job_id, a.driver_id]),
+    );
+  }
+
+  const driverIds = [...new Set(chosen.flatMap((j) => {
+    const id = j.assigned_driver_id || assignmentByJob[j.id] || null;
+    return id ? [id] : [];
+  }))];
+
   if (driverIds.length) {
     const { data: drivers } = await sb
       .from('ep_driver_profiles')
@@ -63,27 +112,51 @@ export async function fetchDeliveryJobMap() {
       profilesById = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
     }
 
-    driverCache = Object.fromEntries(
-      (drivers || []).map((d) => [d.id, {
-        id: d.id,
+    for (const d of drivers || []) {
+      rememberDriver(d.id, {
         vehicle_plate: d.vehicle_plate,
         full_name: profilesById[d.profile_id]?.full_name || 'Repartidor',
-      }])
-    );
+      });
+    }
   }
 
   const map = {};
-  for (const j of (jobs || [])) {
-    map[j.source_order_id] = {
+  for (const j of chosen) {
+    const key = orderKey(j.source_order_id);
+    const driverId = j.assigned_driver_id || assignmentByJob[j.id] || null;
+    const prev = jobCache[key];
+    const keepPrev = prev?.driverId && !driverId && !['cancelled', 'delivered'].includes(String(j.status || ''));
+    const resolvedId = keepPrev ? prev.driverId : driverId;
+    map[key] = {
       jobId: j.id,
       jobStatus: j.status,
-      driverId: j.assigned_driver_id,
-      driver: j.assigned_driver_id ? driverCache[j.assigned_driver_id] || null : null,
+      driverId: resolvedId,
+      driver: resolvedId
+        ? rememberDriver(resolvedId, resolvedId === prev?.driverId ? prev.driver : undefined)
+        : null,
     };
+    if (key !== j.source_order_id) map[j.source_order_id] = map[key];
   }
-  jobCache = map;
+
+  jobCache = { ...jobCache, ...map };
   lastFetch = Date.now();
-  return map;
+  return jobCache;
+}
+
+export function bustJobMapFetch() {
+  lastFetch = 0;
+}
+
+/** Fetch all delivery jobs with their assigned driver (no embed — safe) */
+export async function fetchDeliveryJobMap({ force = false } = {}) {
+  if (!isSupabaseConfigured()) return {};
+  if (force) lastFetch = 0;
+  if (inflightJobMap) return inflightJobMap;
+  if (Date.now() - lastFetch < 3000 && Object.keys(jobCache).length) return jobCache;
+  inflightJobMap = loadDeliveryJobMap().finally(() => {
+    inflightJobMap = null;
+  });
+  return inflightJobMap;
 }
 
 /** Get info for a single order */
@@ -94,6 +167,8 @@ export function getDeliveryInfo(orderId) {
 /** Auto-create delivery job + avisa al instante a todos los repartidores */
 export async function autoDispatchNewOrder(orderId) {
   if (!isSupabaseConfigured() || !orderId) return null;
+  const existing = jobCache[orderKey(orderId)] || jobCache[orderId];
+  if (existing?.driverId) return existing;
   const sb = getSupabase();
   try {
     const { data: jobId, error } = await sb.rpc('ep_upsert_job_from_pedido', { p_order_id: orderId });

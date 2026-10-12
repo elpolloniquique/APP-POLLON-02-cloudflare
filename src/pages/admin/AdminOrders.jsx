@@ -27,10 +27,11 @@ import {
   manualSearchDrivers,
   fetchDriverNamesForFilter,
   clearCache as clearDeliveryCache,
+  bustJobMapFetch,
   retryStaleDriverSearches,
   getActiveAssignmentForOrder,
 } from '../../services/orderDeliveryService';
-import { confirmPickup } from '../../services/dispatchService';
+import { confirmPickup, subscribeDispatch } from '../../services/dispatchService';
 import '../../styles/orders-panel.css';
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => h);
@@ -199,20 +200,41 @@ export function AdminOrders() {
 
   const refreshDelivery = useCallback(async () => {
     const map = await fetchDeliveryJobMap();
-    setDeliveryMap({ ...map });
+    setDeliveryMap((prev) => {
+      const next = { ...map };
+      for (const [id, info] of Object.entries(prev)) {
+        if (info?.driverId && !next[id]?.driverId) next[id] = info;
+      }
+      return next;
+    });
   }, []);
 
   useEffect(() => {
     refreshDelivery();
     fetchDriverNamesForFilter(staffBranchId || selectedBranchId || null).then(setDriverNames).catch(() => {});
     const t = setInterval(refreshDelivery, 8000);
-    return () => clearInterval(t);
+    let debounce = null;
+    const unsub = subscribeDispatch(() => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        bustJobMapFetch();
+        refreshDelivery();
+      }, 250);
+    });
+    return () => {
+      clearInterval(t);
+      clearTimeout(debounce);
+      unsub();
+    };
   }, [refreshDelivery, staffBranchId, selectedBranchId]);
 
   useEffect(() => {
     if (!ready) return;
     const deliveryOrders = ordersScoped.filter(
-      (o) => o.orderType === 'delivery' && o.estado === 'pendiente' && !autoDispatchedRef.current.has(o.id),
+      (o) => o.orderType === 'delivery'
+        && o.estado === 'pendiente'
+        && !deliveryMap[o.id]?.driverId
+        && !autoDispatchedRef.current.has(o.id),
     );
     for (const o of deliveryOrders) {
       autoDispatchedRef.current.add(o.id);
@@ -220,7 +242,7 @@ export function AdminOrders() {
         setTimeout(refreshDelivery, 1500);
       });
     }
-  }, [ordersScoped, ready, refreshDelivery]);
+  }, [ordersScoped, ready, refreshDelivery, deliveryMap]);
 
   useEffect(() => {
     if (!ready) return undefined;
@@ -727,7 +749,7 @@ export function AdminOrders() {
           ) : (
             filtered.map((o) => {
               const info = deliveryMap[o.id];
-              const driverName = info?.driver?.full_name || null;
+              const driverName = info?.driver?.full_name || (info?.driverId ? 'Repartidor' : null);
               const isDelivery = o.orderType === 'delivery';
               const driver = driverDisplay(driverName, isDelivery);
               const isNew = o.estado === 'pendiente';
@@ -854,7 +876,7 @@ export function AdminOrders() {
               ) : (
                 filtered.map((o) => {
                   const info = deliveryMap[o.id];
-                  const driverName = info?.driver?.full_name || null;
+                  const driverName = info?.driver?.full_name || (info?.driverId ? 'Repartidor' : null);
                   const isDelivery = o.orderType === 'delivery';
                   const driver = driverDisplay(driverName, isDelivery);
                   const isNew = o.estado === 'pendiente';
