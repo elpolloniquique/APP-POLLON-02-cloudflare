@@ -10,6 +10,8 @@ import {
   createFleetMoto,
   assignFleetJob,
 } from '../../services/fleetService';
+import { subscribeDispatch } from '../../services/dispatchService';
+import { getSupabase } from '../../services/supabaseClient';
 import {
   updateDriverAdminStatus,
   updateDriverMaxOrders,
@@ -86,7 +88,38 @@ export function AdminFleetPanel() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    let debounce = null;
+    const refreshSilent = () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => { load(true); }, 250);
+    };
+    const unsub = subscribeDispatch(refreshSilent);
+    const sb = getSupabase();
+    let pedidosCh = null;
+    if (sb) {
+      pedidosCh = sb
+        .channel('fleet-boss-pedidos')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedidos' }, refreshSilent)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos' }, refreshSilent)
+        .subscribe();
+    }
+    const onVis = () => {
+      if (document.visibilityState === 'visible') load(true);
+    };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', onVis);
+    const poll = setInterval(() => load(true), 8000);
+    return () => {
+      clearTimeout(debounce);
+      clearInterval(poll);
+      unsub();
+      if (sb && pedidosCh) sb.removeChannel(pedidosCh);
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('focus', onVis);
+    };
+  }, [load]);
 
   const goHome = () => {
     setView('home');

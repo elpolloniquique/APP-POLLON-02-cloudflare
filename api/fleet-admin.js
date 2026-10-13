@@ -211,11 +211,24 @@ async function listPending(admin, branchId) {
     .limit(40);
   const orderIds = (peds || []).map((p) => p.id).filter(Boolean);
   if (!orderIds.length) return [];
-  const { data: jobs } = await admin
+  let { data: jobs } = await admin
     .from('ep_delivery_jobs')
     .select('*')
     .in('source_order_id', orderIds)
     .is('assigned_driver_id', null);
+  const have = new Set((jobs || []).map((j) => String(j.source_order_id)));
+  const missing = orderIds.filter((id) => !have.has(String(id)));
+  if (missing.length) {
+    await Promise.all(missing.map((id) => (
+      admin.rpc('ep_upsert_job_from_pedido', { p_order_id: String(id) }).catch(() => null)
+    )));
+    const again = await admin
+      .from('ep_delivery_jobs')
+      .select('*')
+      .in('source_order_id', orderIds)
+      .is('assigned_driver_id', null);
+    jobs = again.data;
+  }
   return (jobs || []).filter((j) => !['delivered', 'cancelled', 'picked_up', 'delivering'].includes(j.status));
 }
 
