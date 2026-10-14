@@ -227,7 +227,7 @@
 .fleet-pick {
   display: grid;
   grid-template-columns: 1fr auto;
-  grid-template-rows: auto auto;
+  grid-template-rows: auto auto auto;
   column-gap: 0.75rem;
   width: 100%;
   padding: 0.8rem 0.9rem;
@@ -240,19 +240,43 @@
   font-size: 0.92rem;
 }
 
-.fleet-pick span {
+.fleet-pick__meta {
   grid-column: 1;
   font-size: 0.75rem;
   color: #78716c;
 }
 
+.fleet-avail {
+  grid-column: 1;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+}
+
+.fleet-avail.is-ok {
+  color: #15803d;
+}
+
+.fleet-avail.is-no {
+  color: #dc2626;
+}
+
 .fleet-pick em {
-  grid-row: 1 / span 2;
+  grid-row: 1 / span 3;
   grid-column: 2;
   align-self: center;
   font-style: normal;
   color: #c00000;
   font-size: 0.8rem;
+}
+
+.fleet-pick.is-free {
+  border-color: #bbf7d0;
+}
+
+.fleet-pick.is-busy {
+  border-color: #fecaca;
 }
 
 .fleet-pick.is-assigned {
@@ -261,7 +285,7 @@
 }
 
 .fleet-pick__actions {
-  grid-row: 1 / span 2;
+  grid-row: 1 / span 3;
   grid-column: 2;
   align-self: center;
   display: flex;

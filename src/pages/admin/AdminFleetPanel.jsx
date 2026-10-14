@@ -56,6 +56,24 @@ function normalizeMaxOrders(value) {
   return MAX_ORDER_OPTIONS.includes(n) ? n : 2;
 }
 
+function motoAssignStatus(d) {
+  const max = Math.max(1, Number(d?.live_max ?? d?.max_orders) || 2);
+  const active = Number(d?.live_active) || 0;
+  const delivering = Boolean(d?.live_delivering)
+    || String(d?.operational_status || '').toLowerCase() === 'delivering';
+  return { max, active, delivering, available: !delivering && active < max };
+}
+
+function motoAvailHint(st) {
+  if (st.available) {
+    return st.active > 0
+      ? `${st.active} de ${st.max} · aún no recoge`
+      : 'Sin pedido en curso';
+  }
+  if (st.delivering) return 'Va hacia el cliente';
+  return `Cupo lleno ${st.active}/${st.max}`;
+}
+
 export function AdminFleetPanel() {
   const navigate = useNavigate();
   const [view, setView] = useState('home');
@@ -103,6 +121,7 @@ export function AdminFleetPanel() {
         .channel('fleet-boss-pedidos')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedidos' }, refreshSilent)
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pedidos' }, refreshSilent)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'ep_driver_profiles' }, refreshSilent)
         .subscribe();
     }
     const onVis = () => {
@@ -179,6 +198,20 @@ export function AdminFleetPanel() {
       setAssignedDriverId(driverId);
       setFlash('Asignado. Avisa a esa moto por WhatsApp para que acepte en la app.');
       setJobs((prev) => prev.filter((j) => j.id !== jobToAssign.id));
+      setDrivers((prev) => prev.map((d) => {
+        if (d.id !== driverId) return d;
+        const max = Math.max(1, Number(d.live_max ?? d.max_orders) || 2);
+        const active = (Number(d.live_active) || 0) + 1;
+        const delivering = Boolean(d.live_delivering);
+        return {
+          ...d,
+          live_active: active,
+          live_max: max,
+          live_delivering: delivering,
+          live_available: !delivering && active < max,
+        };
+      }));
+      void load(true);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -308,13 +341,25 @@ export function AdminFleetPanel() {
           ) : motosOnline.map((d) => {
             const assigned = assignedDriverId === d.id;
             const phone = driverPhone(d);
+            const st = motoAssignStatus(d);
+            const canAssign = st.available && !busyId && !assignedDriverId;
             return (
               <div
                 key={d.id}
-                className={`fleet-pick ${assigned ? 'is-assigned' : ''}`}
+                className={`fleet-pick ${assigned ? 'is-assigned' : ''} ${st.available ? 'is-free' : 'is-busy'}`}
               >
                 <strong>{d.profiles?.full_name || d.profiles?.email || 'Moto'}</strong>
-                <span>{d.operational_status === 'offline' ? 'Offline' : 'En línea'}{d.is_fleet_boss ? ' · tú' : ''}{assigned ? ' · asignado' : ''}</span>
+                <span className="fleet-pick__meta">
+                  {d.operational_status === 'offline' ? 'Offline' : 'En línea'}
+                  {d.is_fleet_boss ? ' · tú' : ''}
+                  {assigned ? ' · asignado' : ''}
+                </span>
+                <span
+                  className={`fleet-avail ${st.available ? 'is-ok' : 'is-no'}`}
+                  title={motoAvailHint(st)}
+                >
+                  {st.available ? 'Disponible' : 'No disponible'}
+                </span>
                 <div className="fleet-pick__actions">
                   {assigned ? (
                     <button
@@ -337,7 +382,8 @@ export function AdminFleetPanel() {
                       <button
                         type="button"
                         className="fleet-assign-btn"
-                        disabled={Boolean(busyId) || Boolean(assignedDriverId)}
+                        disabled={!canAssign}
+                        title={st.available ? 'Asignar a esta moto' : motoAvailHint(st)}
                         onClick={() => handleAssign(d.id)}
                       >
                         {busyId === d.id ? 'Asignando…' : 'Asignar'}

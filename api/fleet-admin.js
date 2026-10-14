@@ -194,7 +194,79 @@ async function listTeam(admin, ctx) {
       .in('id', ids);
     byId = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
   }
-  return list.map((r) => ({ ...r, profiles: byId[r.profile_id] || null }));
+  return withFleetAvailability(
+    admin,
+    list.map((r) => ({ ...r, profiles: byId[r.profile_id] || null })),
+  );
+}
+
+const CLOSED_JOB_STATUS = new Set(['delivered', 'cancelled']);
+const DELIVERY_PHASES = new Set(['to_customer', 'at_customer', 'delivering', 'done']);
+const DELIVERY_JOB_STATUS = new Set(['picked_up', 'delivering']);
+
+function emptyLoad() {
+  return { active: 0, delivering: false, jobs: new Set() };
+}
+
+function bumpLoad(map, driverId, jobId, delivering) {
+  if (!driverId) return;
+  const key = String(driverId);
+  const row = map.get(key) || emptyLoad();
+  if (jobId && !row.jobs.has(String(jobId))) {
+    row.jobs.add(String(jobId));
+    row.active += 1;
+  }
+  if (delivering) row.delivering = true;
+  map.set(key, row);
+}
+
+/** Cupo + fase: disponible si no va al cliente y le queda espacio antes del recojo. */
+async function withFleetAvailability(admin, team) {
+  const ids = [...new Set((team || []).map((d) => d.id).filter(Boolean))];
+  if (!ids.length) return team || [];
+
+  const [{ data: assigns }, { data: assignedJobs }, { data: heldJobs }] = await Promise.all([
+    admin
+      .from('ep_delivery_assignments')
+      .select('driver_id, phase, status, job_id')
+      .in('driver_id', ids)
+      .eq('status', 'active'),
+    admin
+      .from('ep_delivery_jobs')
+      .select('id, assigned_driver_id, fleet_hold_driver_id, status')
+      .in('assigned_driver_id', ids),
+    admin
+      .from('ep_delivery_jobs')
+      .select('id, assigned_driver_id, fleet_hold_driver_id, status')
+      .in('fleet_hold_driver_id', ids)
+      .is('assigned_driver_id', null),
+  ]);
+
+  const loads = new Map();
+  for (const a of assigns || []) {
+    const phase = String(a.phase || '').toLowerCase();
+    bumpLoad(loads, a.driver_id, a.job_id, DELIVERY_PHASES.has(phase));
+  }
+  for (const j of [...(assignedJobs || []), ...(heldJobs || [])]) {
+    const st = String(j.status || '').toLowerCase();
+    if (CLOSED_JOB_STATUS.has(st)) continue;
+    const driverId = j.assigned_driver_id || j.fleet_hold_driver_id;
+    bumpLoad(loads, driverId, j.id, DELIVERY_JOB_STATUS.has(st));
+  }
+
+  return (team || []).map((d) => {
+    const max = Math.max(1, Number(d.max_orders) || 2);
+    const load = loads.get(String(d.id)) || emptyLoad();
+    const delivering = load.delivering || String(d.operational_status || '').toLowerCase() === 'delivering';
+    const active = load.active;
+    return {
+      ...d,
+      live_active: active,
+      live_max: max,
+      live_delivering: delivering,
+      live_available: !delivering && active < max,
+    };
+  });
 }
 
 async function listPending(admin, branchId) {
