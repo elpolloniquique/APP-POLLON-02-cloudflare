@@ -13,10 +13,12 @@ import {
 import { useOrders } from '../../hooks/useOrders';
 import { useStaffBranch } from '../../hooks/useStaffBranch';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
-import { money, formatDateTime, estadoLabel, todayISO } from '../../utils/format';
+import { money, formatDateTime, estadoLabel, todayISO, openWhatsappToCustomer } from '../../utils/format';
+import { buildCustomerOrderConfirmationMessage } from '../../utils/orderReceipt';
 import { printThermalReceiptSmart } from '../../utils/networkPrinter';
 import { adminListAllBranches } from '../../services/branchService';
 import { OrderDetailModal } from '../../components/admin/OrderDetailModal';
+import { WhatsAppIcon } from '../../components/ui/WhatsAppIcon';
 import { CajaPagoControl } from '../../components/admin/CajaPagoControl';
 import { ORDER_STATES, canAdvanceOrderEstado, getNextOrderEstado } from '../../utils/constants';
 import { cajaPagoLabel, resolveCajaPagoStatus } from '../../utils/cajaPago';
@@ -490,6 +492,15 @@ export function AdminOrders() {
     }
   };
 
+  const handleWhatsAppConfirm = (order) => {
+    try {
+      const message = buildCustomerOrderConfirmationMessage(order, branchFor(order));
+      openWhatsappToCustomer(order.customer?.phone, message);
+    } catch (e) {
+      alert(e.message || 'No se pudo abrir WhatsApp');
+    }
+  };
+
   const handleSearchDriver = async (order) => {
     setSearchingDriver((s) => ({ ...s, [order.id]: true }));
     try {
@@ -797,6 +808,15 @@ export function AdminOrders() {
                     </div>
                   </div>
                   <footer className="orders-panel__card-actions">
+                    <button
+                      type="button"
+                      className="orders-panel__icon-btn orders-panel__icon-btn--wa"
+                      onClick={() => handleWhatsAppConfirm(o)}
+                      title="Confirmar pedido por WhatsApp"
+                      aria-label="Enviar confirmación por WhatsApp al cliente"
+                    >
+                      <WhatsAppIcon className="orders-panel__icon-svg" title="" />
+                    </button>
                     <button type="button" className="orders-panel__icon-btn" onClick={() => setViewOrder(o)} title="Ver" aria-label="Ver">
                       <Eye className="orders-panel__icon-svg" />
                       <span className="orders-panel__icon-label">Ver</span>
@@ -942,6 +962,15 @@ export function AdminOrders() {
                       </td>
                       <td className="col-actions">
                         <div className="orders-panel__actions-cell" role="group" aria-label="Acciones del pedido">
+                          <button
+                            type="button"
+                            className="orders-panel__icon-btn orders-panel__icon-btn--wa"
+                            onClick={() => handleWhatsAppConfirm(o)}
+                            title="Confirmar pedido por WhatsApp"
+                            aria-label="Enviar confirmación por WhatsApp al cliente"
+                          >
+                            <WhatsAppIcon className="orders-panel__icon-svg" title="" />
+                          </button>
                           <button
                             type="button"
                             className="orders-panel__icon-btn"

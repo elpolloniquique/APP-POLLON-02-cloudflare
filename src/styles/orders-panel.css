@@ -585,8 +585,8 @@
 
 .orders-panel__actions-cell {
   display: grid;
-  grid-template-columns: repeat(4, 2.2rem);
-  gap: 0.28rem;
+  grid-template-columns: repeat(5, 2.2rem);
+  gap: 0.22rem;
   align-items: center;
   justify-content: end;
   width: max-content;
@@ -596,9 +596,9 @@
 
 .orders-panel__table .col-actions {
   vertical-align: middle;
-  width: 10.5rem;
-  min-width: 10.5rem;
-  max-width: 10.5rem;
+  width: 12.75rem;
+  min-width: 12.75rem;
+  max-width: 12.75rem;
   overflow: visible;
   padding-right: 0.55rem;
 }
@@ -638,7 +638,7 @@
   background: #f9fafb;
 }
 
-.orders-panel__icon-btn:active:not(:disabled):not(.orders-panel__icon-btn--ghost) {
+.orders-panel__icon-btn:active:not(:disabled):not(.orders-panel__icon-btn--ghost):not(.orders-panel__icon-btn--wa) {
   transform: scale(0.96);
   background: #f3f4f6;
 }
@@ -653,6 +653,21 @@
   pointer-events: none;
   border-color: transparent;
   background: transparent;
+}
+
+.orders-panel__icon-btn--wa {
+  border-color: #0f8a5f;
+  background: linear-gradient(145deg, #25d366 0%, #128c7e 100%);
+  color: #fff;
+}
+
+.orders-panel__icon-btn--wa:hover {
+  background: linear-gradient(145deg, #2ee36f 0%, #0e7a6d 100%);
+}
+
+.orders-panel__icon-btn--wa:active {
+  transform: scale(0.96);
+  background: linear-gradient(145deg, #1ebe5a 0%, #0e7a6d 100%);
 }
 
 .orders-panel__icon-btn--print {
@@ -726,9 +741,9 @@
 .orders-panel__table .col-cobro { width: 7.5%; text-align: center; }
 .orders-panel__table .col-hora { width: 6%; }
 .orders-panel__table .col-actions {
-  width: 10.5rem;
-  min-width: 10.5rem;
-  max-width: 10.5rem;
+  width: 12.75rem;
+  min-width: 12.75rem;
+  max-width: 12.75rem;
 }
 
 /* —— PC 10" / tablet landscape (≈900–1279): denser, sin Total, repartidor corto —— */
@@ -797,14 +812,14 @@
   .orders-panel__table .col-cobro { width: 8%; }
   .orders-panel__table .col-hora { width: 6%; }
   .orders-panel__table .col-actions {
-    width: 10.25rem;
-    min-width: 10.25rem;
-    max-width: 10.25rem;
+    width: 12.5rem;
+    min-width: 12.5rem;
+    max-width: 12.5rem;
   }
 
   .orders-panel__actions-cell {
-    grid-template-columns: repeat(4, 2.15rem);
-    gap: 0.28rem;
+    grid-template-columns: repeat(5, 2.15rem);
+    gap: 0.22rem;
   }
 
   .orders-panel__icon-btn {
@@ -852,9 +867,9 @@
   .orders-panel__table .col-driver { width: 8%; }
   .orders-panel__table .col-cobro { width: 10%; }
   .orders-panel__table .col-actions {
-    width: 10.25rem;
-    min-width: 10.25rem;
-    max-width: 10.25rem;
+    width: 12.5rem;
+    min-width: 12.5rem;
+    max-width: 12.5rem;
   }
 }
 
@@ -968,8 +983,8 @@
 
   .orders-panel__card-actions {
     display: grid;
-    grid-template-columns: repeat(4, 2.75rem);
-    gap: 0.45rem;
+    grid-template-columns: repeat(5, 2.6rem);
+    gap: 0.3rem;
     justify-content: start;
     margin-top: 0.55rem;
     padding-top: 0.5rem;
@@ -977,10 +992,10 @@
   }
 
   .orders-panel__card-actions .orders-panel__icon-btn {
-    width: 2.75rem;
-    height: 2.75rem;
-    min-width: 2.75rem;
-    min-height: 2.75rem;
+    width: 2.6rem;
+    height: 2.6rem;
+    min-width: 2.6rem;
+    min-height: 2.6rem;
   }
 
   .orders-panel__card-actions .orders-panel__icon-label {
@@ -1021,14 +1036,14 @@
 /* Desktop amplio */
 @media (min-width: 1440px) {
   .orders-panel__table .col-actions {
-    width: 11.25rem;
-    min-width: 11.25rem;
-    max-width: 11.25rem;
+    width: 13.75rem;
+    min-width: 13.75rem;
+    max-width: 13.75rem;
   }
 
   .orders-panel__actions-cell {
-    grid-template-columns: repeat(4, 2.4rem);
-    gap: 0.35rem;
+    grid-template-columns: repeat(5, 2.35rem);
+    gap: 0.3rem;
   }
 
   .orders-panel__icon-btn {
