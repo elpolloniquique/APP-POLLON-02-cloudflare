@@ -60,12 +60,13 @@ export function AdminLayout() {
   const nav = useMemo(() => ADMIN_NAV.filter((n) => can(n.perm)), [can, role]);
 
   const currentPageLabel = useMemo(() => {
-    const match = nav.find((item) =>
+    const matches = nav.filter((item) =>
       item.path === '/admin'
         ? location.pathname === '/admin'
-        : location.pathname.startsWith(item.path),
+        : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`),
     );
-    return match?.label || 'Administración';
+    matches.sort((a, b) => b.path.length - a.path.length);
+    return matches[0]?.label || 'Administración';
   }, [nav, location.pathname]);
 
   // Cerrar drawer al navegar
@@ -96,7 +97,7 @@ export function AdminLayout() {
     despachador: 'Despachador',
     cocina: 'Cocina',
     delivery: 'Repartidor',
-    admin_repartidores: 'Jefe de flota',
+    admin_repartidores: 'Jefe de Repartidores',
   };
   const roleLabel = roleLabels[role] || role;
 
@@ -154,7 +155,7 @@ export function AdminLayout() {
               <NavLink
                 key={item.id}
                 to={item.path}
-                end={item.path === '/admin'}
+                end={item.path === '/admin' || item.path === '/admin/repartidores'}
                 data-tip={item.label}
                 title={item.label}
                 className={({ isActive }) =>
@@ -176,6 +177,7 @@ export function AdminLayout() {
                   <NavLink
                     key={item.id}
                     to={item.path}
+                    end={item.path === '/admin/repartidores'}
                     data-tip={item.label}
                     title={item.label}
                     className={({ isActive }) =>

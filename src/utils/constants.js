@@ -163,7 +163,7 @@ export const ROLE_PERMISSIONS = {
   cocinero: ['kitchen'],
   delivery: ['driver_app'],
   repartidor: ['driver_app'],
-  admin_repartidores: ['drivers', 'driver_reports', 'driver_app'],
+  admin_repartidores: ['drivers', 'fleet_config', 'driver_reports', 'driver_app'],
   cliente: [],
 };
 
@@ -181,6 +181,7 @@ export const ADMIN_NAV = [
   { id: 'usuarios', path: '/admin/usuarios', label: 'Usuarios', perm: 'users', icon: 'Users' },
   { id: 'config', path: '/admin/config', label: 'Configuración', perm: 'settings', icon: 'Settings' },
   { id: 'drivers', path: '/admin/repartidores', label: 'Repartidores', perm: 'drivers', group: 'delivery', icon: 'Bike' },
+  { id: 'fleet_config', path: '/admin/repartidores/flota', label: 'Configuración', perm: 'fleet_config', group: 'delivery', icon: 'Settings' },
   { id: 'driver_config', path: '/admin/repartidores/config', label: 'Config. despacho', perm: 'driver_config', group: 'delivery', icon: 'SlidersHorizontal' },
   { id: 'driver_rates', path: '/admin/repartidores/tarifas', label: 'Tarifas', perm: 'driver_rates', group: 'delivery', icon: 'DollarSign' },
   { id: 'dispatch', path: '/admin/repartidores/despacho', label: 'Despacho', perm: 'dispatch', group: 'delivery', icon: 'Send' },

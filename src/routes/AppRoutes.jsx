@@ -29,6 +29,7 @@ const AdminCustomers = lazy(() => import('../pages/admin/AdminCustomers').then((
 const AdminCampaigns = lazy(() => import('../pages/admin/AdminCampaigns').then((m) => ({ default: m.AdminCampaigns })));
 const KitchenScreen = lazy(() => import('../pages/admin/KitchenScreen').then((m) => ({ default: m.KitchenScreen })));
 const AdminDrivers = lazy(() => import('../pages/admin/AdminDrivers').then((m) => ({ default: m.AdminDrivers })));
+const AdminFleetConfig = lazy(() => import('../pages/admin/AdminFleetConfig').then((m) => ({ default: m.AdminFleetConfig })));
 const AdminDriverConfig = lazy(() => import('../pages/admin/AdminDriverConfig').then((m) => ({ default: m.AdminDriverConfig })));
 const AdminDriverRates = lazy(() => import('../pages/admin/AdminDriverRates').then((m) => ({ default: m.AdminDriverRates })));
 const AdminDispatch = lazy(() => import('../pages/admin/AdminDispatch').then((m) => ({ default: m.AdminDispatch })));
@@ -125,6 +126,7 @@ export function AppRoutes() {
         <Route path="config" element={<LazyPage><AdminPermGate perm="settings"><AdminConfig /></AdminPermGate></LazyPage>} />
 
         <Route path="repartidores" element={<LazyPage><AdminPermGate perm="drivers"><AdminDrivers /></AdminPermGate></LazyPage>} />
+        <Route path="repartidores/flota" element={<LazyPage><AdminPermGate perm="fleet_config"><AdminFleetConfig /></AdminPermGate></LazyPage>} />
         <Route path="repartidores/config" element={<LazyPage><AdminPermGate perm="driver_config"><AdminDriverConfig /></AdminPermGate></LazyPage>} />
         <Route path="repartidores/tarifas" element={<LazyPage><AdminPermGate perm="driver_rates"><AdminDriverRates /></AdminPermGate></LazyPage>} />
         <Route path="repartidores/despacho" element={<LazyPage><AdminPermGate perm="dispatch"><AdminDispatch /></AdminPermGate></LazyPage>} />
