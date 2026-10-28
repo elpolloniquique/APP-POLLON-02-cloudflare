@@ -18,6 +18,17 @@ import { DEFAULT_MAP_CENTER } from '../../utils/geo';
 
 const DEFAULT_ZOOM = 16;
 const MAX_ZOOM = 21;
+const OSM_TILES = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+function resolveMapCenter(start, bLat, bLng) {
+  const lat = Number(start?.lat);
+  const lng = Number(start?.lng);
+  if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
+  const fLat = Number(bLat);
+  const fLng = Number(bLng);
+  if (Number.isFinite(fLat) && Number.isFinite(fLng)) return { lat: fLat, lng: fLng };
+  return { lat: DEFAULT_MAP_CENTER.lat, lng: DEFAULT_MAP_CENTER.lng };
+}
 
 function MapSync({ center, recenterToken, extraMeasure = false, focusZoom = null }) {
   const map = useMap();
@@ -55,7 +66,7 @@ function MapSync({ center, recenterToken, extraMeasure = false, focusZoom = null
       }
     };
     run();
-    const delays = extraMeasure ? [80, 260, 500, 900] : [80, 260];
+    const delays = extraMeasure ? [40, 120, 280, 500] : [40, 140, 320];
     const timers = delays.map((d) => setTimeout(run, d));
     window.addEventListener('resize', run);
     return () => {
@@ -74,10 +85,10 @@ function MapMoveWatcher({ onCenterChange, suppressMoveRef, onUserDrag }) {
       if (suppressMoveRef?.current) return;
       const c = map.getCenter();
       onCenterChange({ lat: c.lat, lng: c.lng });
-      if (skipFirstMove.current) {
-        skipFirstMove.current = false;
-        return;
-      }
+      if (skipFirstMove.current) skipFirstMove.current = false;
+    },
+    dragend: () => {
+      if (suppressMoveRef?.current) return;
       onUserDrag?.();
     },
   });
@@ -203,7 +214,7 @@ export function GpsMapPickerModal({
 }) {
   const isInline = variant === 'inline';
   const isOverlay = chrome === 'overlay';
-  const [center, setCenter] = useState(initialCenter);
+  const [center, setCenter] = useState(() => resolveMapCenter(initialCenter, biasLat, biasLng));
   const [recenterToken, setRecenterToken] = useState(0);
   const [focusZoom, setFocusZoom] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -227,6 +238,7 @@ export function GpsMapPickerModal({
   const searchBoxRef = useRef(null);
   const searchInputRef = useRef(null);
   const userDraggedRef = useRef(false);
+  const typingRef = useRef(false);
   const sessionOpenRef = useRef(false);
   const propsRef = useRef({ initialCenter, selectedAddress, biasLat, biasLng });
   propsRef.current = { initialCenter, selectedAddress, biasLat, biasLng };
@@ -242,13 +254,7 @@ export function GpsMapPickerModal({
     sessionOpenRef.current = true;
 
     const { initialCenter: start, selectedAddress: known, biasLat: bLat, biasLng: bLng } = propsRef.current;
-    const fallback = {
-      lat: Number.isFinite(Number(bLat)) ? Number(bLat) : DEFAULT_MAP_CENTER.lat,
-      lng: Number.isFinite(Number(bLng)) ? Number(bLng) : DEFAULT_MAP_CENTER.lng,
-    };
-    const nextCenter = Number.isFinite(Number(start?.lat)) && Number.isFinite(Number(start?.lng))
-      ? { lat: Number(start.lat), lng: Number(start.lng) }
-      : fallback;
+    const nextCenter = resolveMapCenter(start, bLat, bLng);
     setCenter(nextCenter);
     setError('');
     setGpsAccuracy(null);
@@ -269,6 +275,7 @@ export function GpsMapPickerModal({
       setSearchQuery('');
       searchPinLockRef.current = false;
       lockedPinRef.current = null;
+      skipReverseRef.current = true;
     }
   }, [open]);
 
@@ -284,15 +291,19 @@ export function GpsMapPickerModal({
       skipReverseRef.current = false;
       return undefined;
     }
-    // No pisar un pin exacto elegido por búsqueda (calle + número)
+    // No consultar calles al abrir: el mapa debe verse al toque.
+    if (!userDraggedRef.current && !searchPinLockRef.current) {
+      return undefined;
+    }
+    // No pisar un pin exacto elegido por búsqueda (calle + número).
+    // El flyTo del mapa no cuenta: solo se suelta si el cliente arrastró.
     if (searchPinLockRef.current && lockedPinRef.current) {
       const locked = lockedPinRef.current;
       const dist = Math.hypot(
         (Number(center.lat) - Number(locked.lat)) * 111320,
         (Number(center.lng) - Number(locked.lng)) * 111320 * Math.cos((Number(center.lat) * Math.PI) / 180),
       );
-      // Solo liberar si el usuario arrastró el mapa claramente (>80 m)
-      if (dist < 80) {
+      if (!userDraggedRef.current || dist < 80) {
         return undefined;
       }
       searchPinLockRef.current = false;
@@ -300,13 +311,12 @@ export function GpsMapPickerModal({
     }
     let cancelled = false;
     const timer = setTimeout(async () => {
-      // Si se activó el candado mientras esperábamos, no reverse
       if (searchPinLockRef.current) return;
       setLoadingAddress(true);
       setError('');
       try {
         const geo = await reverseGeocodePrecise(center.lat, center.lng, {
-          accuracy: Number.isFinite(gpsAccuracy) ? gpsAccuracy : 18,
+          accuracy: Number.isFinite(gpsAccuracy) ? Math.min(gpsAccuracy, 16) : 12,
         });
         if (!cancelled && !searchPinLockRef.current) {
           const next = geo
@@ -320,13 +330,19 @@ export function GpsMapPickerModal({
             }
             : null;
           setDraft(next);
+          const synced = ensureShortLabel(next);
+          if (synced && !typingRef.current) {
+            setSearchQuery(synced);
+            setSuggestions([]);
+            setSearchOpen(false);
+            searchReqRef.current += 1;
+          }
           if (isInline && next?.road && next?.houseNumber && userDraggedRef.current) {
             onConfirm?.(next);
           }
         }
       } catch (err) {
         if (!cancelled && !searchPinLockRef.current) {
-          setDraft(null);
           setError(err?.message || 'No se pudo leer la dirección del punto seleccionado.');
         }
       } finally {
@@ -423,6 +439,7 @@ export function GpsMapPickerModal({
 
   const handleSearchChange = (e) => {
     const q = e.target.value;
+    typingRef.current = true;
     setSearchQuery(q);
     const selectedLabel = String(draft?.shortLabel || '').trim();
     if (q.trim() !== selectedLabel) {
@@ -461,6 +478,7 @@ export function GpsMapPickerModal({
     const precision = snapped.precision
       || (houseNumber ? 'exact' : 'street');
 
+    typingRef.current = false;
     setSearchQuery(labelText);
     setSuggestions([]);
     setSearchOpen(false);
@@ -511,6 +529,7 @@ export function GpsMapPickerModal({
     setSuggestions([]);
     setSearchLoading(true);
     setError('');
+    typingRef.current = false;
     const previewLabel = ensureShortLabel(item);
     if (previewLabel) {
       setDraft((prev) => ({
@@ -584,7 +603,20 @@ export function GpsMapPickerModal({
     }
 
     if (finalHit && Number.isFinite(Number(finalHit.lat)) && Number.isFinite(Number(finalHit.lng))) {
-      applySelectionToMap(finalHit);
+      const chosenLabel = ensureShortLabel(item);
+      applySelectionToMap(
+        chosenLabel && item.houseNumber
+          ? {
+            ...finalHit,
+            road: item.road || finalHit.road,
+            houseNumber: item.houseNumber || finalHit.houseNumber,
+            city: item.city || finalHit.city,
+            shortLabel: chosenLabel,
+            label: chosenLabel,
+            precision: item.precision || finalHit.precision,
+          }
+          : finalHit,
+      );
     }
   };
 
@@ -597,6 +629,10 @@ export function GpsMapPickerModal({
     if (loadingGps) return;
     setLoadingGps(true);
     setError('');
+    typingRef.current = false;
+    searchPinLockRef.current = false;
+    lockedPinRef.current = null;
+    userDraggedRef.current = true;
     try {
       const pos = await locateWithPrecisePermission({
         onImprove: (p) => setGpsAccuracy(p?.coords?.accuracy ?? null),
@@ -749,6 +785,8 @@ export function GpsMapPickerModal({
     </div>
   );
 
+  const mapCenter = resolveMapCenter(center, biasLat, biasLng);
+
   const card = (
     <div className={isInline
       ? (isOverlay ? 'overflow-visible bg-white' : 'overflow-visible rounded-[0.4rem] border border-[#d4d4d4] bg-white')
@@ -786,31 +824,33 @@ export function GpsMapPickerModal({
             {searchBox}
           </div>
         )}
-        {center?.lat && center?.lng ? (
-          <MapContainer
-            center={[center.lat, center.lng]}
-            zoom={DEFAULT_ZOOM}
+        <MapContainer
+          center={[mapCenter.lat, mapCenter.lng]}
+          zoom={DEFAULT_ZOOM}
+          maxZoom={MAX_ZOOM}
+          scrollWheelZoom
+          zoomControl={!isOverlay}
+          className={`h-full w-full ${isOverlay ? 'gps-map-overlay' : ''}`}
+          whenReady={(e) => {
+            try { e.target.invalidateSize({ animate: false }); } catch { /* ignore */ }
+          }}
+        >
+          <TileLayer
+            url={OSM_TILES}
+            attribution="&copy; OpenStreetMap contributors"
             maxZoom={MAX_ZOOM}
-            scrollWheelZoom
-            className={`h-full w-full ${isOverlay ? 'gps-map-overlay' : ''}`}
-          >
-            <TileLayer
-              url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution="&copy; OpenStreetMap contributors"
-              maxZoom={MAX_ZOOM}
-            />
-            <MapSync center={center} recenterToken={recenterToken} extraMeasure={isInline} focusZoom={focusZoom} />
-            <MapMoveWatcher
-              onCenterChange={setCenter}
-              suppressMoveRef={suppressMoveRef}
-              onUserDrag={() => { userDraggedRef.current = true; }}
-            />
-          </MapContainer>
-        ) : (
-          <div className="flex h-full items-center justify-center text-sm text-zinc-600">
-            Cargando mapa...
-          </div>
-        )}
+            maxNativeZoom={19}
+            keepBuffer={2}
+            updateWhenIdle={false}
+            updateWhenZooming={false}
+          />
+          <MapSync center={center} recenterToken={recenterToken} extraMeasure={isInline} focusZoom={focusZoom} />
+          <MapMoveWatcher
+            onCenterChange={setCenter}
+            suppressMoveRef={suppressMoveRef}
+            onUserDrag={() => { userDraggedRef.current = true; }}
+          />
+        </MapContainer>
 
         <FixedPin />
 

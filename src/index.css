@@ -2909,6 +2909,12 @@
   .checkout-address-summary__change:hover {
     background: rgb(192 0 0 / 0.08);
   }
+  .gps-map-overlay.leaflet-container,
+  .gps-map-overlay .leaflet-container {
+    height: 100%;
+    width: 100%;
+    background: #e8e8e8;
+  }
   .gps-map-overlay .leaflet-top.leaflet-left {
     top: 3.35rem;
   }
