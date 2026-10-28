@@ -15,17 +15,14 @@ export function SiteFooter() {
       <div className="border-b border-white/10">
         <div className="mx-auto grid max-w-[1400px] grid-cols-2 gap-6 px-4 py-8 md:grid-cols-4">
           {[
-            { icon: '🍗', title: 'Pollo fresco del día', desc: 'Marinado y cocinado al carbón' },
-            { icon: '🛵', title: 'Delivery rápido', desc: 'Llegamos caliente a tu puerta' },
-            { icon: '💵', title: 'Pago al recibir', desc: 'Efectivo, transferencia o tarjeta según sucursal' },
-            { icon: '🎧', title: 'Atención multi-sucursal', desc: 'Arica, Iquique y más' },
+            { title: 'Pollo fresco del día', desc: 'Marinado y cocinado al carbón' },
+            { title: 'Delivery rápido', desc: 'Llegamos caliente a tu puerta' },
+            { title: 'Pago al recibir', desc: 'Efectivo, transferencia o tarjeta según sucursal' },
+            { title: 'Atención multi-sucursal', desc: 'Arica, Iquique y más' },
           ].map((item) => (
-            <div key={item.title} className="flex items-center gap-3">
-              <span className="text-2xl">{item.icon}</span>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-wide">{item.title}</p>
-                <p className="text-[11px] text-white/60">{item.desc}</p>
-              </div>
+            <div key={item.title}>
+              <p className="text-xs font-bold uppercase tracking-wide">{item.title}</p>
+              <p className="mt-0.5 text-[11px] text-white/60">{item.desc}</p>
             </div>
           ))}
         </div>

@@ -27,14 +27,6 @@ const TRUST_BAR_ITEMS = [
   { icon: MapPin, label: 'Atención multi-sucursal', desktopOnly: true },
 ];
 
-function RunningChick() {
-  return (
-    <span className="home-trust-chick" aria-hidden="true">
-        <img src="/img/pollito-delivery.gif?v=17" alt="" className="home-trust-chick__gif" />
-    </span>
-  );
-}
-
 const WHY_US = [
   { icon: ChefHat, title: 'Pollo fresco del día', desc: 'Marinado y cocinado al carbón cada día con receta peruana auténtica.' },
   { icon: Bike, title: 'Delivery rápido y seguro', desc: 'Llegamos caliente a tu puerta según la sucursal que elijas.' },
@@ -255,17 +247,7 @@ export function Home() {
       {/* Barra de confianza bajo hero */}
       <div className="home-trust-bar border-b border-gray-200 bg-white py-1.5 shadow-sm md:py-2">
         <div className="home-trust-bar__track">
-          {TRUST_BAR_ITEMS.slice(0, 2).map(({ icon: Icon, label, desktopOnly }) => (
-            <span
-              key={label}
-              className={`home-trust-bar__item${desktopOnly ? ' home-trust-bar__item--desktop' : ''}`}
-            >
-              <Icon className="home-trust-bar__icon" strokeWidth={2} aria-hidden />
-              {label}
-            </span>
-          ))}
-          <RunningChick />
-          {TRUST_BAR_ITEMS.slice(2).map(({ icon: Icon, label, desktopOnly }) => (
+          {TRUST_BAR_ITEMS.map(({ icon: Icon, label, desktopOnly }) => (
             <span
               key={label}
               className={`home-trust-bar__item${desktopOnly ? ' home-trust-bar__item--desktop' : ''}`}
