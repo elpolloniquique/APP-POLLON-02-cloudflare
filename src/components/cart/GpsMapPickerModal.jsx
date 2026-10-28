@@ -132,6 +132,33 @@ function secondaryLine(label) {
   return i === -1 ? '' : label.slice(i + 1).trim();
 }
 
+function ensureShortLabel(hit) {
+  const existing = String(hit?.shortLabel || hit?.label || '').trim();
+  if (existing) return existing;
+  const line = [hit?.road, hit?.houseNumber].filter(Boolean).join(' ').trim();
+  if (!line) return '';
+  const city = String(hit?.city || '').trim();
+  return city ? `${line}, ${city}` : line;
+}
+
+function draftFromKnownAddress(address, center) {
+  const text = String(address || '').trim();
+  if (!text || !Number.isFinite(Number(center?.lat)) || !Number.isFinite(Number(center?.lng))) return null;
+  const parsed = parseAddressQuery(text);
+  if (!parsed.street && !parsed.houseNumber) return null;
+  return {
+    shortLabel: text,
+    label: text,
+    road: parsed.street || '',
+    houseNumber: parsed.houseNumber,
+    city: parsed.city || '',
+    lat: Number(center.lat),
+    lng: Number(center.lng),
+    source: 'search',
+    precision: parsed.houseNumber ? 'exact' : 'street',
+  };
+}
+
 function escapeRegExp(s) {
   return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -172,6 +199,7 @@ export function GpsMapPickerModal({
   biasLng,
   branchAddress = '',
   branchHouseNumber = null,
+  selectedAddress = '',
 }) {
   const isInline = variant === 'inline';
   const isOverlay = chrome === 'overlay';
@@ -199,25 +227,50 @@ export function GpsMapPickerModal({
   const searchBoxRef = useRef(null);
   const searchInputRef = useRef(null);
   const userDraggedRef = useRef(false);
+  const sessionOpenRef = useRef(false);
+  const propsRef = useRef({ initialCenter, selectedAddress, biasLat, biasLng });
+  propsRef.current = { initialCenter, selectedAddress, biasLat, biasLng };
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      sessionOpenRef.current = false;
+      return;
+    }
+    // Una sola inicialización por apertura. Si el padre actualiza lat/lng
+    // después de elegir la dirección, no borrar calle y número del recuadro.
+    if (sessionOpenRef.current) return;
+    sessionOpenRef.current = true;
+
+    const { initialCenter: start, selectedAddress: known, biasLat: bLat, biasLng: bLng } = propsRef.current;
     const fallback = {
-      lat: Number.isFinite(Number(biasLat)) ? Number(biasLat) : DEFAULT_MAP_CENTER.lat,
-      lng: Number.isFinite(Number(biasLng)) ? Number(biasLng) : DEFAULT_MAP_CENTER.lng,
+      lat: Number.isFinite(Number(bLat)) ? Number(bLat) : DEFAULT_MAP_CENTER.lat,
+      lng: Number.isFinite(Number(bLng)) ? Number(bLng) : DEFAULT_MAP_CENTER.lng,
     };
-    setCenter(initialCenter?.lat && initialCenter?.lng ? initialCenter : fallback);
-    setDraft(null);
+    const nextCenter = Number.isFinite(Number(start?.lat)) && Number.isFinite(Number(start?.lng))
+      ? { lat: Number(start.lat), lng: Number(start.lng) }
+      : fallback;
+    setCenter(nextCenter);
     setError('');
     setGpsAccuracy(null);
-    setSearchQuery('');
     setSuggestions([]);
     setSearchOpen(false);
     setActiveIdx(-1);
-    searchPinLockRef.current = false;
-    lockedPinRef.current = null;
     userDraggedRef.current = false;
-  }, [open, initialCenter?.lat, initialCenter?.lng, biasLat, biasLng]);
+
+    const seeded = draftFromKnownAddress(known, nextCenter);
+    if (seeded?.houseNumber) {
+      setDraft(seeded);
+      setSearchQuery(seeded.shortLabel);
+      searchPinLockRef.current = true;
+      lockedPinRef.current = { lat: nextCenter.lat, lng: nextCenter.lng };
+      skipReverseRef.current = true;
+    } else {
+      setDraft(null);
+      setSearchQuery('');
+      searchPinLockRef.current = false;
+      lockedPinRef.current = null;
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open || !isInline) return undefined;
@@ -256,7 +309,16 @@ export function GpsMapPickerModal({
           accuracy: Number.isFinite(gpsAccuracy) ? gpsAccuracy : 18,
         });
         if (!cancelled && !searchPinLockRef.current) {
-          const next = geo ? { ...geo, lat: center.lat, lng: center.lng, source: 'gps' } : null;
+          const next = geo
+            ? {
+              ...geo,
+              lat: center.lat,
+              lng: center.lng,
+              source: 'gps',
+              shortLabel: ensureShortLabel(geo),
+              label: ensureShortLabel(geo),
+            }
+            : null;
           setDraft(next);
           if (isInline && next?.road && next?.houseNumber && userDraggedRef.current) {
             onConfirm?.(next);
@@ -386,9 +448,18 @@ export function GpsMapPickerModal({
       : snapAddressCoordsForBranch(finalHit, branchRef);
     const lat = Number(snapped.lat);
     const lng = Number(snapped.lng);
-    const labelText = snapped.shortLabel || finalHit.shortLabel || finalHit.label || '';
+    const houseNumber = snapped.houseNumber || finalHit.houseNumber || null;
+    const road = snapped.road || finalHit.road || '';
+    const labelText = ensureShortLabel({
+      ...snapped,
+      shortLabel: snapped.shortLabel || finalHit.shortLabel,
+      label: snapped.label || finalHit.label,
+      road,
+      houseNumber,
+      city: snapped.city || finalHit.city,
+    });
     const precision = snapped.precision
-      || (snapped.houseNumber ? 'exact' : 'street');
+      || (houseNumber ? 'exact' : 'street');
 
     setSearchQuery(labelText);
     setSuggestions([]);
@@ -402,13 +473,17 @@ export function GpsMapPickerModal({
     suppressMoveRef.current = true;
     const nextDraft = {
       ...snapped,
+      ...finalHit,
       lat,
       lng,
+      road,
+      houseNumber,
+      shortLabel: labelText,
+      label: labelText,
       source: 'search',
       precision,
     };
-    // Candado: no dejar que el reverse GPS pise la fachada / número buscado
-    const hasHouse = !!(snapped.houseNumber || finalHit.houseNumber);
+    const hasHouse = !!houseNumber;
     if (precision === 'exact' || precision === 'interpolated' || hasHouse) {
       searchPinLockRef.current = true;
       lockedPinRef.current = { lat, lng };
@@ -436,6 +511,18 @@ export function GpsMapPickerModal({
     setSuggestions([]);
     setSearchLoading(true);
     setError('');
+    const previewLabel = ensureShortLabel(item);
+    if (previewLabel) {
+      setDraft((prev) => ({
+        ...prev,
+        ...item,
+        shortLabel: previewLabel,
+        label: previewLabel,
+        road: item.road || prev?.road || '',
+        houseNumber: item.houseNumber || prev?.houseNumber || null,
+      }));
+      setSearchQuery(previewLabel);
+    }
 
     // Si la sugerencia ya trae coords de la comuna correcta, mueve el pin al toque
     const hasItemCoords = Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng));
@@ -501,12 +588,10 @@ export function GpsMapPickerModal({
     }
   };
 
-  const label = useMemo(() => {
-    if (!draft?.shortLabel) return '';
-    return draft.shortLabel;
-  }, [draft]);
-
-  const canConfirm = !!(draft?.road && draft?.houseNumber);
+  const label = useMemo(() => ensureShortLabel(draft), [draft]);
+  const streetHeadline = primaryLine(label);
+  const placeDetail = secondaryLine(label);
+  const canConfirm = !!(draft?.road && draft?.houseNumber) || !!parseAddressQuery(label).houseNumber;
 
   const handleRecenter = async () => {
     if (loadingGps) return;
@@ -594,6 +679,9 @@ export function GpsMapPickerModal({
               setSearchQuery('');
               setSuggestions([]);
               setSearchOpen(false);
+              setDraft(null);
+              searchPinLockRef.current = false;
+              lockedPinRef.current = null;
               onSearchTyping?.('');
             }}
             className="rounded-full p-0.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-black"
@@ -754,19 +842,28 @@ export function GpsMapPickerModal({
               <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#14532d]">
                 Punto seleccionado
               </p>
-              <p className={`mt-1 flex items-center gap-2.5 text-[13.5px] font-semibold leading-[1.35] sm:text-[14px] ${isOverlay ? 'text-[#166534]' : 'text-[#1d4ed8]'}`}>
+              <p className={`mt-1 flex items-center gap-2.5 text-[15px] font-bold leading-[1.3] tracking-[-0.01em] sm:text-[16px] ${isOverlay ? 'text-[#14532d]' : 'text-[#1d4ed8]'}`}>
                 <span className="min-w-0 flex-1">
-                  {loadingAddress ? 'Leyendo calle y número...' : (label || 'Mueve el mapa o busca manualmente tu dirección')}
+                  {loadingAddress && !streetHeadline
+                    ? 'Leyendo calle y número...'
+                    : (streetHeadline || 'Mueve el mapa o busca tu dirección')}
                 </span>
                 {loadingAddress && <LoadingSpin size="lg" />}
               </p>
+              {placeDetail && !loadingAddress && (
+                <p className="mt-0.5 text-[12.5px] font-medium leading-[1.35] text-[#166534]/80">
+                  {placeDetail}
+                </p>
+              )}
               <p className="mt-1 text-[11px] font-medium leading-[1.4] text-zinc-600">
                 {error
-                  || (draft?.precision
-                    ? precisionHint(draft.precision)
-                    : (isInline
-                      ? 'Escribe calle y número y elige un resultado de la lista.'
-                      : 'Confirma solo cuando aparezca calle y número completos.'))}
+                  || (canConfirm
+                    ? 'Calle y número confirmados para este punto.'
+                    : (draft?.precision
+                      ? precisionHint(draft.precision)
+                      : (isInline
+                        ? 'Escribe calle y número y elige un resultado de la lista.'
+                        : 'Confirma solo cuando aparezca calle y número completos.')))}
                 {gpsAccuracy != null ? ` Precisión GPS: ${Math.round(gpsAccuracy)} m.` : ''}
               </p>
             </div>

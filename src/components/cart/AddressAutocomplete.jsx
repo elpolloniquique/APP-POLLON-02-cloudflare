@@ -400,6 +400,7 @@ export function AddressAutocomplete({
           biasLng={biasLng}
           branchAddress={branchAddress}
           branchHouseNumber={branchHouseNumber}
+          selectedAddress={value || ''}
         />
 
         {!hideHint && (
