@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { X, CheckCircle, Bike, Loader2, Banknote, Landmark, CreditCard, Check, Clock } from 'lucide-react';
+import { X, CheckCircle, Bike, Loader2, Banknote, Landmark, CreditCard, Check, Clock, MapPin } from 'lucide-react';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { WhatsAppIcon } from '../ui/WhatsAppIcon';
 import { useCart } from '../../context/CartContext';
@@ -68,6 +68,7 @@ export function CheckoutModal() {
   const [deliveryQuote, setDeliveryQuote] = useState(null); // { fee, distanceKm, zone, outOfRange, loading }
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState('form');
+  const [addressPicked, setAddressPicked] = useState(false);
   const [confirmedOrder, setConfirmedOrder] = useState(null);
   const submitLock = useRef(false);
   const addressJumpTimer = useRef(0);
@@ -90,12 +91,18 @@ export function CheckoutModal() {
   useEffect(() => {
     if (!checkoutOpen) {
       setStep('form');
+      setAddressPicked(false);
       setConfirmedOrder(null);
       submitLock.current = false;
       return;
     }
-    if (!items.length && step === 'form') setCheckoutOpen(false);
-  }, [checkoutOpen, items.length, step, setCheckoutOpen]);
+    const types = getAvailableOrderTypes(branch);
+    const type = types.includes(form.orderType) ? form.orderType : getDefaultOrderType(branch);
+    setStep(type === 'delivery' ? 'address' : 'form');
+    if (!items.length) setCheckoutOpen(false);
+    // Solo al abrir el modal: el paso de dirección es el primero en delivery.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkoutOpen]);
 
   useEffect(() => {
     if (checkoutOpen && isCustomer && profile) {
@@ -176,11 +183,21 @@ export function CheckoutModal() {
     setCheckoutOpen(false);
     setStep('form');
     setConfirmedOrder(null);
+    setAddressPicked(false);
     setDeliveryQuote(null);
     submitLock.current = false;
   };
 
   const update = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const setOrderType = (t) => {
+    update('orderType', t);
+    if (t === 'delivery') {
+      if (!form.addressLat || !form.addressLng) setStep('address');
+    } else {
+      setStep('form');
+    }
+  };
 
   const scrollToField = (e) => {
     e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -200,56 +217,146 @@ export function CheckoutModal() {
   const jumpAfterAddress = () => {
     window.clearTimeout(addressJumpTimer.current);
     const punto = document.getElementById('checkout-punto-seleccionado');
-    punto?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    addressJumpTimer.current = window.setTimeout(() => {
-      focusCheckoutField('checkout-referencia');
-    }, 520);
+    punto?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
+
+  const goToDetails = () => {
+    if (!availableOrderTypes.length) {
+      show('Esta sucursal no tiene tipos de pedido habilitados');
+      return;
+    }
+    if (!isDelivery) {
+      setStep('form');
+      focusCheckoutField('checkout-name');
+      return;
+    }
+    if (!addressPicked || !form.address.trim() || form.addressLat == null || form.addressLng == null) {
+      show('Te falta seleccionar tu dirección de entrega');
+      focusCheckoutField('checkout-address-search');
+      return;
+    }
+    if (!parseAddressQuery(form.address).houseNumber) {
+      show('Elige una dirección con calle y número');
+      focusCheckoutField('checkout-address-search');
+      return;
+    }
+    if (deliveryQuote?.loading) {
+      show('Calculando costo de delivery…');
+      return;
+    }
+    if (deliveryQuote?.outOfRange) {
+      const max = deliveryQuote.maxKm ? ` (máx. ${deliveryQuote.maxKm} km)` : '';
+      show(`Tu dirección está fuera de la zona de cobertura${max}`);
+      return;
+    }
+    if (!deliveryQuote || !(deliveryQuote.fee > 0)) {
+      show('No se pudo calcular el delivery. Revisa tu dirección');
+      return;
+    }
+    setStep('form');
+    focusCheckoutField('checkout-name');
+  };
+
+  const deliveryNotice = isDelivery ? (
+    <div className="checkout-delivery-notice">
+      <div className="checkout-delivery-notice__row">
+        <span className="checkout-delivery-notice__head">
+          <Bike className="checkout-delivery-notice__icon" aria-hidden />
+          <span className="checkout-delivery-notice__title">Costo de delivery</span>
+        </span>
+        {form.addressLat && deliveryQuote && !deliveryQuote.loading && !deliveryQuote.outOfRange && deliveryFee > 0 && (
+          <span
+            className="checkout-delivery-notice__range"
+            style={deliveryQuote.zone?.color ? { color: deliveryQuote.zone.color } : undefined}
+          >
+            {money(deliveryFee)}
+          </span>
+        )}
+      </div>
+      {!form.addressLat && (
+        <p className="checkout-delivery-notice__body">
+          Elige un resultado de la lista con calle y número para calcular el delivery.
+        </p>
+      )}
+      {form.addressLat && deliveryQuote?.loading && (
+        <p className="checkout-delivery-notice__body inline-flex items-center gap-1.5">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Calculando distancia…
+        </p>
+      )}
+      {form.addressLat && deliveryQuote && !deliveryQuote.loading && deliveryQuote.outOfRange && (
+        <p className="text-[11px] font-semibold leading-snug text-red-600">
+          Fuera de cobertura{deliveryQuote.maxKm ? ` (máx. ${deliveryQuote.maxKm} km)` : ''}.
+          {deliveryQuote.distanceKm != null && ` Estás a ${formatDistance(deliveryQuote.distanceKm)}.`}
+        </p>
+      )}
+      {form.addressLat && deliveryQuote && !deliveryQuote.loading && !deliveryQuote.outOfRange && deliveryFee > 0 && (
+        <p className="checkout-delivery-notice__body">
+          {deliveryQuote.zone?.name || 'Zona'}
+          {deliveryQuote.distanceKm != null ? ` · ${formatDistance(deliveryQuote.distanceKm)} desde la sucursal` : ''}
+        </p>
+      )}
+    </div>
+  ) : null;
 
   const goNextFromName = (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    if (form.name.trim()) focusCheckoutField('checkout-phone');
+    focusCheckoutField('checkout-phone');
   };
 
   const goNextFromPhone = (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    const digits = String(form.phone || '').replace(/\D/g, '');
-    if (!normalizeChilePhone(form.phone) && digits.length < 8) return;
-    if (isDelivery && !form.addressLat) focusCheckoutField('checkout-address-search');
-    else if (isDelivery) focusCheckoutField('checkout-referencia');
+    if (isDelivery) focusCheckoutField('checkout-referencia');
     else focusCheckoutField('checkout-comments');
   };
 
   const goNextFromReferencia = (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    if (form.referencia.trim()) focusCheckoutField('checkout-comments');
+    focusCheckoutField('checkout-comments');
+  };
+
+  const goNextFromComments = (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    e.currentTarget.form?.requestSubmit?.();
   };
 
   const validate = () => {
-    if (!form.name.trim()) return 'Ingresa tu nombre';
-    if (!normalizeChilePhone(form.phone)) return 'Ingresa un teléfono válido (ej. 9 2558 6256)';
+    if (!form.name.trim()) return { message: 'Te falta llenar el nombre', field: 'checkout-name' };
+    if (!normalizeChilePhone(form.phone)) {
+      return {
+        message: form.phone.trim() ? 'Ingresa un teléfono válido (ej. 9 2558 6256)' : 'Te falta llenar el teléfono',
+        field: 'checkout-phone',
+      };
+    }
     if (form.orderType === 'delivery') {
-      if (!form.address.trim()) return 'Selecciona tu dirección en el mapa';
-      if (!form.addressLat || !form.addressLng) return 'Elige tu dirección en la lista para calcular el delivery';
-      if (!form.referencia.trim()) return 'Ingresa una referencia para ubicar tu dirección';
-      if (branch?.lat == null || branch?.lng == null) return 'La sucursal no tiene ubicación GPS configurada';
-      if (deliveryQuote?.loading) return 'Calculando costo de delivery…';
+      if (!addressPicked || !form.address.trim() || form.addressLat == null || form.addressLng == null) {
+        return { message: 'Te falta seleccionar tu dirección de entrega', field: null };
+      }
+      if (!parseAddressQuery(form.address).houseNumber) {
+        return { message: 'Elige una dirección con calle y número', field: null };
+      }
+      if (branch?.lat == null || branch?.lng == null) {
+        return { message: 'La sucursal no tiene ubicación GPS configurada', field: null };
+      }
+      if (deliveryQuote?.loading) return { message: 'Calculando costo de delivery…', field: null };
       if (deliveryQuote?.outOfRange) {
         const max = deliveryQuote.maxKm ? ` (máx. ${deliveryQuote.maxKm} km)` : '';
-        return `Tu dirección está fuera de la zona de cobertura${max}`;
+        return { message: `Tu dirección está fuera de la zona de cobertura${max}`, field: null };
       }
-      if (!deliveryQuote || !(deliveryQuote.fee > 0)) return 'No se pudo calcular el delivery. Revisa tu dirección';
+      if (!deliveryQuote || !(deliveryQuote.fee > 0)) {
+        return { message: 'No se pudo calcular el delivery. Revisa tu dirección', field: null };
+      }
     }
-    if (!items.length) return 'Tu carrito está vacío';
-    if (!branch) return 'Selecciona una sucursal';
-    if (!branchOpen) return 'La sucursal está cerrada en este momento';
+    if (!items.length) return { message: 'Tu carrito está vacío', field: null };
+    if (!branch) return { message: 'Selecciona una sucursal', field: null };
+    if (!branchOpen) return { message: 'La sucursal está cerrada en este momento', field: null };
     const typeErr = validateOrderTypeChoice(branch, form.orderType, subtotal);
-    if (typeErr) return typeErr;
+    if (typeErr) return { message: typeErr, field: null };
     if (!isPaymentMethodAllowed(branch, form.payment)) {
-      return 'Selecciona un método de pago válido para esta sucursal';
+      return { message: 'Te falta seleccionar el método de pago', field: null };
     }
     return null;
   };
@@ -259,7 +366,11 @@ export function CheckoutModal() {
     if (submitLock.current || submitting) return;
 
     const err = validate();
-    if (err) { show(err); return; }
+    if (err) {
+      show(err.message);
+      if (err.field) focusCheckoutField(err.field);
+      return;
+    }
 
     submitLock.current = true;
     setSubmitting(true);
@@ -409,6 +520,131 @@ export function CheckoutModal() {
     );
   }
 
+  const visibleStep = step === 'success'
+    ? 'success'
+    : (!isDelivery
+      ? 'form'
+      : ((step === 'form' && !addressPicked && form.addressLat == null) ? 'address' : step));
+
+  const typeSwitcher = availableOrderTypes.length > 0 ? (
+    <div className="checkout-type-row checkout-type-row--compact" role="group" aria-label="Tipo de pedido">
+      {ORDER_TYPES.filter((t) => availableOrderTypes.includes(t)).map((t) => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => setOrderType(t)}
+          className={`checkout-type-btn checkout-type-btn--compact ${form.orderType === t ? 'is-selected' : ''}`}
+        >
+          {ORDER_TYPE_LABELS[t] || t}
+        </button>
+      ))}
+    </div>
+  ) : null;
+
+  if (visibleStep === 'address') {
+    return (
+      <>
+        {Toast}
+        <div className="checkout-overlay" onClick={closeModal} role="presentation">
+          <div
+            className="checkout-modal checkout-modal--address"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="checkout-modal-title"
+          >
+            <header className="checkout-modal__header checkout-modal__header--address">
+              <button
+                type="button"
+                onClick={closeModal}
+                className="checkout-modal__close"
+                aria-label="Cerrar"
+              >
+                <X className="h-[18px] w-[18px]" />
+              </button>
+              <h2 id="checkout-modal-title" className="checkout-modal__title checkout-modal__title--address">
+                Confirma tu dirección de entrega
+              </h2>
+            </header>
+
+            <div className="checkout-modal__form">
+              <div className="checkout-modal__body checkout-modal__body--address admin-scroll-panel">
+                {availableOrderTypes.length > 1 && (
+                  <div className="checkout-address-types">
+                    {typeSwitcher}
+                  </div>
+                )}
+                {!availableOrderTypes.length && (
+                  <p className="mx-4 mt-3 rounded-[0.32rem] bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
+                    Esta sucursal no tiene tipos de pedido habilitados. Contacta al local.
+                  </p>
+                )}
+                <AddressAutocomplete
+                  value={form.address}
+                  required
+                  mode="map"
+                  pickerChrome="overlay"
+                  hideHint
+                  initialLat={form.addressLat}
+                  initialLng={form.addressLng}
+                  cityBias={branch?.city || 'Iquique'}
+                  biasLat={branch?.lat}
+                  biasLng={branch?.lng}
+                  branchAddress={branch?.address || ''}
+                  branchHouseNumber={parseAddressQuery(branch?.address || '').houseNumber}
+                  onChange={(label, geo) => {
+                    if (!geo) {
+                      setAddressPicked(false);
+                      setForm((f) => ({
+                        ...f,
+                        address: label,
+                        addressLat: null,
+                        addressLng: null,
+                      }));
+                      return;
+                    }
+                    const snapped = snapAddressCoordsForBranch(geo, branch);
+                    setForm((f) => ({
+                      ...f,
+                      address: label,
+                      addressLat: snapped?.lat ?? geo?.lat ?? null,
+                      addressLng: snapped?.lng ?? geo?.lng ?? null,
+                    }));
+                  }}
+                  onSelect={(geo) => {
+                    if (!geo?.houseNumber || !Number.isFinite(Number(geo.lat))) {
+                      setAddressPicked(false);
+                      return;
+                    }
+                    const snapped = snapAddressCoordsForBranch(geo, branch);
+                    setAddressPicked(true);
+                    setForm((f) => ({
+                      ...f,
+                      address: snapped.shortLabel || geo.shortLabel,
+                      addressLat: snapped.lat,
+                      addressLng: snapped.lng,
+                    }));
+                    jumpAfterAddress();
+                  }}
+                />
+              </div>
+
+              <footer className="checkout-modal__footer">
+                {deliveryNotice}
+                <button
+                  type="button"
+                  onClick={goToDetails}
+                  className="checkout-submit"
+                >
+                  {addressPicked && deliveryQuote?.loading ? 'Calculando delivery…' : 'Siguiente'}
+                </button>
+              </footer>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       {Toast}
@@ -436,24 +672,11 @@ export function CheckoutModal() {
                 <span className="checkout-label checkout-modal__type-label">Tipo de pedido</span>
               )}
               <p className="checkout-modal__subtitle">Sucursal: {branch?.name}</p>
-              {availableOrderTypes.length > 0 && (
-                <div className="checkout-type-row checkout-type-row--compact" role="group" aria-label="Tipo de pedido">
-                  {ORDER_TYPES.filter((t) => availableOrderTypes.includes(t)).map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => update('orderType', t)}
-                      className={`checkout-type-btn checkout-type-btn--compact ${form.orderType === t ? 'is-selected' : ''}`}
-                    >
-                      {ORDER_TYPE_LABELS[t] || t}
-                    </button>
-                  ))}
-                </div>
-              )}
+              {typeSwitcher}
             </div>
           </header>
 
-          <form onSubmit={handleSubmit} className="checkout-modal__form">
+          <form onSubmit={handleSubmit} className="checkout-modal__form" noValidate>
             <div className="checkout-modal__body admin-scroll-panel">
               {!availableOrderTypes.length && (
                 <p className="mb-2 rounded-[0.32rem] bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
@@ -467,20 +690,19 @@ export function CheckoutModal() {
                   <label htmlFor="checkout-name" className="checkout-label">Nombre</label>
                   <input
                     id="checkout-name"
-                    required
                     placeholder="Nombre completo"
                     value={form.name}
                     onChange={(e) => update('name', e.target.value)}
                     onFocus={scrollToField}
                     onKeyDown={goNextFromName}
                     className="checkout-input"
+                    autoComplete="name"
                   />
                 </div>
                 <div className="checkout-field">
                   <label htmlFor="checkout-phone" className="checkout-label">Teléfono</label>
                   <input
                     id="checkout-phone"
-                    required
                     placeholder="Ej: 9 2558 6256"
                     value={form.phone}
                     onChange={(e) => update('phone', e.target.value)}
@@ -488,59 +710,39 @@ export function CheckoutModal() {
                     onKeyDown={goNextFromPhone}
                     className="checkout-input"
                     inputMode="tel"
+                    autoComplete="tel"
                   />
                 </div>
               </div>
 
-              {form.orderType === 'delivery' && (
-                <div className="checkout-field">
-                  <label className="checkout-label">Dirección de entrega</label>
-                  <AddressAutocomplete
-                    value={form.address}
-                    required
-                    mode="map"
-                    cityBias={branch?.city || 'Iquique'}
-                    biasLat={branch?.lat}
-                    biasLng={branch?.lng}
-                    branchAddress={branch?.address || ''}
-                    branchHouseNumber={parseAddressQuery(branch?.address || '').houseNumber}
-                    onChange={(label, geo) => {
-                      const snapped = geo
-                        ? snapAddressCoordsForBranch(geo, branch)
-                        : null;
-                      setForm((f) => ({
-                        ...f,
-                        address: label,
-                        addressLat: snapped?.lat ?? geo?.lat ?? null,
-                        addressLng: snapped?.lng ?? geo?.lng ?? null,
-                      }));
-                    }}
-                    onSelect={(geo) => {
-                      if (geo) {
-                        const snapped = snapAddressCoordsForBranch(geo, branch);
-                        setForm((f) => ({
-                          ...f,
-                          address: snapped.shortLabel || geo.shortLabel,
-                          addressLat: snapped.lat,
-                          addressLng: snapped.lng,
-                        }));
-                        jumpAfterAddress();
-                      }
-                    }}
-                  />
+              {isDelivery && form.address && (
+                <div className="checkout-address-summary">
+                  <span className="checkout-address-summary__icon" aria-hidden>
+                    <MapPin size={15} strokeWidth={2.4} />
+                  </span>
+                  <div className="checkout-address-summary__copy">
+                    <p className="checkout-address-summary__label">Dirección de entrega</p>
+                    <p className="checkout-address-summary__value">{form.address}</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="checkout-address-summary__change"
+                    onClick={() => setStep('address')}
+                  >
+                    Cambiar
+                  </button>
                 </div>
               )}
 
-              {form.orderType === 'delivery' && (
+              {isDelivery && (
                 <div className="checkout-field">
                   <label htmlFor="checkout-referencia" className="checkout-label">
-                    Referencia
+                    Referencia <span className="checkout-label__opt">(opcional)</span>
                   </label>
                   <input
                     id="checkout-referencia"
                     type="text"
-                    required
-                    placeholder="Vivar 1086, al frente de cruz verde en la esquina con O'Higgins"
+                    placeholder="Ej: casa verde, esquina"
                     value={form.referencia}
                     onChange={(e) => update('referencia', e.target.value)}
                     onFocus={scrollToField}
@@ -548,9 +750,7 @@ export function CheckoutModal() {
                     className="checkout-input"
                     autoComplete="off"
                   />
-                  <p className="checkout-label__hint">
-                    Indica un punto de referencia cercano (tienda, esquina, color de la casa) para que el repartidor te ubique rápido.
-                  </p>
+                  <p className="checkout-label__hint">tienda, esquina, color de la casa</p>
                 </div>
               )}
 
@@ -565,6 +765,7 @@ export function CheckoutModal() {
                   value={form.comments}
                   onChange={(e) => update('comments', e.target.value)}
                   onFocus={scrollToField}
+                  onKeyDown={goNextFromComments}
                   className="checkout-input"
                 />
               </div>
@@ -613,46 +814,7 @@ export function CheckoutModal() {
                   <span>Subtotal</span>
                   <span>{money(subtotal)}</span>
                 </div>
-                {isDelivery && (
-                  <div className="checkout-delivery-notice">
-                    <div className="checkout-delivery-notice__row">
-                      <span className="checkout-delivery-notice__head">
-                        <Bike className="checkout-delivery-notice__icon" aria-hidden />
-                        <span className="checkout-delivery-notice__title">Costo de delivery</span>
-                      </span>
-                      {form.addressLat && deliveryQuote && !deliveryQuote.loading && !deliveryQuote.outOfRange && deliveryFee > 0 && (
-                        <span
-                          className="checkout-delivery-notice__range"
-                          style={deliveryQuote.zone?.color ? { color: deliveryQuote.zone.color } : undefined}
-                        >
-                          {money(deliveryFee)}
-                        </span>
-                      )}
-                    </div>
-                    {!form.addressLat && (
-                      <p className="checkout-delivery-notice__body">
-                        Busca tu dirección y elígela en la lista para calcular el delivery.
-                      </p>
-                    )}
-                    {form.addressLat && deliveryQuote?.loading && (
-                      <p className="checkout-delivery-notice__body inline-flex items-center gap-1.5">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Calculando distancia…
-                      </p>
-                    )}
-                    {form.addressLat && deliveryQuote && !deliveryQuote.loading && deliveryQuote.outOfRange && (
-                      <p className="text-[11px] font-semibold leading-snug text-red-600">
-                        Fuera de cobertura{deliveryQuote.maxKm ? ` (máx. ${deliveryQuote.maxKm} km)` : ''}.
-                        {deliveryQuote.distanceKm != null && ` Estás a ${formatDistance(deliveryQuote.distanceKm)}.`}
-                      </p>
-                    )}
-                    {form.addressLat && deliveryQuote && !deliveryQuote.loading && !deliveryQuote.outOfRange && deliveryFee > 0 && (
-                      <p className="checkout-delivery-notice__body">
-                        {deliveryQuote.zone?.name || 'Zona'}
-                        {deliveryQuote.distanceKm != null ? ` · ${formatDistance(deliveryQuote.distanceKm)} desde la sucursal` : ''}
-                      </p>
-                    )}
-                  </div>
-                )}
+                {isDelivery && deliveryNotice}
                 <div className="checkout-totals__total">
                   <span>Total{isDelivery && deliveryFee > 0 ? ' a pagar' : ''}</span>
                   <span className="checkout-totals__amount">{money(orderTotal)}</span>
@@ -665,17 +827,7 @@ export function CheckoutModal() {
               </div>
               <button
                 type="submit"
-                disabled={
-                  submitting
-                  || !availableOrderTypes.length
-                  || (isDelivery && (
-                    !!deliveryQuote?.loading
-                    || !!deliveryQuote?.outOfRange
-                    || !(deliveryFee > 0)
-                    || !form.addressLat
-                    || !form.referencia.trim()
-                  ))
-                }
+                disabled={submitting}
                 className="checkout-submit"
               >
                 {submitting ? 'Registrando pedido…' : 'Confirmar pedido'}

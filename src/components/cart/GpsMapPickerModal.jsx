@@ -132,12 +132,41 @@ function secondaryLine(label) {
   return i === -1 ? '' : label.slice(i + 1).trim();
 }
 
+function escapeRegExp(s) {
+  return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function HighlightedText({ text, query }) {
+  const raw = String(text || '');
+  const tokens = String(query || '')
+    .split(/[\s,]+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 1)
+    .slice(0, 6);
+  if (!raw || !tokens.length) return raw;
+  const re = new RegExp(`(${tokens.map(escapeRegExp).join('|')})`, 'ig');
+  const nodes = [];
+  let last = 0;
+  raw.replace(re, (match, _g, offset) => {
+    if (offset > last) {
+      nodes.push(<span key={`t${last}`}>{raw.slice(last, offset)}</span>);
+    }
+    nodes.push(<mark key={`m${offset}`} className="gps-suggest-mark">{match}</mark>);
+    last = offset + match.length;
+    return match;
+  });
+  if (last < raw.length) nodes.push(<span key="end">{raw.slice(last)}</span>);
+  return nodes.length ? nodes : raw;
+}
+
 export function GpsMapPickerModal({
   open,
   variant = 'modal',
+  chrome = 'default',
   initialCenter,
   onClose,
   onConfirm,
+  onSearchTyping,
   cityBias = 'Iquique',
   biasLat,
   biasLng,
@@ -145,6 +174,7 @@ export function GpsMapPickerModal({
   branchHouseNumber = null,
 }) {
   const isInline = variant === 'inline';
+  const isOverlay = chrome === 'overlay';
   const [center, setCenter] = useState(initialCenter);
   const [recenterToken, setRecenterToken] = useState(0);
   const [focusZoom, setFocusZoom] = useState(null);
@@ -288,14 +318,19 @@ export function GpsMapPickerModal({
       // Solo snap si es la misma calle de la sucursal; no mover otras calles
       list = list.map((h) => snapAddressCoordsForBranch(h, branchRef));
       // Preferir resultados OSM/Photon sobre "local" cuando hay número
+      const wantNumber = parseAddressQuery(q).houseNumber;
       list = [...list].sort((a, b) => {
         const score = (h) => {
           let s = 0;
           if (h.source === 'arcgis') s += 55;
           if (h.source === 'nominatim' || h.source === 'photon' || h.source === 'overpass') s += 40;
           if (h.source === 'local') s -= 10;
-          if (h.precision === 'exact' || h.precision === 'interpolated') s += 20;
-          if (h.addrType === 'PointAddress') s += 15;
+          if (h.precision === 'exact' || h.precision === 'interpolated') s += 28;
+          if (h.addrType === 'PointAddress') s += 22;
+          if (h.addrType === 'StreetAddress') s += 12;
+          if (wantNumber && String(h.houseNumber || '') === String(wantNumber)) s += 80;
+          else if (wantNumber && h.houseNumber) s += 18;
+          else if (wantNumber && !h.houseNumber) s -= 25;
           return s;
         };
         return score(b) - score(a);
@@ -321,12 +356,16 @@ export function GpsMapPickerModal({
       } finally {
         if (reqId === searchReqRef.current) setSearchLoading(false);
       }
-    }, 40);
+    }, localNow.length ? 16 : 20);
   }, [cityBias, biasLat, biasLng, branchHouseNumber, branchAddress]);
 
   const handleSearchChange = (e) => {
     const q = e.target.value;
     setSearchQuery(q);
+    const selectedLabel = String(draft?.shortLabel || '').trim();
+    if (q.trim() !== selectedLabel) {
+      onSearchTyping?.(q);
+    }
     if (q.trim().length >= 1) setSearchLoading(true);
     runSearch(q);
   };
@@ -381,7 +420,7 @@ export function GpsMapPickerModal({
     setCenter({ lat, lng });
     setFocusZoom(hasHouse ? 18 : 17);
     setRecenterToken((v) => v + 1);
-    if (isInline && Number.isFinite(lat) && Number.isFinite(lng)) {
+    if (isInline && hasHouse && Number.isFinite(lat) && Number.isFinite(lng)) {
       onConfirm?.({ ...nextDraft, lat, lng, source: 'search' });
     }
     window.setTimeout(() => {
@@ -391,6 +430,8 @@ export function GpsMapPickerModal({
 
   const handleSelectSuggestion = async (item) => {
     if (!item) return;
+    searchReqRef.current += 1;
+    clearTimeout(searchTimerRef.current);
     setSearchOpen(false);
     setSuggestions([]);
     setSearchLoading(true);
@@ -517,8 +558,13 @@ export function GpsMapPickerModal({
   if (!open) return null;
 
   const searchBox = (
-    <div ref={searchBoxRef} className={isInline ? 'relative' : 'relative mt-3'}>
-      <div className="flex items-center gap-2 rounded-[0.28rem] border border-white bg-white px-2.5 py-2">
+    <div ref={searchBoxRef} className={isOverlay ? 'relative' : (isInline ? 'relative' : 'relative mt-3')}>
+      <div className={`flex items-center gap-2 bg-white ${
+        isOverlay
+          ? 'rounded-[0.55rem] border-0 px-3 py-[0.7rem] shadow-[0_2px_6px_rgba(0,0,0,0.18),0_8px_24px_rgba(0,0,0,0.12)]'
+          : 'rounded-[0.45rem] border border-white px-2.5 py-2'
+      }`}
+      >
         <Search className="h-4 w-4 flex-none text-[#c00000]" strokeWidth={2.4} />
         <input
           ref={searchInputRef}
@@ -528,15 +574,19 @@ export function GpsMapPickerModal({
           onChange={handleSearchChange}
           onKeyDown={handleSearchKeyDown}
           onFocus={() => suggestions.length && setSearchOpen(true)}
-          placeholder="Busca calle, número o un nombre (ej: ohig, zegers 789)"
+          placeholder={isOverlay
+            ? 'Busca calle, número o nombre (ej: ohig, zegers 7)'
+            : 'Busca calle, número o un nombre (ej: ohig, zegers 789)'}
           autoComplete="off"
           spellCheck={false}
-          className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-black outline-none placeholder:font-normal placeholder:text-zinc-400"
+          className="min-w-0 flex-1 bg-transparent text-[13.5px] font-medium text-black outline-none placeholder:font-normal placeholder:text-zinc-400"
           aria-label="Buscar dirección"
           aria-autocomplete="list"
           aria-expanded={searchOpen}
         />
-        {searchLoading && <LoadingSpin />}
+        {searchLoading && (
+          <Loader2 className="h-4 w-4 flex-none animate-spin text-zinc-400" aria-label="Buscando" />
+        )}
         {searchQuery && !searchLoading && (
           <button
             type="button"
@@ -544,8 +594,9 @@ export function GpsMapPickerModal({
               setSearchQuery('');
               setSuggestions([]);
               setSearchOpen(false);
+              onSearchTyping?.('');
             }}
-            className="rounded p-0.5 text-zinc-500 hover:bg-zinc-100 hover:text-black"
+            className="rounded-full p-0.5 text-zinc-500 transition hover:bg-zinc-100 hover:text-black"
             aria-label="Limpiar búsqueda"
           >
             <X className="h-4 w-4" />
@@ -556,12 +607,16 @@ export function GpsMapPickerModal({
       {searchOpen && suggestions.length > 0 && (
         <ul
           role="listbox"
-          className={`absolute left-0 right-0 z-[900] mt-1.5 overflow-y-auto rounded-[0.28rem] border border-zinc-300 bg-white ${
-            isInline ? 'max-h-52' : 'max-h-64'
+          className={`gps-suggest-list absolute left-0 right-0 z-[900] mt-1.5 overflow-y-auto rounded-[0.55rem] border border-black/[0.06] bg-white shadow-[0_12px_32px_rgba(0,0,0,0.18)] ${
+            isOverlay ? 'max-h-60' : (isInline ? 'max-h-52' : 'max-h-64')
           }`}
         >
           {suggestions.map((s, idx) => {
             const text = s.shortLabel || s.label || '';
+            const exact = !!(
+              parsedSearch.houseNumber
+              && String(s.houseNumber || '') === String(parsedSearch.houseNumber)
+            );
             return (
               <li
                 key={s.id || `${text}-${idx}`}
@@ -572,30 +627,27 @@ export function GpsMapPickerModal({
                   handleSelectSuggestion(s);
                 }}
                 onMouseEnter={() => setActiveIdx(idx)}
-                className={`flex cursor-pointer items-start gap-2.5 border-b border-zinc-100 px-3 py-2.5 text-left last:border-0 ${
-                  activeIdx === idx ? 'bg-red-50' : 'hover:bg-zinc-50'
+                className={`flex cursor-pointer items-start gap-2.5 border-b border-zinc-100 px-3 py-[0.7rem] text-left last:border-0 ${
+                  activeIdx === idx ? 'bg-[#f8f6f4]' : 'hover:bg-zinc-50'
                 }`}
               >
                 <MapPin
                   className={`mt-0.5 h-4 w-4 flex-none ${
-                    s.precision === 'exact' || s.precision === 'interpolated'
+                    exact || s.precision === 'exact' || s.precision === 'interpolated'
                       ? 'text-pollon-red'
                       : 'text-zinc-400'
                   }`}
                 />
                 <span className="min-w-0 flex-1 leading-snug">
-                  <span className="block text-[13px] font-semibold text-black">
-                    {primaryLine(text)}
+                  <span className="block text-[13.5px] font-medium text-[#1f1f1f]">
+                    <HighlightedText text={primaryLine(text)} query={searchQuery} />
                   </span>
                   {secondaryLine(text) && (
-                    <span className="mt-0.5 block text-[11px] font-normal text-zinc-500">
-                      {secondaryLine(text)}
+                    <span className="mt-0.5 block text-[11.5px] font-normal text-zinc-500">
+                      <HighlightedText text={secondaryLine(text)} query={searchQuery} />
                     </span>
                   )}
-                  {(parsedSearch.houseNumber
-                    && String(s.houseNumber || '') === String(parsedSearch.houseNumber)
-                    && (s.source === 'arcgis' || s.addrType === 'PointAddress' || s.addrType === 'StreetAddress' || s.precision === 'exact')
-                    && s.source !== 'local') && (
+                  {exact && (
                     <span className="mt-1 inline-flex rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
                       Coincidencia exacta
                     </span>
@@ -610,39 +662,49 @@ export function GpsMapPickerModal({
   );
 
   const card = (
-    <div className={isInline ? 'overflow-visible rounded-[0.4rem] border border-[#d4d4d4] bg-white' : 'w-full max-w-md overflow-hidden rounded-[0.4rem] bg-white shadow-[0_28px_80px_rgba(0,0,0,0.35)]'}>
-      <div className={`bg-[#c00000] text-white ${isInline ? 'px-3 py-2.5' : 'px-4 pb-3.5 pt-3.5'}`}>
-        {!isInline && (
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 pr-1">
-              <h3 id="gps-map-picker-title" className="text-[13.5px] font-bold leading-[1.35] tracking-[-0.01em] sm:text-[14px]">
-                Selecciona tu ubicación exacta o busca manualmente desde este buscador
-              </h3>
-              <p className="mt-1.5 text-[11px] font-medium leading-[1.45] text-white/90">
-                Mueve el mapa hasta dejar la aguja en tu puerta. Si el GPS no detecta bien tu dirección, escribe calle y número en el buscador.
-              </p>
+    <div className={isInline
+      ? (isOverlay ? 'overflow-visible bg-white' : 'overflow-visible rounded-[0.4rem] border border-[#d4d4d4] bg-white')
+      : 'w-full max-w-md overflow-hidden rounded-[0.4rem] bg-white shadow-[0_28px_80px_rgba(0,0,0,0.35)]'}
+    >
+      {!isOverlay && (
+        <div className={`bg-[#c00000] text-white ${isInline ? 'px-3 py-2.5' : 'px-4 pb-3.5 pt-3.5'}`}>
+          {!isInline && (
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 pr-1">
+                <h3 id="gps-map-picker-title" className="text-[13.5px] font-bold leading-[1.35] tracking-[-0.01em] sm:text-[14px]">
+                  Selecciona tu ubicación exacta o busca manualmente desde este buscador
+                </h3>
+                <p className="mt-1.5 text-[11px] font-medium leading-[1.45] text-white/90">
+                  Mueve el mapa hasta dejar la aguja en tu puerta. Si el GPS no detecta bien tu dirección, escribe calle y número en el buscador.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-[0.28rem] p-1 text-white transition hover:bg-black/20"
+                aria-label="Cerrar selector de mapa"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-[0.28rem] p-1 text-white transition hover:bg-black/20"
-              aria-label="Cerrar selector de mapa"
-            >
-              <X className="h-5 w-5" />
-            </button>
+          )}
+          {searchBox}
+        </div>
+      )}
+
+      <div className={`relative bg-zinc-200 ${isOverlay ? 'h-[min(50vh,380px)] min-h-[260px]' : (isInline ? 'h-[200px]' : 'h-[52vh] min-h-[320px]')}`}>
+        {isOverlay && (
+          <div className="absolute inset-x-2.5 top-2.5 z-[850] sm:left-[3.15rem]">
+            {searchBox}
           </div>
         )}
-        {searchBox}
-      </div>
-
-      <div className={`relative bg-zinc-200 ${isInline ? 'h-[200px]' : 'h-[52vh] min-h-[320px]'}`}>
         {center?.lat && center?.lng ? (
           <MapContainer
             center={[center.lat, center.lng]}
             zoom={DEFAULT_ZOOM}
             maxZoom={MAX_ZOOM}
             scrollWheelZoom
-            className="h-full w-full"
+            className={`h-full w-full ${isOverlay ? 'gps-map-overlay' : ''}`}
           >
             <TileLayer
               url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -677,10 +739,12 @@ export function GpsMapPickerModal({
         </button>
       </div>
 
-      <div className={`border-t border-zinc-300 bg-white ${isInline ? 'px-3 py-2.5' : 'px-4 py-3.5'}`}>
+      <div className={`bg-white ${isOverlay ? 'border-t-0 px-4 py-3' : (isInline ? 'border-t border-zinc-300 px-3 py-2.5' : 'border-t border-zinc-300 px-4 py-3.5')}`}>
         <div
           id="checkout-punto-seleccionado"
-          className="rounded-[0.28rem] border border-black bg-[rgba(34,197,94,0.22)] px-3.5 py-3 backdrop-blur-[2px]"
+          className={isOverlay
+            ? 'rounded-[0.38rem] border border-[#86efac] bg-[#ecfdf5] px-3.5 py-3'
+            : 'rounded-[0.28rem] border border-black bg-[rgba(34,197,94,0.22)] px-3.5 py-3 backdrop-blur-[2px]'}
         >
           <div className="flex items-start gap-2.5">
             <div className="mt-0.5 rounded-[0.22rem] bg-[#166534] p-1.5 text-white">
@@ -690,7 +754,7 @@ export function GpsMapPickerModal({
               <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-[#14532d]">
                 Punto seleccionado
               </p>
-              <p className="mt-1 flex items-center gap-2.5 text-[13.5px] font-semibold leading-[1.35] text-[#1d4ed8] sm:text-[14px]">
+              <p className={`mt-1 flex items-center gap-2.5 text-[13.5px] font-semibold leading-[1.35] sm:text-[14px] ${isOverlay ? 'text-[#166534]' : 'text-[#1d4ed8]'}`}>
                 <span className="min-w-0 flex-1">
                   {loadingAddress ? 'Leyendo calle y número...' : (label || 'Mueve el mapa o busca manualmente tu dirección')}
                 </span>
@@ -710,10 +774,12 @@ export function GpsMapPickerModal({
         </div>
 
         {!canConfirm && !loadingAddress && (
-          <p className="mt-2 text-[11px] font-medium leading-[1.4] text-[#c00000]">
-            {isInline
-              ? 'Aún no hay número de casa. Escribe calle y número y elige un resultado de la lista.'
-              : 'Aún no hay número de casa confirmado. Acerca la aguja a tu puerta o busca manualmente “calle número”.'}
+          <p className={`mt-2 text-[11px] font-medium leading-[1.4] ${isOverlay ? 'text-zinc-500' : 'text-[#c00000]'}`}>
+            {isOverlay
+              ? 'Escribe calle y número y elige un resultado de la lista para confirmar el punto.'
+              : (isInline
+                ? 'Aún no hay número de casa. Escribe calle y número y elige un resultado de la lista.'
+                : 'Aún no hay número de casa confirmado. Acerca la aguja a tu puerta o busca manualmente “calle número”.')}
           </p>
         )}
 

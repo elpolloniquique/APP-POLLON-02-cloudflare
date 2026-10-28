@@ -33,6 +33,10 @@ export function AddressAutocomplete({
   branchHouseNumber = null,
   branchAddress = '',
   mode = 'map',
+  pickerChrome = 'default',
+  hideHint = false,
+  initialLat = null,
+  initialLng = null,
 }) {
   const [query, setQuery] = useState(value || '');
   const [suggestions, setSuggestions] = useState([]);
@@ -240,12 +244,12 @@ export function AddressAutocomplete({
   };
 
   const handleMapConfirm = (item) => {
-    if (!item) return;
+    if (!item?.houseNumber) return;
     setGpsError('');
     handleSelect({
       ...item,
       source: 'gps',
-      precision: item.houseNumber ? (item.precision || 'exact') : 'street',
+      precision: item.precision || 'exact',
     });
     setMapPickerOpen(false);
   };
@@ -358,8 +362,12 @@ export function AddressAutocomplete({
 
   if (mode === 'map') {
     const branchCenter = {
-      lat: Number.isFinite(Number(biasLat)) ? Number(biasLat) : DEFAULT_MAP_CENTER.lat,
-      lng: Number.isFinite(Number(biasLng)) ? Number(biasLng) : DEFAULT_MAP_CENTER.lng,
+      lat: Number.isFinite(Number(initialLat))
+        ? Number(initialLat)
+        : (Number.isFinite(Number(biasLat)) ? Number(biasLat) : DEFAULT_MAP_CENTER.lat),
+      lng: Number.isFinite(Number(initialLng))
+        ? Number(initialLng)
+        : (Number.isFinite(Number(biasLng)) ? Number(biasLng) : DEFAULT_MAP_CENTER.lng),
     };
 
     return (
@@ -377,10 +385,16 @@ export function AddressAutocomplete({
         <GpsMapPickerModal
           key={mapPickerKey}
           variant="inline"
+          chrome={pickerChrome}
           open
           initialCenter={mapPickerCenter || branchCenter}
           onClose={handleClear}
           onConfirm={handleMapConfirm}
+          onSearchTyping={(q) => {
+            setSelected(false);
+            setSelectedPrecision(null);
+            onChange?.(q, null);
+          }}
           cityBias={cityBias}
           biasLat={biasLat}
           biasLng={biasLng}
@@ -388,6 +402,7 @@ export function AddressAutocomplete({
           branchHouseNumber={branchHouseNumber}
         />
 
+        {!hideHint && (
         <p
           className={`checkout-label__hint mt-1 flex items-start gap-1.5 px-0.5 ${
             gpsError ? 'text-red-600' : selected ? 'text-emerald-700' : ''
@@ -401,6 +416,10 @@ export function AddressAutocomplete({
                 : 'Escribe calle y número y elige un resultado de la lista.')}
           </span>
         </p>
+        )}
+        {hideHint && gpsError && (
+          <p className="checkout-label__hint mt-1 px-1 text-red-600">{gpsError}</p>
+        )}
       </div>
     );
   }
