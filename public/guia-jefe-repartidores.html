@@ -9,67 +9,50 @@
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
     body { font-family: "Segoe UI", Arial, sans-serif; color: var(--ink); background: #eceae6; line-height: 1.35; }
-    .sheet { width: 210mm; min-height: 297mm; margin: 12px auto; background: var(--paper); padding: 11mm 12mm 10mm; box-shadow: 0 8px 28px rgba(0,0,0,.12); }
+    .sheet { width: 210mm; min-height: 297mm; margin: 12px auto; background: var(--paper); padding: 10mm 11mm 9mm; box-shadow: 0 8px 28px rgba(0,0,0,.12); }
     .top { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid var(--red); padding-bottom: 8px; margin-bottom: 10px; }
     .brand { font-size: 11px; letter-spacing: .18em; font-weight: 800; color: var(--red); }
-    h1 { margin: 2px 0 0; font-size: 24px; letter-spacing: -.02em; }
+    h1 { margin: 2px 0 0; font-size: 22px; letter-spacing: -.02em; }
     .sub { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
     .badge { background: #111; color: #fff; font-size: 11px; font-weight: 800; padding: 7px 10px; border-radius: 999px; }
-    h2 { margin: 12px 0 7px; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; color: var(--red); }
-    .steps { display: grid; gap: 7px; }
-    .step { display: grid; grid-template-columns: 28px 1fr; gap: 8px; align-items: start; }
-    .n { width: 28px; height: 28px; border-radius: 50%; background: var(--red); color: #fff; font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center; }
-    .step p { margin: 3px 0 0; font-size: 13.2px; color: #222; }
-    .step strong.title { font-size: 14.5px; }
-    .k { display: inline-block; background: #111; color: #fff; font-size: 11.5px; font-weight: 800; padding: 1px 7px; border-radius: 6px; white-space: nowrap; }
+    h2 { margin: 10px 0 6px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--red); }
+    .steps { display: grid; gap: 6px; }
+    .step { display: grid; grid-template-columns: 26px 1fr; gap: 8px; align-items: start; }
+    .n { width: 26px; height: 26px; border-radius: 50%; background: var(--red); color: #fff; font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+    .step p { margin: 2px 0 0; font-size: 12.8px; color: #222; }
+    .step strong.title { font-size: 13.6px; }
+    .k { display: inline-block; background: #111; color: #fff; font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 6px; white-space: nowrap; }
     .k.red { background: var(--red); }
     .k.green { background: var(--green); }
     .k.soft { background: #eee; color: #111; }
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .shots { display: flex; gap: 10px; justify-content: center; margin: 8px 0 4px; flex-wrap: wrap; }
+    figure.phone { margin: 0; width: 138px; text-align: center; }
+    figure.phone img { width: 138px; height: 298px; object-fit: cover; object-position: top center; border-radius: 18px; border: 2.5px solid #111; background: #111; box-shadow: 0 8px 18px rgba(0,0,0,.14); }
+    figure.phone figcaption { margin: 5px 2px 0; font-size: 10.5px; font-weight: 700; color: #333; line-height: 1.25; }
     .box { background: var(--soft); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
     .box h3 { margin: 0 0 5px; font-size: 13px; }
-    .box p, .box li { font-size: 12.6px; margin: 0; }
+    .box p, .box li { font-size: 12.5px; margin: 0; }
     .box ol, .box ul { margin: 0; padding-left: 16px; }
     .box li { margin: 3px 0; }
-    .flow { display: grid; grid-template-columns: 1fr 14px 1fr 14px 1fr 14px 1fr; gap: 4px; align-items: center; margin: 6px 0 8px; }
-    .node { border-radius: 10px; padding: 8px 6px; text-align: center; min-height: 58px; }
-    .node b { display: block; font-size: 12.5px; }
-    .node span { display: block; font-size: 10.5px; margin-top: 2px; opacity: .9; }
-    .n1 { background: #111; color: #fff; }
-    .n2 { background: var(--red); color: #fff; }
-    .n3 { background: #fff; color: #111; border: 2px solid var(--red); }
-    .n4 { background: var(--green); color: #fff; }
-    .arrow { text-align: center; color: var(--red); font-weight: 800; font-size: 18px; }
-    .map { background: #e8efe3; border-radius: 10px; padding: 10px; position: relative; min-height: 88px; }
-    .road { height: 4px; background: var(--red); margin: 28px 18px 0; position: relative; border-radius: 4px; }
-    .pin { position: absolute; top: -7px; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; }
-    .pin.a { left: 0; background: #111; }
-    .pin.b { left: 46%; background: var(--red); }
-    .pin.c { right: 0; left: auto; background: var(--green); }
-    .lab { position: absolute; font-size: 10.5px; font-weight: 700; }
-    .lab.a { left: 8px; top: 8px; }
-    .lab.b { left: 44%; top: 52px; color: var(--red); }
-    .lab.c { right: 8px; top: 8px; color: var(--green); }
-    .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 13px; }
-    .checks p { margin: 3px 0; }
-    .fail { font-size: 12.6px; }
-    .fail b { display: inline-block; min-width: 168px; }
-    footer { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 6px; font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; gap: 10px; }
-    .url { word-break: break-all; font-weight: 700; color: #111; }
-    .note { background: #fff7ed; border: 1px solid #fed7aa; color: #7c2d12; border-radius: 8px; padding: 7px 9px; font-size: 12.5px; margin-top: 7px; }
     .doors { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .note { background: #fff7ed; border: 1px solid #fed7aa; color: #7c2d12; border-radius: 8px; padding: 7px 9px; font-size: 12.4px; margin-top: 8px; }
+    .fail { font-size: 12.4px; }
+    .fail p { margin: 4px 0; }
+    .fail b { display: inline-block; min-width: 168px; }
+    .url { word-break: break-all; font-weight: 700; color: #111; }
+    footer { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 6px; font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; gap: 10px; }
     @media screen and (max-width: 860px) {
       .sheet { width: auto; min-height: 0; margin: 0; padding: 18px 14px 28px; box-shadow: none; }
-      .flow, .grid2, .checks, .doors { grid-template-columns: 1fr; }
-      .flow { display: flex; flex-direction: column; }
-      .arrow { transform: rotate(90deg); }
+      .doors { grid-template-columns: 1fr; }
+      figure.phone { width: 46%; }
+      figure.phone img { width: 100%; height: auto; aspect-ratio: 400 / 863; }
     }
     @media print {
-      @page { size: A4; margin: 8mm; }
+      @page { size: A4; margin: 7mm; }
       body { background: #fff; }
       .sheet { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; }
       .sheet + .sheet { break-before: page; }
-      .n, .k, .node, .badge, .pin, .road, .map, .box, .note { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .n, .k, .badge, .box, .note, figure.phone img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
   </style>
 </head>
@@ -78,19 +61,19 @@
     <div class="top">
       <div>
         <div class="brand">EL POLLÓN · JEFE DE REPARTIDORES</div>
-        <h1>Cómo instalar y entrar</h1>
-        <p class="sub">Hoja 1 de 2 · App 1.6.0 · Un solo correo para todo</p>
+        <h1>Cómo instalar e iniciar sesión</h1>
+        <p class="sub">Hoja 1 de 5 · App 1.6.0 · Un solo correo para todo</p>
       </div>
       <div class="badge">No uses la app 1.5.0</div>
     </div>
 
-    <h2>Instalar la app 1.6.0</h2>
+    <h2>Instalar la app 1.6.0 en el celular</h2>
     <div class="steps">
       <div class="step">
         <div class="n">1</div>
         <div>
-          <strong class="title">Baja la app en tu celular</strong>
-          <p>Por Wi‑Fi abre:<br><span class="url">https://www.el-pollon.cl/DESCARGAR-APK/El-Pollon-repartidor.apk</span></p>
+          <strong class="title">Baja la app por Wi‑Fi</strong>
+          <p>Abre este enlace en el celular:<br><span class="url">https://www.el-pollon.cl/DESCARGAR-APK/El-Pollon-repartidor.apk</span></p>
         </div>
       </div>
       <div class="step">
@@ -103,50 +86,26 @@
       <div class="step">
         <div class="n">3</div>
         <div>
-          <strong class="title">Abre El Pollón</strong>
-          <p>Usa el ícono <b>El Pollón</b>. Si ya tenías la 1.5.0, instala encima esta 1.6.0. La vieja no deja entrar al jefe.</p>
+          <strong class="title">Abre el ícono El Pollón</strong>
+          <p>Si ya tenías la 1.5.0, instala encima la 1.6.0. La vieja dice “solo para repartidores” y no deja entrar al jefe.</p>
         </div>
       </div>
     </div>
 
-    <h2>Entrar</h2>
-    <div class="steps">
-      <div class="step">
-        <div class="n">4</div>
-        <div>
-          <strong class="title">Entra con tu correo de jefe</strong>
-          <p>El mismo que te creó el super admin (ejemplo: antonyelpollon@gmail.com). Con ese correo entras a la app y al pollito.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="n">5</div>
-        <div>
-          <strong class="title">Toca <span class="k red">Permitir avisos, GPS y entrar</span></strong>
-          <p>Notificaciones → <b>Permitir</b>. Ubicación → <b>Siempre</b>. Ubicación precisa → <b>Sí</b>.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="n">6</div>
-        <div>
-          <strong class="title">Deja la app así en Ajustes</strong>
-          <p>Ajustes → Apps → El Pollón. Notificaciones ON. Ubicación <b>Siempre</b>. Batería <b>Sin restricciones</b>. Autostart ON (Xiaomi, Redmi, POCO).</p>
-        </div>
-      </div>
+    <h2>Iniciar sesión (app o pollito)</h2>
+    <div class="shots">
+      <figure class="phone">
+        <img src="/guia-media/guia-login.png" alt="Pantalla vacía Acceso personal" />
+        <figcaption>Así se ve al abrir. Correo arriba, clave abajo.</figcaption>
+      </figure>
+      <figure class="phone">
+        <img src="/guia-media/guia-login-jefe.png" alt="Inicio de sesión con correo de jefe" />
+        <figcaption>Escribe TU correo de jefe y tu clave. Toca Iniciar sesión.</figcaption>
+      </figure>
     </div>
-
-    <div class="doors" style="margin-top:10px">
-      <div class="box">
-        <h3>Puerta 1 · App nativa</h3>
-        <p>En el celular. Ves pedidos nuevos, aceptas, recoges y entregas. Tú no necesitas que te asignen.</p>
-      </div>
-      <div class="box">
-        <h3>Puerta 2 · Pollito</h3>
-        <p>En el navegador: <b>www.el-pollon.cl</b> → Mi flota. Ahí creas motos y les asignas pedidos.</p>
-      </div>
-    </div>
-    <p class="note"><b>Importante:</b> si la app dice “solo para repartidores”, no es tu correo: es la APK vieja. Instala la 1.6.0 y entra de nuevo.</p>
+    <p class="note"><b>El mismo correo sirve para las dos puertas:</b> la app nativa (aceptar y entregar) y el pollito www.el-pollon.cl (asignar motos). Ejemplo: antonyelpollon@gmail.com.</p>
     <footer>
-      <span>Mismo correo en la app y en el pollito. No uses Chrome para aceptar.</span>
+      <span>Mismo correo en la app y en el pollito.</span>
       <span>Sigue en la hoja 2 →</span>
     </footer>
   </section>
@@ -155,38 +114,40 @@
     <div class="top">
       <div>
         <div class="brand">EL POLLÓN · JEFE DE REPARTIDORES</div>
-        <h1>Cómo trabajar y asignar</h1>
-        <p class="sub">Hoja 2 de 2 · App nativa + pollito · Toca el botón en negrita</p>
+        <h1>Si el pedido lo llevas tú (app)</h1>
+        <p class="sub">Hoja 2 de 5 · App nativa · No esperes asignación</p>
       </div>
-      <div class="badge">Tú ves todos los pedidos nuevos</div>
+      <div class="badge">Tú ves todos los nuevos</div>
     </div>
 
-    <div class="flow">
-      <div class="node n1"><b>En línea</b><span>app nativa</span></div>
-      <div class="arrow">→</div>
-      <div class="node n2"><b>Pedido nuevo</b><span>te llega a ti</span></div>
-      <div class="arrow">→</div>
-      <div class="node n3"><b>Aceptar o asignar</b><span>tú o una moto</span></div>
-      <div class="arrow">→</div>
-      <div class="node n4"><b>Entregado</b><span>en la casa</span></div>
-    </div>
-
-    <h2>Si lo llevas tú (app nativa)</h2>
     <div class="steps">
       <div class="step">
         <div class="n">1</div>
         <div>
-          <strong class="title">Arriba toca <span class="k">En línea</span></strong>
-          <p>Los pedidos nuevos de tu sucursal te aparecen solos. No te los tienes que asignar.</p>
+          <strong class="title">Arriba deja <span class="k">En línea</span></strong>
+          <p>GPS Activo en línea. Los pedidos nuevos de tu sucursal te llegan solos. No te los tienes que asignar.</p>
         </div>
       </div>
       <div class="step">
         <div class="n">2</div>
         <div>
-          <strong class="title">Toca <span class="k red">Aceptar</span></strong>
+          <strong class="title">Toca <span class="k red">Aceptar</span> si lo llevas tú</strong>
           <p>Así te lo quedas. La moto no lo ve. Si no puedes, <span class="k soft">Rechazar</span>.</p>
         </div>
       </div>
+    </div>
+    <div class="shots">
+      <figure class="phone">
+        <img src="/guia-media/guia-app-en-linea.png" alt="App nativa En línea esperando pedidos" />
+        <figcaption>En línea · GPS activo. Esperando pedidos.</figcaption>
+      </figure>
+      <figure class="phone">
+        <img src="/guia-media/guia-app-oferta.png" alt="Tarjeta Nuevo pedido con Aceptar y Rechazar" />
+        <figcaption>Pedido nuevo. Toca Aceptar (azul) o Rechazar.</figcaption>
+      </figure>
+    </div>
+
+    <div class="steps">
       <div class="step">
         <div class="n">3</div>
         <div>
@@ -195,57 +156,170 @@
         </div>
       </div>
     </div>
+    <div class="shots">
+      <figure class="phone">
+        <img src="/guia-media/guia-app-recogido.png" alt="Hacia sucursal Pedido recogido" />
+        <figcaption>En el local toca Pedido recogido.</figcaption>
+      </figure>
+      <figure class="phone">
+        <img src="/guia-media/guia-app-entregado.png" alt="En ruta al cliente Entregado" />
+        <figcaption>En la casa cobra y toca Entregado.</figcaption>
+      </figure>
+    </div>
+    <footer>
+      <span>No uses Chrome para aceptar. Aceptar es en la app El Pollón.</span>
+      <span>Sigue en la hoja 3 →</span>
+    </footer>
+  </section>
 
-    <h2>Si lo lleva una moto (pollito)</h2>
+  <section class="sheet">
+    <div class="top">
+      <div>
+        <div class="brand">EL POLLÓN · JEFE DE REPARTIDORES</div>
+        <h1>Panel del jefe (pollito)</h1>
+        <p class="sub">Hoja 3 de 5 · www.el-pollon.cl · Pedidos nuevos</p>
+      </div>
+      <div class="badge">Menú ☰ Configuración</div>
+    </div>
+
     <div class="steps">
       <div class="step">
-        <div class="n">4</div>
+        <div class="n">1</div>
         <div>
           <strong class="title">Entra a <span class="url">www.el-pollon.cl</span> con el mismo correo</strong>
-          <p>Vas a <b>Mi flota</b>. En el celular hay botón <span class="k soft">Atrás</span> en cada pantalla.</p>
+          <p>Vas a <b>Repartidores</b>. Aquí ves los pedidos nuevos y asignas a una moto. Hay botón <span class="k soft">Atrás</span> en cada pantalla.</p>
         </div>
       </div>
       <div class="step">
-        <div class="n">5</div>
+        <div class="n">2</div>
         <div>
-          <strong class="title">Crea motos con <span class="k red">+ Moto</span></strong>
-          <p>Nombre + correo + clave. Cada moto entra a la app con su propio correo. Luego toca <span class="k soft">Atrás</span>.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="n">6</div>
-        <div>
-          <strong class="title">Toca <span class="k red">Asignar moto</span></strong>
-          <p>Elige a quién. Esa moto lo ve en su app. El primero que asigne o acepte se lo queda. Tú no ves mapa en vivo.</p>
+          <strong class="title">Pedidos nuevos aparecen solos</strong>
+          <p><span class="k red">Urgente</span> · <span class="k green">Estándar</span> · <span class="k" style="background:#ea580c">Nuevo</span>. Toca <span class="k red">Asignar Moto</span> si lo lleva una moto de tu flota.</p>
         </div>
       </div>
     </div>
+    <div class="shots">
+      <figure class="phone">
+        <img src="/guia-media/guia-jefe-pedidos.png" alt="Panel jefe sin pedidos nuevos" />
+        <figcaption>Sin pedidos nuevos. Verde = motos disponibles.</figcaption>
+      </figure>
+      <figure class="phone">
+        <img src="/guia-media/guia-jefe-pedidos-cards.png" alt="Pedidos nuevos Urgente Estándar Nuevo" />
+        <figcaption>Cuando llega un delivery: toca Asignar Moto.</figcaption>
+      </figure>
+      <figure class="phone">
+        <img src="/guia-media/guia-jefe-menu.png" alt="Menú hamburguesa Mi flota" />
+        <figcaption>☰ menú: Repartidores, Configuración, Reportes.</figcaption>
+      </figure>
+    </div>
+    <p class="note"><b>Configuración</b> (motos, + Moto, cupo) ya no está en esta pantalla: ábrela desde el menú ☰.</p>
+    <footer>
+      <span>Disponible (verde) / Ocupado (rojo) se actualiza solo.</span>
+      <span>Sigue en la hoja 4 →</span>
+    </footer>
+  </section>
 
-    <div class="grid2">
-      <div class="map">
-        <span class="lab a">Sucursal</span>
-        <span class="lab c">Casa</span>
-        <div class="road"><i class="pin a"></i><i class="pin b"></i><i class="pin c"></i></div>
-        <span class="lab b">tú o la moto</span>
+  <section class="sheet">
+    <div class="top">
+      <div>
+        <div class="brand">EL POLLÓN · JEFE DE REPARTIDORES</div>
+        <h1>Configuración de tu flota</h1>
+        <p class="sub">Hoja 4 de 5 · Menú ☰ → Configuración</p>
       </div>
-      <div class="box">
-        <h3>Recuerda</h3>
-        <ul>
-          <li>Tú ves el pedido nuevo sin asignación.</li>
-          <li>La moto solo lo ve cuando tú se lo das.</li>
-          <li>No hay mapa En vivo para el jefe.</li>
-        </ul>
+      <div class="badge">+ Moto está aquí</div>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="n">1</div>
+        <div>
+          <strong class="title">Toca ☰ y luego <span class="k">Configuración</span></strong>
+          <p>Ahí está <b>Tu flota</b>, el botón rojo <span class="k red">+ Moto</span> y <span class="k red">Reportes</span>.</p>
+        </div>
       </div>
+      <div class="step">
+        <div class="n">2</div>
+        <div>
+          <strong class="title">Crea una moto</strong>
+          <p>Nombre + correo + clave (mín. 6) + WhatsApp + patente. Cada moto entra a la app con SU propio correo. No uses el tuyo.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="n">3</div>
+        <div>
+          <strong class="title">Toca una moto para editarla</strong>
+          <p>Cupo (2, 3 o 4 pedidos), comisión %, Suspender o Guardar.</p>
+        </div>
+      </div>
+    </div>
+    <div class="shots">
+      <figure class="phone">
+        <img src="/guia-media/guia-jefe-config.png" alt="Lista Tu flota JOSE y ANTONY" />
+        <figcaption>Tu flota. Toca + Moto o una tarjeta para editar.</figcaption>
+      </figure>
+      <figure class="phone">
+        <img src="/guia-media/guia-jefe-nueva-moto.png" alt="Formulario Nueva moto" />
+        <figcaption>Nueva moto: correo y clave propios.</figcaption>
+      </figure>
+      <figure class="phone">
+        <img src="/guia-media/guia-jefe-editar-moto.png" alt="Editar moto cupo y comisión" />
+        <figcaption>Editar: cupo máximo y comisión.</figcaption>
+      </figure>
+    </div>
+    <footer>
+      <span>Pásale a cada moto su correo, clave y esta guía de flota.</span>
+      <span>Sigue en la hoja 5 →</span>
+    </footer>
+  </section>
+
+  <section class="sheet">
+    <div class="top">
+      <div>
+        <div class="brand">EL POLLÓN · JEFE DE REPARTIDORES</div>
+        <h1>Asignar a una moto</h1>
+        <p class="sub">Hoja 5 de 5 · Disponible en verde · WhatsApp al asignar</p>
+      </div>
+      <div class="badge">La moto solo ve lo que tú le das</div>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="n">1</div>
+        <div>
+          <strong class="title">Toca <span class="k red">Asignar Moto</span> en el pedido</strong>
+          <p>Verde <b>Disponible</b> = puede llevarlo. Rojo <b>No disponible</b> = va hacia un cliente o tiene el cupo lleno. El Asignar se apaga si no está disponible.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="n">2</div>
+        <div>
+          <strong class="title">Después avisa por WhatsApp</strong>
+          <p>Aparece el botón verde. Ábrelo para que la moto acepte en su app. Tú no ves mapa En vivo.</p>
+        </div>
+      </div>
+    </div>
+    <div class="shots">
+      <figure class="phone">
+        <img src="/guia-media/guia-jefe-asignar.png" alt="Asignar pedido Disponible y No disponible" />
+        <figcaption>JOSE Disponible (verde). Tú No disponible (rojo).</figcaption>
+      </figure>
+      <figure class="phone">
+        <img src="/guia-media/guia-jefe-asignar-wa.png" alt="Pedido asignado botón WhatsApp" />
+        <figcaption>Asignado. Toca el botón verde y avísale a la moto.</figcaption>
+      </figure>
+      <figure class="phone">
+        <img src="/guia-media/guia-jefe-reportes.png" alt="Reportes de repartidores" />
+        <figcaption>☰ Reportes: entregas y comisiones de tu flota.</figcaption>
+      </figure>
     </div>
 
     <h2>Si algo falla</h2>
     <div class="fail">
       <p><b>Dice “solo para repartidores”.</b> Instala la APK 1.6.0. La 1.5.0 no sirve para el jefe.</p>
-      <p><b>No me llegan pedidos.</b> En la app: En línea ON. GPS Siempre.</p>
-      <p><b>No puedo volver atrás.</b> En Mi flota usa el botón Atrás de cada pantalla.</p>
-      <p><b>La moto no ve el pedido.</b> Asígnaselo en el pollito. Sin eso no le llega.</p>
+      <p><b>No me llegan pedidos.</b> App: En línea ON. GPS Siempre. Pollito: espera, se actualiza solo.</p>
+      <p><b>No veo + Moto.</b> Menú ☰ → Configuración.</p>
+      <p><b>La moto no ve el pedido.</b> Asígnaselo aquí. Sin eso no le llega. Luego WhatsApp.</p>
     </div>
-
     <footer>
       <span>Guía jefe 1.6.0 · Pásala por WhatsApp</span>
       <span class="url">https://www.el-pollon.cl/guia-jefe-repartidores.pdf</span>
@@ -253,3 +327,12 @@
   </section>
 </body>
 </html>
+
+</body>
+</html>
+
+</body>
+</html>
+
+
+

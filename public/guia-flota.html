@@ -9,67 +9,52 @@
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
     body { font-family: "Segoe UI", Arial, sans-serif; color: var(--ink); background: #eceae6; line-height: 1.35; }
-    .sheet { width: 210mm; min-height: 297mm; margin: 12px auto; background: var(--paper); padding: 11mm 12mm 10mm; box-shadow: 0 8px 28px rgba(0,0,0,.12); }
+    .sheet { width: 210mm; min-height: 297mm; margin: 12px auto; background: var(--paper); padding: 10mm 11mm 9mm; box-shadow: 0 8px 28px rgba(0,0,0,.12); }
     .top { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid var(--red); padding-bottom: 8px; margin-bottom: 10px; }
     .brand { font-size: 11px; letter-spacing: .18em; font-weight: 800; color: var(--red); }
-    h1 { margin: 2px 0 0; font-size: 24px; letter-spacing: -.02em; }
+    h1 { margin: 2px 0 0; font-size: 22px; letter-spacing: -.02em; }
     .sub { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
     .badge { background: #111; color: #fff; font-size: 11px; font-weight: 800; padding: 7px 10px; border-radius: 999px; }
-    h2 { margin: 12px 0 7px; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; color: var(--red); }
-    .steps { display: grid; gap: 7px; }
-    .step { display: grid; grid-template-columns: 28px 1fr; gap: 8px; align-items: start; }
-    .n { width: 28px; height: 28px; border-radius: 50%; background: var(--red); color: #fff; font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center; }
-    .step p { margin: 3px 0 0; font-size: 13.2px; color: #222; }
-    .step strong.title { font-size: 14.5px; }
-    .k { display: inline-block; background: #111; color: #fff; font-size: 11.5px; font-weight: 800; padding: 1px 7px; border-radius: 6px; white-space: nowrap; }
+    h2 { margin: 10px 0 6px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--red); }
+    .steps { display: grid; gap: 6px; }
+    .step { display: grid; grid-template-columns: 26px 1fr; gap: 8px; align-items: start; }
+    .n { width: 26px; height: 26px; border-radius: 50%; background: var(--red); color: #fff; font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+    .step p { margin: 2px 0 0; font-size: 12.8px; color: #222; }
+    .step strong.title { font-size: 13.6px; }
+    .k { display: inline-block; background: #111; color: #fff; font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 6px; white-space: nowrap; }
     .k.red { background: var(--red); }
     .k.green { background: var(--green); }
     .k.soft { background: #eee; color: #111; }
+    .shots { display: flex; gap: 10px; justify-content: center; margin: 8px 0 4px; flex-wrap: wrap; }
+    figure.phone { margin: 0; width: 138px; text-align: center; }
+    figure.phone img { width: 138px; height: 298px; object-fit: cover; object-position: top center; border-radius: 18px; border: 2.5px solid #111; background: #111; box-shadow: 0 8px 18px rgba(0,0,0,.14); }
+    figure.phone figcaption { margin: 5px 2px 0; font-size: 10.5px; font-weight: 700; color: #333; line-height: 1.25; }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .box { background: var(--soft); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
     .box h3 { margin: 0 0 5px; font-size: 13px; }
-    .box p, .box li { font-size: 12.6px; margin: 0; }
+    .box p, .box li { font-size: 12.5px; margin: 0; }
     .box ol, .box ul { margin: 0; padding-left: 16px; }
     .box li { margin: 3px 0; }
-    .flow { display: grid; grid-template-columns: 1fr 14px 1fr 14px 1fr 14px 1fr; gap: 4px; align-items: center; margin: 6px 0 8px; }
-    .node { border-radius: 10px; padding: 8px 6px; text-align: center; min-height: 58px; }
-    .node b { display: block; font-size: 12.5px; }
-    .node span { display: block; font-size: 10.5px; margin-top: 2px; opacity: .9; }
-    .n1 { background: #111; color: #fff; }
-    .n2 { background: var(--red); color: #fff; }
-    .n3 { background: #fff; color: #111; border: 2px solid var(--red); }
-    .n4 { background: var(--green); color: #fff; }
-    .arrow { text-align: center; color: var(--red); font-weight: 800; font-size: 18px; }
-    .who { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 8px; }
-    .map { background: #e8efe3; border-radius: 10px; padding: 10px 10px 8px; position: relative; min-height: 88px; }
-    .road { height: 4px; background: var(--red); margin: 28px 18px 0; position: relative; border-radius: 4px; }
-    .pin { position: absolute; top: -7px; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; }
-    .pin.a { left: 0; background: #111; }
-    .pin.b { left: 46%; background: var(--red); }
-    .pin.c { right: 0; left: auto; background: var(--green); }
-    .lab { position: absolute; font-size: 10.5px; font-weight: 700; }
-    .lab.a { left: 8px; top: 8px; }
-    .lab.b { left: 44%; top: 52px; color: var(--red); }
-    .lab.c { right: 8px; top: 8px; color: var(--green); }
+    .note { background: #fff7ed; border: 1px solid #fed7aa; color: #7c2d12; border-radius: 8px; padding: 7px 9px; font-size: 12.4px; margin-top: 8px; }
+    .fail { font-size: 12.4px; }
+    .fail p { margin: 4px 0; }
+    .fail b { display: inline-block; min-width: 148px; }
     .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 13px; }
     .checks p { margin: 3px 0; }
-    .fail { font-size: 12.6px; }
-    .fail b { display: inline-block; min-width: 148px; }
-    footer { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 6px; font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; gap: 10px; }
     .url { word-break: break-all; font-weight: 700; color: #111; }
-    .note { background: #fff7ed; border: 1px solid #fed7aa; color: #7c2d12; border-radius: 8px; padding: 7px 9px; font-size: 12.5px; margin-top: 7px; }
+    footer { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 6px; font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; gap: 10px; }
     @media screen and (max-width: 860px) {
       .sheet { width: auto; min-height: 0; margin: 0; padding: 18px 14px 28px; box-shadow: none; }
-      .flow, .who, .grid2, .checks { grid-template-columns: 1fr; }
-      .flow { display: flex; flex-direction: column; }
-      .arrow { transform: rotate(90deg); }
+      .grid2, .checks { grid-template-columns: 1fr; }
+      figure.phone { width: 46%; }
+      figure.phone img { width: 100%; height: auto; aspect-ratio: 400 / 863; }
     }
     @media print {
-      @page { size: A4; margin: 8mm; }
+      @page { size: A4; margin: 7mm; }
       body { background: #fff; }
       .sheet { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; }
       .sheet + .sheet { break-before: page; }
-      .n, .k, .node, .badge, .pin, .road, .map, .box, .note { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .n, .k, .badge, .box, .note, figure.phone img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     }
   </style>
 </head>
@@ -78,8 +63,8 @@
     <div class="top">
       <div>
         <div class="brand">EL POLLÓN · FLOTA / MOTO</div>
-        <h1>Cómo instalar y usar la app</h1>
-        <p class="sub">Hoja 1 de 2 · Se hace una sola vez · Android</p>
+        <h1>Cómo instalar e iniciar sesión</h1>
+        <p class="sub">Hoja 1 de 4 · Se hace una sola vez · Android</p>
       </div>
       <div class="badge">App El Pollón · no uses el pollito</div>
     </div>
@@ -90,8 +75,7 @@
         <div class="n">1</div>
         <div>
           <strong class="title">Baja la app en el celular</strong>
-          <p>Abre este enlace por Wi‑Fi:<br>
-          <span class="url">https://www.el-pollon.cl/DESCARGAR-APK/El-Pollon-repartidor.apk</span></p>
+          <p>Abre este enlace por Wi‑Fi:<br><span class="url">https://www.el-pollon.cl/DESCARGAR-APK/El-Pollon-repartidor.apk</span></p>
         </div>
       </div>
       <div class="step">
@@ -104,38 +88,65 @@
       <div class="step">
         <div class="n">3</div>
         <div>
-          <strong class="title">Abre El Pollón</strong>
-          <p>Usa el ícono <b>El Pollón</b>. El pollito de Chrome solo avisa. Aceptar y entregar es en esta app.</p>
+          <strong class="title">Abre el ícono El Pollón</strong>
+          <p>El pollito de Chrome solo avisa. Aceptar y entregar es en esta app.</p>
         </div>
       </div>
     </div>
 
-    <h2>Entrar y configurar</h2>
+    <h2>Iniciar sesión con TU correo de moto</h2>
+    <div class="shots">
+      <figure class="phone">
+        <img src="/guia-media/guia-login.png" alt="Pantalla Acceso personal vacía" />
+        <figcaption>Al abrir ves correo y contraseña.</figcaption>
+      </figure>
+      <figure class="phone">
+        <img src="/guia-media/guia-login-moto.png" alt="Inicio de sesión con correo de moto" />
+        <figcaption>Usa el correo que te dio tu jefe. No el del jefe.</figcaption>
+      </figure>
+    </div>
+    <p class="note"><b>Importante:</b> cada moto tiene su propio correo (ejemplo: joseelpollon@gmail.com). Si entras con el correo del jefe, no es tu cuenta. Pídele a tu jefe: correo, clave y sucursal.</p>
+    <footer>
+      <span>Pide a tu jefe: correo, contraseña y sucursal.</span>
+      <span>Sigue en la hoja 2 →</span>
+    </footer>
+  </section>
+
+  <section class="sheet">
+    <div class="top">
+      <div>
+        <div class="brand">EL POLLÓN · FLOTA / MOTO</div>
+        <h1>Permisos y En línea</h1>
+        <p class="sub">Hoja 2 de 4 · Primera vez + todos los días</p>
+      </div>
+      <div class="badge">GPS Siempre</div>
+    </div>
+
     <div class="steps">
       <div class="step">
-        <div class="n">4</div>
-        <div>
-          <strong class="title">Entra con tu correo de moto</strong>
-          <p>Correo y contraseña que te dio tu <b>jefe de flota</b>. No uses el correo del jefe. Cada moto tiene el suyo.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="n">5</div>
+        <div class="n">1</div>
         <div>
           <strong class="title">Toca <span class="k red">Permitir avisos, GPS y entrar</span></strong>
-          <p>Notificaciones → <b>Permitir</b>. Ubicación → <b>Siempre / Permitir todo el tiempo</b>. Ubicación precisa → <b>Sí</b>.</p>
+          <p>Notificaciones → <b>Permitir</b>. Ubicación → <b>Siempre / Permitir todo el tiempo</b>. Ubicación precisa → <b>Sí</b>. Nunca elijas “Solo esta vez”.</p>
         </div>
       </div>
       <div class="step">
-        <div class="n">6</div>
+        <div class="n">2</div>
         <div>
-          <strong class="title">Deja la app así en Ajustes del celular</strong>
-          <p>Ajustes → Apps → El Pollón. Notificaciones ON. Ubicación <b>Siempre</b>. Batería <b>Sin restricciones</b>. Autostart ON (Xiaomi, Redmi, POCO, Huawei, OPPO).</p>
+          <strong class="title">Arriba toca <span class="k">En línea</span></strong>
+          <p>Si dice <span class="k soft">Conectarme</span>, tócalo. Debe decir <b>En línea</b> y <b>GPS Activo en línea</b>. Sin eso tu jefe no te puede asignar.</p>
         </div>
       </div>
     </div>
+    <div class="shots">
+      <figure class="phone">
+        <img src="/guia-media/guia-app-en-linea.png" alt="App nativa En línea GPS activo" />
+        <figcaption>Así debes quedar: En línea y GPS Activo.</figcaption>
+      </figure>
+    </div>
 
-    <div class="grid2" style="margin-top:10px">
+    <h2>Deja la app así en Ajustes del celular</h2>
+    <div class="grid2">
       <div class="box">
         <h3>Xiaomi / Redmi / POCO</h3>
         <ol>
@@ -153,10 +164,10 @@
         </ol>
       </div>
     </div>
-    <p class="note"><b>Importante:</b> no te llegan todos los pedidos del local. Solo ves el que tu jefe te asigna. Si no te llega nada, pídele que te lo asigne.</p>
+    <p class="note"><b>No te llegan todos los pedidos del local.</b> Solo ves el que tu jefe te asigna. Si no te llega nada, pídele que te lo asigne.</p>
     <footer>
-      <span>Pide a tu jefe: correo, contraseña y sucursal.</span>
-      <span>Sigue en la hoja 2 →</span>
+      <span>No cierres El Pollón deslizándola en recientes.</span>
+      <span>Sigue en la hoja 3 →</span>
     </footer>
   </section>
 
@@ -165,71 +176,64 @@
       <div>
         <div class="brand">EL POLLÓN · FLOTA / MOTO</div>
         <h1>Cómo trabajar un pedido</h1>
-        <p class="sub">Hoja 2 de 2 · Todos los días · Primero te lo asigna el jefe</p>
+        <p class="sub">Hoja 3 de 4 · Primero te lo asigna el jefe</p>
       </div>
       <div class="badge">Haz esto, luego esto</div>
     </div>
 
-    <div class="flow">
-      <div class="node n1"><b>En línea</b><span>esperando</span></div>
-      <div class="arrow">→</div>
-      <div class="node n2"><b>Te asignan</b><span>tu jefe</span></div>
-      <div class="arrow">→</div>
-      <div class="node n3"><b>Pedido recogido</b><span>en el local</span></div>
-      <div class="arrow">→</div>
-      <div class="node n4"><b>Entregado</b><span>en la casa</span></div>
-    </div>
-
-    <h2>Turno</h2>
     <div class="steps">
       <div class="step">
         <div class="n">1</div>
         <div>
-          <strong class="title">Arriba toca <span class="k">En línea</span></strong>
-          <p>Si dice <span class="k soft">Conectarme</span>, tócalo. Sin eso no te pueden asignar.</p>
+          <strong class="title">Cuando te asignan, te suena. Toca <span class="k red">Aceptar</span></strong>
+          <p>Ves el cliente, la dirección y el total a cobrar. Si no puedes, <span class="k soft">Rechazar</span>.</p>
         </div>
       </div>
       <div class="step">
         <div class="n">2</div>
-        <div>
-          <strong class="title">Espera que tu jefe te asigne</strong>
-          <p>El pedido nuevo lo ve primero el jefe. Cuando te lo da, te suena. Ahí toca <span class="k red">Aceptar</span>.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="n">3</div>
         <div>
           <strong class="title">Ve a la sucursal</strong>
           <p>Toca <span class="k">Navegar a sucursal</span>. En el local toca <span class="k red">Pedido recogido</span>.</p>
         </div>
       </div>
       <div class="step">
-        <div class="n">4</div>
+        <div class="n">3</div>
         <div>
-          <strong class="title">Lleva a la casa y cierra el pedido</strong>
+          <strong class="title">Lleva a la casa y cierra</strong>
           <p>Toca <span class="k">Navegar al cliente</span>. Cobra el total. En la casa toca <span class="k green">Entregado</span>.</p>
         </div>
       </div>
     </div>
-
-    <h2>Quién te ve en el mapa</h2>
-    <div class="who">
-      <div class="map">
-        <span class="lab a">Sucursal</span>
-        <span class="lab c">Casa</span>
-        <div class="road"><i class="pin a"></i><i class="pin b"></i><i class="pin c"></i></div>
-        <span class="lab b">tú</span>
-      </div>
-      <div class="box">
-        <h3>El local</h3>
-        <p>Te ve en <b>En vivo</b> desde que tocas <span class="k red">Aceptar</span>.</p>
-      </div>
-      <div class="box">
-        <h3>El cliente</h3>
-        <p>Te ve recién cuando tocas <span class="k red">Pedido recogido</span>.</p>
-      </div>
+    <div class="shots">
+      <figure class="phone">
+        <img src="/guia-media/guia-app-oferta.png" alt="Nuevo pedido Aceptar Rechazar" />
+        <figcaption>1. Te asignan → Aceptar (azul).</figcaption>
+      </figure>
+      <figure class="phone">
+        <img src="/guia-media/guia-app-recogido.png" alt="Hacia sucursal Pedido recogido" />
+        <figcaption>2. En el local → Pedido recogido.</figcaption>
+      </figure>
+      <figure class="phone">
+        <img src="/guia-media/guia-app-entregado.png" alt="En ruta Entregado" />
+        <figcaption>3. En la casa cobra y Entregado.</figcaption>
+      </figure>
     </div>
-    <p class="note">No cierres El Pollón deslizándola en recientes. Puedes usar WhatsApp o apagar la pantalla. Puedes llevar 2, 3 o 4 pedidos (el número que te puso tu jefe) antes de marcar recojo.</p>
+    <p class="note">El local te ve en <b>En vivo</b> desde que tocas Aceptar. El cliente te ve recién cuando tocas Pedido recogido. Puedes llevar 2, 3 o 4 (el número que te puso tu jefe) antes de marcar recojo.</p>
+    <footer>
+      <span>Aceptar siempre en la app El Pollón, no en Chrome.</span>
+      <span>Sigue en la hoja 4 →</span>
+    </footer>
+  </section>
+
+  <section class="sheet">
+    <div class="top">
+      <div>
+        <div class="brand">EL POLLÓN · FLOTA / MOTO</div>
+        <h1>Antes de salir y si algo falla</h1>
+        <p class="sub">Hoja 4 de 4 · Checklist</p>
+      </div>
+      <div class="badge">Léelo una vez</div>
+    </div>
 
     <h2>Antes de salir</h2>
     <div class="checks">
@@ -247,8 +251,11 @@
       <p><b>No llegan pedidos.</b> En línea ON · pide a tu jefe que te asigne.</p>
       <p><b>El local no te ve.</b> GPS Siempre · no mates la app · toca Compartir ubicación ahora.</p>
       <p><b>Acepté en Chrome.</b> Abre la app El Pollón. El pollito solo avisa.</p>
+      <p><b>Dice “solo para repartidores”.</b> Pide a tu jefe que te cree con tu propio correo.</p>
     </div>
-
+    <div class="note" style="margin-top:12px">
+      <b>Recuerda:</b> no cierres El Pollón deslizándola en recientes. Puedes usar WhatsApp o apagar la pantalla. El GPS debe seguir activo.
+    </div>
     <footer>
       <span>Guía flota 1.6.0 · Pásala por WhatsApp</span>
       <span class="url">https://www.el-pollon.cl/guia-flota.pdf</span>
