@@ -1,6 +1,7 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 import { logAudit } from './auditService';
 import { CORE_CATEGORY_NAMES, sortStoreCategories } from '../utils/constants';
+import { applyDueMenuPriceJobs } from './menuPriceJobsService';
 
 function sb() {
   const client = getSupabase();
@@ -82,6 +83,7 @@ export async function loadBranchMenu(branchId) {
     return { categories: [], productsByCategory: {}, products: [], source: 'empty' };
   }
 
+  await applyDueMenuPriceJobs();
   const client = sb();
   const [catsRes, prodsRes] = await Promise.all([
     client

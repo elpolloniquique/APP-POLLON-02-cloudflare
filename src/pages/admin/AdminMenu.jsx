@@ -23,9 +23,11 @@ import {
   uploadProductImages,
   isSupabaseConfigured,
 } from '../../services/menuService';
+import { applyDueMenuPriceJobs } from '../../services/menuPriceJobsService';
 import { ProductImagesEditor } from '../../components/admin/ProductImagesEditor';
 import { CategoryImageEditor } from '../../components/admin/CategoryImageEditor';
 import { DrinkFlavorsEditor } from '../../components/admin/DrinkFlavorsEditor';
+import { CategoryPriceTool } from '../../components/admin/CategoryPriceTool';
 import { AdminScrollPanel } from '../../components/admin/AdminScrollPanel';
 import { AdminTable } from '../../components/admin/AdminTable';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
@@ -121,6 +123,7 @@ export function AdminMenu() {
     if (!bid) return;
     setLoading(true);
     try {
+      await applyDueMenuPriceJobs();
       const [cats, prods] = await Promise.all([
         adminListCategories(bid),
         adminListProducts(bid, {
@@ -551,7 +554,16 @@ export function AdminMenu() {
       )}
 
       {tab === 'herramientas' && (
+        <div className="min-h-0 flex-1 overflow-y-auto pb-4">
         <div className="grid gap-4 md:grid-cols-2">
+          <CategoryPriceTool
+            branchId={activeBranchId}
+            categories={categories}
+            user={user}
+            canManage={canManageMenu}
+            onApplied={load}
+            show={show}
+          />
           {isSuper && (
             <div className="rounded-2xl bg-white p-6 shadow-sm">
               <h3 className="flex items-center gap-2 font-bold"><Copy className="h-5 w-5 text-pollon-red" /> Copiar menú de otra sucursal</h3>
@@ -606,6 +618,7 @@ export function AdminMenu() {
             <h3 className="flex items-center gap-2 font-bold"><Download className="h-5 w-5" /> Exportar Excel/CSV</h3>
             <p className="mt-1 text-sm text-gray-500">Próximamente</p>
           </div>
+        </div>
         </div>
       )}
 

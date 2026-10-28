@@ -45,8 +45,17 @@ export default async function handler(req, res) {
     return res.status(500).json(result);
   }
 
+  let priceJobs = { applied: 0 };
+  try {
+    const { data } = await admin.rpc('ep_apply_due_menu_price_jobs', { p_limit: 30 });
+    priceJobs = data || { applied: 0 };
+  } catch {
+    priceJobs = { skipped: true };
+  }
+
   return res.status(200).json({
     ...result,
+    priceJobs,
     fcmConfigured: isFcmConfigured(),
     fcmMode: fcmModeLabel(),
     source: bodySource,
