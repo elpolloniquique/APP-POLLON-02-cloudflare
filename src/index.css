@@ -2913,16 +2913,51 @@
   .gps-map-overlay .leaflet-container {
     height: 100%;
     width: 100%;
-    background: #e8e8e8;
+    background: #ddd;
+    z-index: 0 !important;
   }
-  .gps-map-overlay .leaflet-top.leaflet-left {
-    top: 3.35rem;
+  .gps-map-overlay .leaflet-pane,
+  .gps-map-overlay .leaflet-map-pane,
+  .gps-map-overlay .leaflet-tile-pane {
+    z-index: 200 !important;
   }
-  .gps-map-overlay .leaflet-control-zoom {
-    border: 1px solid rgb(0 0 0 / 0.12) !important;
-    border-radius: 0.35rem !important;
+  .gps-map-overlay .leaflet-tile {
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  .gps-map-overlay .leaflet-control-attribution {
+    z-index: 400 !important;
+  }
+  .gps-zoom-stack {
+    position: absolute;
+    top: 4.35rem;
+    right: 0.62rem;
+    z-index: 900;
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
-    box-shadow: 0 6px 16px rgb(0 0 0 / 0.14);
+    border-radius: 0.38rem;
+    border: 1px solid rgb(0 0 0 / 0.14);
+    background: #fff;
+    box-shadow: 0 8px 18px rgb(0 0 0 / 0.16);
+  }
+  .gps-zoom-stack button {
+    width: 2.15rem;
+    height: 2.15rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    font-weight: 600;
+    line-height: 1;
+    color: #111;
+    background: #fff;
+  }
+  .gps-zoom-stack button + button {
+    border-top: 1px solid #e5e5e5;
+  }
+  .gps-zoom-stack button:hover {
+    background: #f4f4f4;
   }
   .checkout-modal__title.is-plain {
     text-transform: none;

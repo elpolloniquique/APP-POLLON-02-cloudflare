@@ -579,6 +579,7 @@ export function CheckoutModal() {
                   </p>
                 )}
                 <AddressAutocomplete
+                  key={branch?.id || branch?.city || 'branch-map'}
                   value={form.address}
                   required
                   mode="map"

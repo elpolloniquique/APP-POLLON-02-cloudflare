@@ -14,20 +14,51 @@ import {
   resolveExactMapPin,
 } from '../../utils/addressGeocode';
 import { locateWithPrecisePermission, gpsErrorMessage } from '../../utils/gpsLocation';
-import { DEFAULT_MAP_CENTER } from '../../utils/geo';
+import { mapCenterForCity } from '../../utils/geo';
 
 const DEFAULT_ZOOM = 16;
-const MAX_ZOOM = 21;
+const MAX_ZOOM = 19;
 const OSM_TILES = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const OSM_TILES_PLAIN = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
-function resolveMapCenter(start, bLat, bLng) {
+function resolveMapCenter(start, bLat, bLng, city = 'Iquique') {
   const lat = Number(start?.lat);
   const lng = Number(start?.lng);
-  if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
-  const fLat = Number(bLat);
-  const fLng = Number(bLng);
-  if (Number.isFinite(fLat) && Number.isFinite(fLng)) return { lat: fLat, lng: fLng };
-  return { lat: DEFAULT_MAP_CENTER.lat, lng: DEFAULT_MAP_CENTER.lng };
+  if (
+    Number.isFinite(lat)
+    && Number.isFinite(lng)
+    && Math.abs(lat) <= 85
+    && Math.abs(lng) <= 180
+    && !(Math.abs(lat) < 0.02 && Math.abs(lng) < 0.02)
+  ) {
+    return { lat, lng };
+  }
+  return mapCenterForCity(city, bLat, bLng);
+}
+
+function StreetTiles() {
+  const [url, setUrl] = useState(OSM_TILES);
+  const switched = useRef(false);
+  return (
+    <TileLayer
+      key={url}
+      url={url}
+      subdomains="abc"
+      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      maxZoom={MAX_ZOOM}
+      maxNativeZoom={19}
+      keepBuffer={6}
+      updateWhenIdle={false}
+      updateWhenZooming
+      eventHandlers={{
+        tileerror: () => {
+          if (switched.current) return;
+          switched.current = true;
+          setUrl(OSM_TILES_PLAIN);
+        },
+      }}
+    />
+  );
 }
 
 function MapSync({ center, recenterToken, extraMeasure = false, focusZoom = null }) {
@@ -214,7 +245,8 @@ export function GpsMapPickerModal({
 }) {
   const isInline = variant === 'inline';
   const isOverlay = chrome === 'overlay';
-  const [center, setCenter] = useState(() => resolveMapCenter(initialCenter, biasLat, biasLng));
+  const [center, setCenter] = useState(() => resolveMapCenter(initialCenter, biasLat, biasLng, cityBias));
+  const mapApiRef = useRef(null);
   const [recenterToken, setRecenterToken] = useState(0);
   const [focusZoom, setFocusZoom] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -240,8 +272,8 @@ export function GpsMapPickerModal({
   const userDraggedRef = useRef(false);
   const typingRef = useRef(false);
   const sessionOpenRef = useRef(false);
-  const propsRef = useRef({ initialCenter, selectedAddress, biasLat, biasLng });
-  propsRef.current = { initialCenter, selectedAddress, biasLat, biasLng };
+  const propsRef = useRef({ initialCenter, selectedAddress, biasLat, biasLng, cityBias });
+  propsRef.current = { initialCenter, selectedAddress, biasLat, biasLng, cityBias };
 
   useEffect(() => {
     if (!open) {
@@ -253,8 +285,10 @@ export function GpsMapPickerModal({
     if (sessionOpenRef.current) return;
     sessionOpenRef.current = true;
 
-    const { initialCenter: start, selectedAddress: known, biasLat: bLat, biasLng: bLng } = propsRef.current;
-    const nextCenter = resolveMapCenter(start, bLat, bLng);
+    const { initialCenter: start, selectedAddress: known, biasLat: bLat, biasLng: bLng, cityBias: city } = propsRef.current;
+    const nextCenter = known
+      ? resolveMapCenter(start, bLat, bLng, city)
+      : resolveMapCenter(null, bLat, bLng, city);
     setCenter(nextCenter);
     setError('');
     setGpsAccuracy(null);
@@ -319,16 +353,41 @@ export function GpsMapPickerModal({
           accuracy: Number.isFinite(gpsAccuracy) ? Math.min(gpsAccuracy, 16) : 12,
         });
         if (!cancelled && !searchPinLockRef.current) {
+          const exact = geo?.precision === 'exact' && geo?.houseNumber;
+          const bLat = Number(geo?.buildingLat ?? geo?.lat);
+          const bLng = Number(geo?.buildingLng ?? geo?.lng);
+          const snap = exact && Number.isFinite(bLat) && Number.isFinite(bLng);
           const next = geo
             ? {
               ...geo,
-              lat: center.lat,
-              lng: center.lng,
+              lat: snap ? bLat : center.lat,
+              lng: snap ? bLng : center.lng,
               source: 'gps',
-              shortLabel: ensureShortLabel(geo),
-              label: ensureShortLabel(geo),
+              precision: exact ? 'exact' : 'street',
+              houseNumber: exact ? geo.houseNumber : null,
+              shortLabel: ensureShortLabel({
+                ...geo,
+                houseNumber: exact ? geo.houseNumber : null,
+              }),
+              label: ensureShortLabel({
+                ...geo,
+                houseNumber: exact ? geo.houseNumber : null,
+              }),
             }
             : null;
+          if (snap) {
+            const dM = Math.hypot(
+              (bLat - Number(center.lat)) * 111320,
+              (bLng - Number(center.lng)) * 111320 * Math.cos((bLat * Math.PI) / 180),
+            );
+            if (dM > 6 && dM < 55) {
+              skipReverseRef.current = true;
+              suppressMoveRef.current = true;
+              setCenter({ lat: bLat, lng: bLng });
+              setRecenterToken((v) => v + 1);
+              window.setTimeout(() => { suppressMoveRef.current = false; }, 450);
+            }
+          }
           setDraft(next);
           const synced = ensureShortLabel(next);
           if (synced && !typingRef.current) {
@@ -337,7 +396,7 @@ export function GpsMapPickerModal({
             setSearchOpen(false);
             searchReqRef.current += 1;
           }
-          if (isInline && next?.road && next?.houseNumber && userDraggedRef.current) {
+          if (isInline && exact && userDraggedRef.current) {
             onConfirm?.(next);
           }
         }
@@ -475,8 +534,7 @@ export function GpsMapPickerModal({
       houseNumber,
       city: snapped.city || finalHit.city,
     });
-    const precision = snapped.precision
-      || (houseNumber ? 'exact' : 'street');
+    const precision = houseNumber ? 'exact' : 'street';
 
     typingRef.current = false;
     setSearchQuery(labelText);
@@ -623,7 +681,7 @@ export function GpsMapPickerModal({
   const label = useMemo(() => ensureShortLabel(draft), [draft]);
   const streetHeadline = primaryLine(label);
   const placeDetail = secondaryLine(label);
-  const canConfirm = !!(draft?.road && draft?.houseNumber) || !!parseAddressQuery(label).houseNumber;
+  const canConfirm = !!(draft?.road && draft?.houseNumber && draft?.precision === 'exact');
 
   const handleRecenter = async () => {
     if (loadingGps) return;
@@ -785,7 +843,7 @@ export function GpsMapPickerModal({
     </div>
   );
 
-  const mapCenter = resolveMapCenter(center, biasLat, biasLng);
+  const mapCenter = resolveMapCenter(center, biasLat, biasLng, cityBias);
 
   const card = (
     <div className={isInline
@@ -818,32 +876,34 @@ export function GpsMapPickerModal({
         </div>
       )}
 
-      <div className={`relative bg-zinc-200 ${isOverlay ? 'h-[min(50vh,380px)] min-h-[260px]' : (isInline ? 'h-[200px]' : 'h-[52vh] min-h-[320px]')}`}>
+      <div className={`relative bg-[#dce6ee] ${isOverlay ? 'h-[min(42vh,300px)] min-h-[220px]' : (isInline ? 'h-[200px]' : 'h-[52vh] min-h-[320px]')}`}>
         {isOverlay && (
-          <div className="absolute inset-x-2.5 top-2.5 z-[850] sm:left-[3.15rem]">
+          <div className="absolute inset-x-2.5 right-[3.4rem] top-2.5 z-[850]">
             {searchBox}
           </div>
         )}
         <MapContainer
+          key={`branch-${cityBias}`}
           center={[mapCenter.lat, mapCenter.lng]}
           zoom={DEFAULT_ZOOM}
           maxZoom={MAX_ZOOM}
           scrollWheelZoom
-          zoomControl={!isOverlay}
-          className={`h-full w-full ${isOverlay ? 'gps-map-overlay' : ''}`}
+          zoomControl={false}
+          className={`absolute inset-0 h-full w-full ${isOverlay ? 'gps-map-overlay' : ''}`}
           whenReady={(e) => {
-            try { e.target.invalidateSize({ animate: false }); } catch { /* ignore */ }
+            mapApiRef.current = e.target;
+            try {
+              e.target.invalidateSize({ animate: false });
+              e.target.setView([mapCenter.lat, mapCenter.lng], DEFAULT_ZOOM, { animate: false });
+            } catch { /* ignore */ }
+            [50, 180, 400].forEach((ms) => {
+              window.setTimeout(() => {
+                try { e.target.invalidateSize({ animate: false }); } catch { /* ignore */ }
+              }, ms);
+            });
           }}
         >
-          <TileLayer
-            url={OSM_TILES}
-            attribution="&copy; OpenStreetMap contributors"
-            maxZoom={MAX_ZOOM}
-            maxNativeZoom={19}
-            keepBuffer={2}
-            updateWhenIdle={false}
-            updateWhenZooming={false}
-          />
+          <StreetTiles />
           <MapSync center={center} recenterToken={recenterToken} extraMeasure={isInline} focusZoom={focusZoom} />
           <MapMoveWatcher
             onCenterChange={setCenter}
@@ -853,6 +913,25 @@ export function GpsMapPickerModal({
         </MapContainer>
 
         <FixedPin />
+
+        <div className="gps-zoom-stack">
+          <button
+            type="button"
+            aria-label="Acercar mapa"
+            title="Acercar"
+            onClick={() => mapApiRef.current?.zoomIn()}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            aria-label="Alejar mapa"
+            title="Alejar"
+            onClick={() => mapApiRef.current?.zoomOut()}
+          >
+            −
+          </button>
+        </div>
 
         <button
           type="button"
@@ -898,7 +977,7 @@ export function GpsMapPickerModal({
               <p className="mt-1 text-[11px] font-medium leading-[1.4] text-zinc-600">
                 {error
                   || (canConfirm
-                    ? 'Calle y número confirmados para este punto.'
+                    ? 'Dirección exacta: calle y número de esta casa.'
                     : (draft?.precision
                       ? precisionHint(draft.precision)
                       : (isInline
@@ -913,10 +992,10 @@ export function GpsMapPickerModal({
         {!canConfirm && !loadingAddress && (
           <p className={`mt-2 text-[11px] font-medium leading-[1.4] ${isOverlay ? 'text-zinc-500' : 'text-[#c00000]'}`}>
             {isOverlay
-              ? 'Escribe calle y número y elige un resultado de la lista para confirmar el punto.'
+              ? 'Pon la aguja sobre la casa o busca calle y número para confirmar la dirección exacta.'
               : (isInline
-                ? 'Aún no hay número de casa. Escribe calle y número y elige un resultado de la lista.'
-                : 'Aún no hay número de casa confirmado. Acerca la aguja a tu puerta o busca manualmente “calle número”.')}
+                ? 'Aún no hay número de casa exacto. Acerca la aguja a la puerta o elige un resultado de la lista.'
+                : 'Aún no hay número de casa exacto. Acerca la aguja a tu puerta o busca “calle número”.')}
           </p>
         )}
 

@@ -14,7 +14,7 @@ import {
   ADDRESS_LIST_HINT,
 } from '../../utils/gpsLocation';
 import { GpsMapPickerModal } from './GpsMapPickerModal';
-import { DEFAULT_MAP_CENTER } from '../../utils/geo';
+import { mapCenterForCity } from '../../utils/geo';
 
 /**
  * Dirección de entrega.
@@ -361,14 +361,9 @@ export function AddressAutocomplete({
   );
 
   if (mode === 'map') {
-    const branchCenter = {
-      lat: Number.isFinite(Number(initialLat))
-        ? Number(initialLat)
-        : (Number.isFinite(Number(biasLat)) ? Number(biasLat) : DEFAULT_MAP_CENTER.lat),
-      lng: Number.isFinite(Number(initialLng))
-        ? Number(initialLng)
-        : (Number.isFinite(Number(biasLng)) ? Number(biasLng) : DEFAULT_MAP_CENTER.lng),
-    };
+    const branchCenter = Number.isFinite(Number(initialLat)) && Number.isFinite(Number(initialLng))
+      ? { lat: Number(initialLat), lng: Number(initialLng) }
+      : mapCenterForCity(cityBias, biasLat, biasLng);
 
     return (
       <div ref={containerRef} className="relative">

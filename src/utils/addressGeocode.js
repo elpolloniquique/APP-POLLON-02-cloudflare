@@ -227,7 +227,90 @@ function normText(s) {
     .trim();
 }
 
+const ES_STREET_NUMBERS = {
+  uno: '1', dos: '2', tres: '3', cuatro: '4', cinco: '5', seis: '6', siete: '7',
+  ocho: '8', nueve: '9', diez: '10', once: '11', doce: '12', trece: '13',
+  catorce: '14', quince: '15', dieciseis: '16', diecisiete: '17', dieciocho: '18',
+  diecinueve: '19', veinte: '20', veintiuno: '21', veintidos: '22', veintitres: '23',
+  veinticuatro: '24', veinticinco: '25',
+};
+
+function stripStreetPrefix(name) {
+  return String(name || '')
+    .replace(/^(calle|av\.?|avenida|pasaje|psje\.?|psj\.?)\s+/i, '')
+    .trim();
+}
+
+/** Identidad comparable: "Calle Uno" = "1" = "Calle 1". */
+function streetIdentity(name) {
+  const n = normText(stripStreetPrefix(name));
+  if (!n) return '';
+  if (ES_STREET_NUMBERS[n]) return ES_STREET_NUMBERS[n];
+  if (/^\d+[a-z]?$/.test(n)) return n.replace(/[a-z]/g, '');
+  return n;
+}
+
+function titleStreet(name) {
+  const small = new Set(['de', 'del', 'la', 'las', 'los', 'y', 'e']);
+  return String(name || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .map((word, i) => {
+      const lower = word.toLocaleLowerCase('es');
+      if (i > 0 && small.has(lower)) return lower;
+      if (!lower) return word;
+      return lower.charAt(0).toLocaleUpperCase('es') + lower.slice(1);
+    })
+    .join(' ');
+}
+
+/** Nombre para mostrar, como en el mapa: "Calle Uno", "Pasaje Los Chunchos". */
+function prettyChileRoad(road, hint = '') {
+  const raw = String(road || '').replace(/\s+/g, ' ').trim();
+  if (!raw) return '';
+  const h = normText(hint);
+  if (/^avenida\s+/i.test(raw) || /^av\.?\s+/i.test(raw)) return raw.replace(/^av\.?\s+/i, 'Avenida ');
+  if (/^pasaje\s+/i.test(raw) || /^psje\.?\s+/i.test(raw)) return raw.replace(/^psje\.?\s+/i, 'Pasaje ');
+  if (/^calle\s+/i.test(raw)) return `Calle ${titleStreet(stripStreetPrefix(raw))}`;
+
+  const rest = titleStreet(stripStreetPrefix(raw));
+  const ident = streetIdentity(raw);
+  const word = normText(stripStreetPrefix(raw));
+  if (h.includes('pasaje') || ['service', 'living_street', 'footway', 'path', 'alley'].includes(h)) {
+    return `Pasaje ${rest}`;
+  }
+  if (h.includes('avenida') || h === 'av' || ['primary', 'secondary', 'trunk', 'tertiary'].includes(h)) {
+    return `Avenida ${rest}`;
+  }
+  if (ES_STREET_NUMBERS[word]) {
+    const prettyWord = word.charAt(0).toUpperCase() + word.slice(1);
+    return `Calle ${prettyWord}`;
+  }
+  if (/^\d+$/.test(ident)) return `Calle ${rest}`;
+  return `Calle ${rest}`;
+}
+
+function pickRichestRoadName(names, hint = '', anchor = '') {
+  const wanted = streetIdentity(anchor);
+  const list = (names || [])
+    .filter((n) => n && (!wanted || streetIdentity(n) === wanted || streetsMatch(n, anchor)))
+    .map((n) => prettyChileRoad(n, hint))
+    .filter(Boolean);
+  if (!list.length) return prettyChileRoad(anchor, hint);
+  const score = (s) => (
+    s.length
+    + (/^(Calle|Avenida|Pasaje)\s/i.test(s) ? 10 : 0)
+    + (/[A-Za-záéíóúñ]/i.test(s.replace(/\d/g, '')) ? 14 : 0)
+  );
+  list.sort((a, b) => score(b) - score(a));
+  return list[0];
+}
+
 function streetsMatch(a, b) {
+  const ia = streetIdentity(a);
+  const ib = streetIdentity(b);
+  if (ia && ib && ia === ib) return true;
   const na = normText(a);
   const nb = normText(b);
   if (!na || !nb) return false;
@@ -297,6 +380,9 @@ function streetTokens(name) {
 
 /** Matching estricto para pin exacto (evita Juan Martínez ≈ Luis Cruz Martínez y Libertad ≈ Libertador). */
 function streetsMatchStrict(a, b) {
+  const ia = streetIdentity(a);
+  const ib = streetIdentity(b);
+  if (ia && ib && ia === ib) return true;
   const na = normText(a);
   const nb = normText(b);
   if (!na || !nb) return false;
@@ -1837,24 +1923,29 @@ function betterPostcode(a, b) {
   return score(a) >= score(b) ? a || b : b || a;
 }
 
-function buildGpsHit({ lat, lng, road, houseNumber, postcode, city, state, precision, source = 'gps', buildingLat, buildingLng }) {
+function buildGpsHit({ lat, lng, road, houseNumber, postcode, city, state, precision, source = 'gps', buildingLat, buildingLng, roadHint = '' }) {
   const cityName = city || guessCityFromCoords(lat, lng);
-  const roadName = preferredLocalRoadName(road, cityName) || road || '';
+  const local = preferredLocalRoadName(road, cityName) || road || '';
+  const roadName = prettyChileRoad(local || road, roadHint);
+  let number = houseNumber ? String(houseNumber) : null;
+  if (number && streetIdentity(roadName) === streetIdentity(number) && !/\d{2,}/.test(number)) {
+    number = null;
+  }
   const shortLabel = formatChileLabel({
     road: roadName || 'Ubicación',
-    houseNumber: houseNumber || null,
+    houseNumber: number,
     postcode: postcode || null,
     city: cityName,
     state: state || 'Tarapacá',
   });
   return {
-    id: `rev-${source}-${lat}-${lng}-${houseNumber || 's'}`,
+    id: `rev-${source}-${lat}-${lng}-${number || 's'}`,
     label: shortLabel,
     shortLabel,
     lat,
     lng,
-    precision: houseNumber ? precision || 'exact' : 'street',
-    houseNumber: houseNumber ? String(houseNumber) : null,
+    precision: number ? precision || 'exact' : 'street',
+    houseNumber: number,
     postcode: postcode || null,
     road: roadName,
     city: cityName,
@@ -2018,21 +2109,49 @@ out geom 25;
 `.trim();
   const data = await fetchOverpass(q, 6500);
   const roads = (data?.elements || [])
-    .filter((el) => el.type === 'way' && el.tags?.name && el.geometry?.length)
+    .filter((el) => el.type === 'way' && el.geometry?.length && (el.tags?.name || el.tags?.alt_name || el.tags?.['name:es']))
     .map((el) => ({
-      name: String(el.tags.name).trim(),
+      name: String(el.tags.name || el.tags['name:es'] || el.tags.alt_name || '').trim(),
+      highway: String(el.tags.highway || '').trim(),
       distM: minDistToWayGeom(lat, lng, el),
       geometry: el.geometry,
     }))
-    .filter((r) => Number.isFinite(r.distM))
+    .filter((r) => r.name && Number.isFinite(r.distM))
     .sort((a, b) => a.distM - b.distM);
   const best = roads[0];
-  if (!best || best.distM > 32) return { road: null, distM: Infinity, roads };
-  return { road: best.name, distM: best.distM, roads };
+  if (!best || best.distM > 28) return { road: null, distM: Infinity, roads, highway: '' };
+  return { road: best.name, distM: best.distM, roads, highway: best.highway };
+}
+
+/** En un cruce, la calle del pin es la geometría más cercana, votada por las casas de esa cuadra. */
+function pickPinRoad(roads, houses, lat, lng) {
+  const close = (roads || []).filter((r) => Number.isFinite(r.distM) && r.distM <= 28);
+  if (!close.length) return null;
+  const nearest = close[0];
+  const contenders = close.filter((r) => r.distM <= nearest.distM + 6);
+  if (contenders.length === 1) return nearest;
+  const nearby = (houses || [])
+    .map((h) => ({
+      ...h,
+      d: haversineM({ lat, lng }, { lat: h.lat, lng: h.lng }),
+    }))
+    .filter((h) => h.d <= 40);
+  const scored = contenders.map((r) => {
+    let s = 40 - r.distM;
+    for (const h of nearby) {
+      if (h.street && (houseOnStreet(h.street, r.name) || streetsMatch(h.street, r.name))) {
+        s += 28 / Math.max(4, h.d);
+      }
+    }
+    return { r, s };
+  });
+  scored.sort((a, b) => b.s - a.s);
+  return scored[0]?.r || nearest;
 }
 
 function houseOnStreet(houseStreet, street) {
-  if (!street || !houseStreet) return false;
+  if (!street) return false;
+  if (!houseStreet) return false;
   return streetsMatch(houseStreet, street) || streetsMatchStrict(houseStreet, street);
 }
 
@@ -2102,18 +2221,20 @@ function mapArcGisReverse(data, lat, lng) {
   const country = String(a.CountryCode || a.CntryName || '').toUpperCase();
   if (country && country !== 'CHL' && !/chile/i.test(a.CntryName || '')) return null;
 
+  const line = String(a.Address || a.Match_addr || '').split(',')[0].trim();
   let houseNumber = String(a.AddNum || '').trim();
-  if (houseNumber.includes('-')) houseNumber = parseHouseFromAddressLine(a.Address) || houseNumber.split('-')[0];
-  if (!houseNumber) houseNumber = parseHouseFromAddressLine(a.Address) || '';
+  if (houseNumber.includes('-')) houseNumber = parseHouseFromAddressLine(line) || houseNumber.split('-')[0];
+  if (!houseNumber) houseNumber = parseHouseFromAddressLine(line) || '';
 
-  let road = String(a.StName || '').trim();
-  if (!road && a.Address) {
-    road = String(a.Address)
-      .replace(/,.*$/, '')
-      .replace(/\s+\d+[A-Za-z]?(?:\s*-\s*\d+)?\s*$/, '')
-      .trim();
+  const stPre = String(a.StPreType || a.StType || '').trim();
+  let road = [stPre, String(a.StName || '').trim()].filter(Boolean).join(' ').trim();
+  if (!road && line) {
+    road = line.replace(/\s+\d+[A-Za-z]?(?:\s*-\s*\d+)?\s*$/, '').trim();
   }
-  road = road.replace(/^(calle|av\.?|avenida|pasaje|psje\.?)\s+/i, '').trim();
+  if (houseNumber && streetIdentity(road || houseNumber) === streetIdentity(houseNumber) && !a.AddNum) {
+    road = prettyChileRoad(road || houseNumber, stPre);
+    houseNumber = '';
+  }
   if (!road && !houseNumber) return null;
 
   const addrType = String(a.Addr_type || '');
@@ -2133,6 +2254,7 @@ function mapArcGisReverse(data, lat, lng) {
     state: a.Region || 'Tarapacá',
     precision,
     source: 'arcgis',
+    roadHint: stPre,
     buildingLat: Number(data.location?.y ?? a.Y),
     buildingLng: Number(data.location?.x ?? a.X),
   });
@@ -2156,31 +2278,50 @@ async function reverseArcGisOnce(lat, lng, { featureTypes, locationType, distanc
   return mapArcGisReverse(data, lat, lng);
 }
 
-async function reverseArcGis(lat, lng, distanceM = 28) {
-  const dist = Math.max(14, Math.min(40, Math.round(distanceM)));
-  const [rooftop, street] = await Promise.all([
-    reverseArcGisOnce(lat, lng, {
-      featureTypes: 'PointAddress',
-      locationType: 'rooftop',
-      distanceM: dist,
-      timeoutMs: 4500,
-    }).catch(() => null),
-    reverseArcGisOnce(lat, lng, {
-      featureTypes: 'StreetAddress,PointAddress',
-      locationType: 'street',
-      distanceM: dist,
-      timeoutMs: 4500,
-    }).catch(() => null),
-  ]);
-  const rooftopDist = (rooftop?.buildingLat != null && rooftop?.buildingLng != null)
+async function reverseArcGis(lat, lng, distanceM = 36) {
+  const dist = Math.max(18, Math.min(48, Math.round(distanceM)));
+  const rooftop = await reverseArcGisOnce(lat, lng, {
+    featureTypes: 'PointAddress',
+    locationType: 'rooftop',
+    distanceM: dist,
+    timeoutMs: 4500,
+  }).catch(() => null);
+  if (!rooftop?.road) return rooftop;
+  const rooftopDist = (rooftop.buildingLat != null && rooftop.buildingLng != null)
     ? haversineM({ lat, lng }, { lat: rooftop.buildingLat, lng: rooftop.buildingLng })
     : Infinity;
-  if (rooftop?.road && rooftop?.houseNumber && rooftopDist <= 22) {
+  if (rooftop.houseNumber && rooftop.addrType === 'PointAddress' && rooftopDist <= 40) {
     return { ...rooftop, precision: 'exact' };
   }
-  if (street?.road) return street;
-  if (rooftop?.road) return rooftop;
-  return null;
+  return { ...rooftop, houseNumber: null, precision: 'street' };
+}
+
+/** Parcela/fachada real (PointAddress) más cercana en ESA calle. Nunca interpola. */
+async function nearestExactPointOnStreet(lat, lng, street, city) {
+  const road = prettyChileRoad(street);
+  const rawName = stripStreetPrefix(street);
+  if (!rawName) return null;
+  const parsed = parseAddressQuery(road);
+  const raw = await arcgisFindAddress(`${road}, ${city}, Chile`, {
+    lat,
+    lng,
+    limit: 12,
+    timeoutMs: 5000,
+    category: 'Point Address',
+  }).catch(() => []);
+  const mapped = (raw || [])
+    .map((c) => mapArcGisCandidate(c, parsed, city))
+    .filter((h) => h && h.addrType === 'PointAddress' && h.houseNumber)
+    .filter((h) => houseOnStreet(h.road, street) || streetsMatch(h.road, street))
+    .map((h) => ({
+      ...h,
+      d: haversineM({ lat, lng }, { lat: Number(h.lat), lng: Number(h.lng) }),
+    }))
+    .filter((h) => h.d <= 50)
+    .sort((a, b) => a.d - b.d);
+  const best = mapped[0];
+  if (!best) return null;
+  return { ...best, precision: 'exact', buildingLat: best.lat, buildingLng: best.lng };
 }
 
 /**
@@ -2261,7 +2402,10 @@ async function arcgisFindAddress(query, opts = {}) {
   url.searchParams.set('langCode', 'es');
   url.searchParams.set('countryCode', 'CHL');
   if (opts.category !== false) {
-    url.searchParams.set('category', 'Point Address,Street Address,Address');
+    url.searchParams.set(
+      'category',
+      typeof opts.category === 'string' ? opts.category : 'Point Address,Street Address,Address',
+    );
   }
   if (Number.isFinite(opts.lat) && Number.isFinite(opts.lng)) {
     url.searchParams.set('location', `${opts.lng},${opts.lat}`);
@@ -2281,7 +2425,7 @@ async function reverseNominatim(lat, lng) {
   url.searchParams.set('lon', String(lng));
   url.searchParams.set('format', 'json');
   url.searchParams.set('addressdetails', '1');
-  url.searchParams.set('zoom', '18');
+  url.searchParams.set('zoom', '19');
   url.searchParams.set('countrycodes', 'cl');
   const data = await fetchJsonTimeout(url.toString(), {}, 4000);
   return mapReverseNominatim(data, lat, lng);
@@ -2409,10 +2553,10 @@ function housesToHits(houses, lat, lng) {
 /**
  * Dirección exacta (calle + número) a partir del GPS real del teléfono.
  */
-function applyLocalRoadName(hit, city) {
+function applyLocalRoadName(hit, city, hint = '') {
   if (!hit?.road) return hit;
-  const corrected = preferredLocalRoadName(hit.road, city) || hit.road;
-  if (corrected === hit.road) return hit;
+  const corrected = prettyChileRoad(preferredLocalRoadName(hit.road, city) || hit.road, hint);
+  if (corrected === hit.road && hit.shortLabel) return hit;
   const label = formatChileLabel({
     road: corrected,
     houseNumber: hit.houseNumber,
@@ -2812,82 +2956,121 @@ export async function reverseGeocodePrecise(lat, lng, opts = {}) {
 
   const accuracy = Number(opts.accuracy);
   const arcRadius = Number.isFinite(accuracy)
-    ? Math.max(12, Math.min(22, accuracy))
-    : 16;
+    ? Math.max(18, Math.min(36, accuracy))
+    : 28;
 
   const key = `rev-pin:${la.toFixed(6)},${ln.toFixed(6)},${Math.round(arcRadius)}`;
   if (searchCache.has(key)) return searchCache.get(key);
 
   const [ovResult, roadInfo, arc, pho, nom] = await Promise.all([
     reverseOverpassNearby(la, ln, 90).catch(() => ({ hit: null, houses: [] })),
-    reverseNearestNamedRoad(la, ln, 45).catch(() => ({ road: null, distM: Infinity, roads: [] })),
+    reverseNearestNamedRoad(la, ln, 55).catch(() => ({ road: null, distM: Infinity, roads: [], highway: '' })),
     reverseArcGis(la, ln, arcRadius).catch(() => null),
     reversePhoton(la, ln).catch(() => null),
     reverseNominatim(la, ln).catch(() => null),
   ]);
 
   const city = guessCityFromCoords(la, ln);
-  const pinStreet = (roadInfo?.road && roadInfo.distM <= 32)
-    ? roadInfo.road
-    : (nom?.road || '');
   const houses = bindHousesToRoads(ovResult?.houses || [], roadInfo?.roads || []);
-  const onThisStreet = pinStreet
-    ? houses.filter((h) => houseOnStreet(h.street, pinStreet))
-    : [];
-  const est = estimateHouseFromNearby(la, ln, onThisStreet);
-  const pinOnStreet = Number.isFinite(roadInfo?.distM) && roadInfo.distM <= 22;
-  const pinOnHouse = Number.isFinite(est?.distM) && est.distM <= 16;
+  const pinWay = pickPinRoad(roadInfo?.roads || [], houses, la, ln)
+    || ((roadInfo?.road && roadInfo.distM <= 28) ? roadInfo : null);
+  const highwayHint = pinWay?.highway || roadInfo?.highway || '';
+  const pinStreetRaw = pinWay?.name || pinWay?.road || '';
+  const pinStreet = pickRichestRoadName(
+    [pinStreetRaw, nom?.road, arc?.road, pho?.road],
+    highwayHint,
+    pinStreetRaw,
+  ) || prettyChileRoad(pinStreetRaw, highwayHint);
 
-  const pack = (road, houseNumber, extra = {}) => applyLocalRoadName(buildGpsHit({
-    lat: la,
-    lng: ln,
-    road,
-    houseNumber: houseNumber ? String(houseNumber) : null,
-    postcode: extra.postcode || est?.postcode || extra.hit?.postcode || null,
-    city: extra.city || city,
-    state: extra.state || (city === 'Arica' ? 'Arica y Parinacota' : 'Tarapacá'),
-    precision: extra.precision || (pinOnHouse ? 'exact' : (houseNumber ? 'interpolated' : 'street')),
-    source: extra.source || 'gps',
-    buildingLat: extra.buildingLat ?? est?.lat,
-    buildingLng: extra.buildingLng ?? est?.lng,
-  }), city);
+  const onThisStreet = pinStreet
+    ? houses.filter((h) => {
+      if (h.street && (houseOnStreet(h.street, pinStreet) || houseOnStreet(h.street, pinStreetRaw))) return true;
+      if (!h.street && pinWay?.geometry) {
+        return minDistToWayGeom(h.lat, h.lng, { geometry: pinWay.geometry }) <= 14;
+      }
+      return false;
+    })
+    : [];
+  const closeOnStreet = onThisStreet
+    .map((h) => ({ ...h, d: haversineM({ lat: la, lng: ln }, { lat: h.lat, lng: h.lng }) }))
+    .sort((a, b) => a.d - b.d)[0] || null;
+  const arcSameStreet = !!(arc?.precision === 'exact' && arc?.houseNumber && pinStreet && houseOnStreet(arc.road, pinStreet));
+  const displayStreet = pickRichestRoadName(
+    [pinStreet, pinStreetRaw, closeOnStreet?.street],
+    highwayHint,
+    pinStreetRaw || pinStreet,
+  ) || pinStreet;
+
+  const pack = (road, houseNumber, extra = {}) => {
+    const exact = extra.precision === 'exact' && houseNumber;
+    const bLat = Number(extra.buildingLat);
+    const bLng = Number(extra.buildingLng);
+    const useBuilding = exact && Number.isFinite(bLat) && Number.isFinite(bLng);
+    return applyLocalRoadName(buildGpsHit({
+      lat: useBuilding ? bLat : la,
+      lng: useBuilding ? bLng : ln,
+      road,
+      houseNumber: exact ? String(houseNumber) : null,
+      postcode: extra.postcode || closeOnStreet?.postcode || extra.hit?.postcode || null,
+      city: extra.city || city,
+      state: extra.state || (city === 'Arica' ? 'Arica y Parinacota' : 'Tarapacá'),
+      precision: exact ? 'exact' : 'street',
+      source: extra.source || 'gps',
+      roadHint: highwayHint,
+      buildingLat: useBuilding ? bLat : null,
+      buildingLng: useBuilding ? bLng : null,
+    }), city, highwayHint);
+  };
 
   let chosen = null;
-  if (pinStreet && est && (pinOnHouse || pinOnStreet)) {
-    chosen = pack(pinStreet, est.n, {
-      precision: pinOnHouse ? 'exact' : 'interpolated',
+  if (closeOnStreet && closeOnStreet.d <= 40) {
+    chosen = pack(displayStreet, closeOnStreet.n, {
+      precision: 'exact',
       source: 'overpass',
+      buildingLat: closeOnStreet.lat,
+      buildingLng: closeOnStreet.lng,
     });
-  } else if (pinStreet && arc?.houseNumber && houseOnStreet(arc.road, pinStreet)) {
-    chosen = pack(pinStreet, arc.houseNumber, {
+  } else if (arcSameStreet) {
+    chosen = pack(displayStreet, arc.houseNumber, {
       postcode: arc.postcode,
-      precision: arc.precision || 'interpolated',
+      precision: 'exact',
       source: 'arcgis',
       buildingLat: arc.buildingLat,
       buildingLng: arc.buildingLng,
     });
   } else if (pinStreet) {
-    chosen = pack(pinStreet, est?.n || null, {
-      precision: est?.n ? 'interpolated' : 'street',
-      source: 'overpass',
-    });
-  } else if (ovResult?.hit?.houseNumber && Number.isFinite(est?.distM) && est.distM <= 12) {
-    chosen = pack(ovResult.hit.road || est.street, est.n || ovResult.hit.houseNumber, {
-      precision: 'exact',
-      source: 'overpass',
-    });
-  } else if (arc?.road && arc?.houseNumber && houseOnStreet(nom?.road || '', arc.road)) {
-    chosen = pack(nom.road || arc.road, arc.houseNumber, { postcode: arc.postcode, source: 'arcgis' });
-  } else {
-    const sameStreetMerge = [nom, pho].filter((h) => h?.road && (!arc?.road || houseOnStreet(h.road, arc.road)));
-    chosen = mergeReverseHits(sameStreetMerge.length ? sameStreetMerge : [nom, pho].filter(Boolean), la, ln);
-    if (chosen && arc?.road && chosen.road && !houseOnStreet(chosen.road, arc.road) && !houseOnStreet(chosen.road, nom?.road || '')) {
-      chosen = pack(nom?.road || chosen.road, null, { precision: 'street' });
+    const exactArc = await nearestExactPointOnStreet(la, ln, pinStreetRaw || pinStreet, city).catch(() => null);
+    if (exactArc?.houseNumber) {
+      chosen = pack(displayStreet || exactArc.road, exactArc.houseNumber, {
+        postcode: exactArc.postcode,
+        precision: 'exact',
+        source: 'arcgis',
+        buildingLat: exactArc.buildingLat ?? exactArc.lat,
+        buildingLng: exactArc.buildingLng ?? exactArc.lng,
+      });
+    } else {
+      chosen = pack(displayStreet, null, { precision: 'street', source: 'overpass' });
     }
+  } else if (arc?.precision === 'exact' && arc?.houseNumber) {
+    chosen = pack(prettyChileRoad(arc.road), arc.houseNumber, {
+      postcode: arc.postcode,
+      precision: 'exact',
+      source: 'arcgis',
+      buildingLat: arc.buildingLat,
+      buildingLng: arc.buildingLng,
+    });
+  } else {
+    chosen = pack(prettyChileRoad(nom?.road || pho?.road || ''), null, { precision: 'street' });
   }
 
   const finalHit = chosen
-    ? applyLocalRoadName({ ...chosen, lat: la, lng: ln, source: 'gps', city: chosen.city || city }, city)
+    ? applyLocalRoadName({
+      ...chosen,
+      lat: chosen.precision === 'exact' && Number.isFinite(Number(chosen.lat)) ? Number(chosen.lat) : la,
+      lng: chosen.precision === 'exact' && Number.isFinite(Number(chosen.lng)) ? Number(chosen.lng) : ln,
+      source: 'gps',
+      city: chosen.city || city,
+    }, city)
     : {
         id: `rev-raw-${la}-${ln}`,
         label: `Ubicación GPS (${la.toFixed(5)}, ${ln.toFixed(5)})`,
@@ -2909,7 +3092,6 @@ export async function reverseGeocodePrecise(lat, lng, opts = {}) {
 }
 
 export function precisionHint(precision) {
-  if (precision === 'exact') return 'Ubicación exacta del número';
-  if (precision === 'interpolated') return 'Ubicación estimada por número de casa';
-  return 'Calle confirmada — indica el número para más precisión';
+  if (precision === 'exact') return 'Dirección exacta de esta casa';
+  return 'Acerca la aguja a la puerta o busca calle y número para la dirección exacta';
 }

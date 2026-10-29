@@ -61,6 +61,8 @@ export const DEFAULT_BRANCHES = [
     deliveryZones: 'Alto Hospicio y conurbación',
     deliveryCost: 3000,
     deliveryEta: '45-60 min',
+    lat: -20.2675,
+    lng: -70.1008,
   },
   {
     id: 'pendiente',

@@ -25,5 +25,30 @@ export function formatEta(minutes) {
 }
 
 /** Centro default Iquique (norte de Chile — El Pollón) */
-export const DEFAULT_MAP_CENTER = { lng: -70.152, lat: -20.23 };
+export const DEFAULT_MAP_CENTER = { lng: -70.1357, lat: -20.2307 };
 export const DEFAULT_MAP_ZOOM = 13;
+
+/** Centro urbano por comuna, para abrir el mapa de checkout en las calles de esa sucursal. */
+export const CITY_MAP_CENTERS = {
+  iquique: { lat: -20.2307, lng: -70.1357 },
+  'alto hospicio': { lat: -20.2675, lng: -70.1008 },
+  arica: { lat: -18.4783, lng: -70.3126 },
+};
+
+function isUsableLatLng(lat, lng) {
+  return Number.isFinite(lat)
+    && Number.isFinite(lng)
+    && Math.abs(lat) <= 85
+    && Math.abs(lng) <= 180
+    && !(Math.abs(lat) < 0.02 && Math.abs(lng) < 0.02);
+}
+
+export function mapCenterForCity(city, biasLat, biasLng) {
+  const lat = Number(biasLat);
+  const lng = Number(biasLng);
+  if (isUsableLatLng(lat, lng)) return { lat, lng };
+  const key = String(city || '').trim().toLowerCase();
+  if (key.includes('hospicio')) return CITY_MAP_CENTERS['alto hospicio'];
+  if (key.includes('arica')) return CITY_MAP_CENTERS.arica;
+  return CITY_MAP_CENTERS.iquique;
+}
